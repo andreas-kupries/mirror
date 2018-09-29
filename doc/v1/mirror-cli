@@ -1,0 +1,29 @@
+
+mirror
+	vcs
+		list	/default/
+		add	code name ?-L path/to/logo?
+		remove	code|name
+		setup	code|name path/to/code
+		update	code|name path/to/code
+		cleanup	code|name path/to/code
+		check	code|name path/to/code
+		(operate code|name)
+
+	add	url ?vcs?	  /alias +/
+	remove	url 		  /alias -/
+	merge	url|id url|id
+	list	<chunking>
+	(operate url)
+
+	tag
+		add	url	/default/
+		remove	value	/alias untag/
+		list		/alias tags/
+
+	store
+		set /path/to/store/base		(default)
+		show
+
+	update
+

@@ -1,0 +1,106 @@
+# Mirrors, Backing up sources
+
+We have
+
+   - Repositories
+
+      - core/tcllib/
+      - github:tcl/tcllib
+      -	chiselapp/andreas-kupries/tcllib
+
+   - Groups of Repositories (for the same set of Sources)
+
+     s.a.
+
+   - Various (Distributed) Version Control Systems
+
+     git, fossil, bzr, hg, monotone, svn, cvs, rcs, sccs
+
+   - With different levels of support for their features
+
+      - git: pull only
+      - fossil: push, pull, sync
+
+     Note: For push/sync support we need some kind of user/pass
+     information (or api token) to auth our permission to write.
+
+     MVP: Just pull.
+
+   - Tags. Arbitrary collections of repository groups. Topics, Public
+     vs not. Etc.
+
+# Schema
+
+## repository
+
+The atomic thing to mirror locally
+
+	id	int	pk
+	url	string	unique			# location
+	vcs	int	ref(vcs)		# has-a, is-managed-by
+	mset	int	ref(mirror_set)		# belongs-to
+	~~
+	size	int	nullable		# attributes
+	desc	string	nullable		#
+
+## mirror_set
+
+A set of things in different locations for the same logical repository
+(same sources, set of files)
+
+	id	int	pk
+	comment	string	nullable
+
+## vcs
+
+A version control system 
+
+	id	int	pk
+	name	string	unique		# human readable name
+	code	string	unique		# short tag
+	logo	string	nullable	# optional blob/string for web display
+	setup	string			# create store for vcs at given location, pulling repos
+	update	string			# update store at given location, pulling repos
+	cleanup	string			# remove store at given location
+	check	string			# check that store at given location can handle repo
+
+At this point I am not sure if I want to these to be paths to external
+scripts, or plain Tcl scripts which will be run to perform the
+operations.
+
+Overall I believe would prefer scripts. Procedure bodies. Signatures
+fixed.  Will have access to supporting Tcl packages of the mirror
+system.
+
+	setup	<path> <url>...
+	update	<path> <url>...
+	cleanup <path>
+	check	<path> <url>	(check if repositories match: fossil project code)
+
+## store
+
+A repository, the internal stores for the repositories in a
+mirror_set.  Each subset of the repositories managed by the same vcs
+in a mirror_set has its own store.
+
+	id	int	pk
+	path	string	unique
+	vcs	int	ref(vcs)
+	mset	int	ref(mirror_set)
+
+## tag_value
+
+	id	int	pk
+	text	string
+
+## tag
+
+	id	int	pk
+	mset	int	ref(mirror_set)
+	value	int	ref(tag_value)
+	~~	unique (mset, value)
+
+# ERD
+
+vcs <--(1:n)-has-- repository --belongs-(n:1)--> mirror_set
+   \<--(1:n)-has-- store      --belongs-(n:1)-->/

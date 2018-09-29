@@ -1,0 +1,60 @@
+#!/usr/bin/env tclsh8.6
+# -*- tcl -*-
+
+# CLI
+# Database migration
+#
+# Enables testing of new migrations before appyling them to producton
+# databases. The path to the database to migrate is a required
+# argument. No accidental use of the default location.
+
+proc main {} {
+    migrate [cmdline]
+}
+
+proc cmdline {} {
+    global argv
+    if {[llength $argv] != 1} usage
+    return [lindex $argv 0]
+}
+
+proc usage {} {
+    global argv0
+    puts stderr "Usage: $argv0 /path/to/mirror-database"
+    exit 1
+}
+
+proc migrate {path} {
+    package require db::track
+    package require m::db::location
+    package require m::db
+
+    db track set Track
+    m::db::location set $path
+
+    # Create and migrates the database. It is hidden in the standard
+    # setup for database access.
+    m db eval {}
+
+    return
+}
+
+# # ## ### ##### Tracking implementation
+
+namespace eval Track {
+    namespace export At To Ok Done
+    namespace ensemble create
+}
+
+proc Track::At  {v} { puts            "Current at:  [V $v]" }
+proc Track::To  {v} { puts -nonewline "Updating to: [V $v]" ; flush stdout }
+proc Track::Ok  {v} { puts          "\rUpdated to:  [V $v]" }
+proc Track::Done {} { puts            "Migrations complete" }
+
+proc Track::V {v} {
+    if {![regexp {^(....)(..)(..)(..)(..)$} $v -> y m d H M]} { return $v }
+    return ${y}-${m}-${d}T${H}:${M}
+}
+
+# # ## ### ##### GO
+main
