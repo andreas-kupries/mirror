@@ -1,12 +1,34 @@
+## -*- tcl -*-
+# # ## ### ##### ######## ############# #####################
+## Database utilities - Setup, migration processing, schema management
+
+# @@ Meta Begin
+# Package db::setup 0
+# Meta author   {Andreas Kupries}
+# Meta location https://core.tcl.tk/akupries/????
+# Meta platform tcl
+# Meta summary     Database setup, migration management
+# Meta description Database setup, migration management
+# Meta subject {database setup} {migration processing} {schema management}
+# Meta require {Tcl 8.5-}
+# @@ Meta End
+
+package provide db::setup 0
+
+# # ## ### ##### ######## ############# #####################
+## Requisites
+
 package require Tcl 8.5
 package require db::track 0
 
-package provide db::setup 0
+# # ## ### ##### ######## ############# #####################
+## Definition
 
 namespace eval db::setup {
     namespace import ::db::track::it ; rename it track
     namespace export D C T I I+ > >+
 }
+
 namespace eval db {
     namespace export setup
     namespace ensemble create
@@ -155,3 +177,6 @@ namespace eval db::setup {
     variable thetable {}
     variable thedbcmd bogus-db-command
 }
+
+# # ## ### ##### ######## ############# #####################
+return
