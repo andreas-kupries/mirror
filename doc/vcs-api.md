@@ -12,6 +12,18 @@ Six operations
    - split
    - merge
 
+## General information
+
+   - `path` arguments are absolute paths. The store location is
+     resolved before the VCS code sees it.
+
+   - `path` arguments are directories. The directory can be assumed to
+     exist. The VCS plugin has free reign within that directory. the
+     VCS plugin must not operate outside of this directory.
+
+   - On `cleanup` the `path` directory is removed aftre the VCS plugin
+     has released anything special.
+
 ## setup
 
 Signature: `setup PATH URL ...`
@@ -57,4 +69,5 @@ store at the specified origin path.
 Signature: `merge PATH1 PATH2`
 
 Merge the two stores at the specified paths into a single store. The
-store at the second path is destroyed afterward.
+store at the second path is destroyed afterward, by the caller of
+`merge`.

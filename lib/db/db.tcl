@@ -22,16 +22,23 @@ package require Tcl 8.5
 package require m::db::location 0
 package require db::setup 0
 package require sqlite3
+package require debug
+package require debug::caller
+
+# # ## ### ##### ######## ############# ######################
+
+debug level  m/db
+debug prefix m/db {}
 
 # # ## ### ##### ######## ############# #####################
 ## Definition
 
-namespace eval m {
+namespace eval ::m {
     namespace export db
     namespace ensemble create
 }
 
-namespace eval m::db {
+namespace eval ::m::db {
     namespace import ::db::setup::*
 }
 
@@ -39,6 +46,7 @@ namespace eval m::db {
 # use TODO: Capture lock errors and re-try a few times, with backoff.
 
 proc ::m::db {args} {
+    debug.m/db {Setup}
     # On first use replace this initializer placeholder with the
     # actual database command.
     rename     ::m::db {}
@@ -55,6 +63,7 @@ proc ::m::db {args} {
 ## Migrations - database schema 
 
 proc ::m::db::SETUP-201809281600 {} {
+    debug.m/db {}
     # Initial setup. Create the basic tables.
     
     D m::db
@@ -114,7 +123,7 @@ proc ::m::db::SETUP-201809281600 {} {
 
     > 'current-repository'  ''
     > 'previous-repository' ''
-    > 'take'                ''
+    > 'take'                '5'
     > 'store'               '~/.mirror/store'
     > 'limit'               '20'
     > 'top'                 ''
@@ -124,8 +133,7 @@ proc ::m::db::SETUP-201809281600 {} {
     ## Mirror Set Pending - List of repositories waiting for an update
     ##                      to process them
     
-    I+
-    C mset  INTEGER  NOT NULL  ^mirror_set
+    C mset  INTEGER  NOT NULL  ^mirror_set  PRIMARY KEY
     T mset_pending
     
     # - -- --- ----- -------- -------------

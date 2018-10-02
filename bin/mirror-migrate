@@ -8,6 +8,19 @@
 # databases. The path to the database to migrate is a required
 # argument. No accidental use of the default location.
 
+# @@ Meta Begin
+# Application mirror-migrate   ?
+# Meta author      {Andreas Kupries}
+# Meta category    ?
+# Meta description ?
+# Meta location    https://core.tcl-lang.org/akupries/????
+# Meta platform    tcl
+# Meta require     m::cmdr
+# Meta require     {Tcl 8.5-}
+# Meta subject     ?
+# Meta summary     ?
+# @@ Meta End
+
 proc main {} {
     migrate [cmdline]
 }

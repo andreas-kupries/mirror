@@ -14,12 +14,19 @@
 # @@ Meta End
 
 package provide db::setup 0
+package require debug
+package require debug::caller
 
 # # ## ### ##### ######## ############# #####################
 ## Requisites
 
 package require Tcl 8.5
 package require db::track 0
+
+# # ## ### ##### ######## ############# ######################
+
+debug level  db/setup
+debug prefix db/setup {[debug caller] | }
 
 # # ## ### ##### ######## ############# #####################
 ## Definition
@@ -35,6 +42,7 @@ namespace eval db {
 }
 
 proc ::db::setup {db migrationbase} {
+    debug.db/setup {}
     # Call only when the DB command is already defined as a database
     # command proper.
     #
@@ -73,21 +81,25 @@ proc ::db::setup {db migrationbase} {
 }
 
 proc db::setup::D {args} {
+    debug.db/setup {}
     variable thedbcmd $args
     return
 }
 
 proc db::setup::I {} {
+    debug.db/setup {}
     C id INTEGER NOT NULL PRIMARY KEY
     return
 }
 
 proc db::setup::I+ {} {
+    debug.db/setup {}
     C id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT
     return
 }
 
 proc db::setup::C {name type args} {
+    debug.db/setup {}
     variable thecols
     lappend def $name $type
     foreach w $args {
@@ -102,6 +114,7 @@ proc db::setup::C {name type args} {
 }
 
 proc db::setup::T {table} {
+    debug.db/setup {}
     variable thecols
     variable thetable $table
     append def "CREATE TABLE $table\n( "
@@ -112,11 +125,13 @@ proc db::setup::T {table} {
 }
 
 proc db::setup::> {args} {
+    debug.db/setup {}
     variable thetable
     R "INSERT INTO $thetable VALUES ( [join $args ,] );"
 }
 
 proc db::setup::>+ {args} {
+    debug.db/setup {}
     variable thetable
     R "INSERT INTO $thetable VALUES ( NULL, [join $args ,] );"
 }
@@ -128,6 +143,7 @@ proc db::setup::R {sql} {
 }
 
 proc db::setup::PadR {i columns} {
+    debug.db/setup {}
     set max -1
     foreach c $columns {
 	set max [expr {max ($max, [string length [lindex $c $i]])}]
@@ -141,12 +157,14 @@ proc db::setup::PadR {i columns} {
 }
 
 proc db::setup::Flat {columns} {
+    debug.db/setup {}
     set tmp {}
     foreach c $columns { lappend tmp [join $c] }
     return $tmp
 }
 
 proc db::setup::SetVersion {db v} {
+    debug.db/setup {}
     $db eval {
 	UPDATE schema
 	SET    version = :v
@@ -156,6 +174,7 @@ proc db::setup::SetVersion {db v} {
 }
 
 proc db::setup::InitializeAndGetVersion {db} {
+    debug.db/setup {}
     return [$db eval [string map [list \t {}] {
 	CREATE TABLE IF NOT EXISTS schema
 	( key     TEXT    NOT NULL PRIMARY KEY

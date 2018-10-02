@@ -14,24 +14,41 @@
 # @@ Meta End
 
 package provide db::track 0
+package require debug
+package require debug::caller
 
 # # ## ### ##### ######## ############# #####################
 ## Requisites
 
 package require Tcl 8.5
 
+# # ## ### ##### ######## ############# ######################
+
+debug level  db/track
+debug prefix db/track {[debug caller] | }
+
 # # ## ### ##### ######## ############# #####################
 ## Definition
 
-namespace eval db::track { namespace export set it ; namespace ensemble create }
-namespace eval db        { namespace export track  ; namespace ensemble create }
+namespace eval db::track {
+    namespace export set it
+    namespace ensemble create
+}
+namespace eval db {
+    namespace export track
+    namespace ensemble create
+}
+
+# # ## ### ##### ######## ############# ######################
 
 proc db::track::set {args} {
+    debug.db/track {}
     variable thetrackcmd $args
     return
 }
 
 proc db::track::it {args} {
+    debug.db/track {}
     variable thetrackcmd
     if {![llength $thetrackcmd]} return
     uplevel #0 [list {*}$thetrackcmd {*}$args]

@@ -1,0 +1,90 @@
+#!/usr/bin/env tclsh8.5
+## -*- tcl -*-
+# # ## ### ##### ######## ############# ######################
+package require try
+
+if 0 {
+    puts =\t[join $auto_path \n=\t]
+    rename package __p
+    proc package {args} {
+	puts [info level 0]
+	try {
+	    set r [uplevel 1 [list __p {*}$args]]
+	} on error {e o} {
+	    set r $e
+	} finally {
+	    puts [info level 0]:\t$r
+	}
+    }
+}
+
+# CLI - Main application to manage the database of mirrors.
+
+# @@ Meta Begin
+# Application mirror   ?
+# Meta author      {Andreas Kupries}
+# Meta category    ?
+# Meta description ?
+# Meta location    https://core.tcl-lang.org/akupries/????
+# Meta platform    tcl
+# Meta require     m::cmdr
+# Meta require     {Tcl 8.5-}
+# Meta subject     ?
+# Meta summary     ?
+# @@ Meta End
+
+package require debug
+package require cmdr::color
+package require m::cmdr
+
+debug header {[::cmdr color {black bg-cyan} [clock format [clock seconds]]] }
+
+proc main {} {
+    global argv
+    debugflags
+    
+    # # ## ### ##### ######## ############# ######################
+    ## Invoke the application code.
+    ## Should possibly catch signals as well.
+
+    #puts "[info level 0]: $argv"
+    
+    set status 1
+    try {
+	set status [m cmdr main $argv]
+    } finally {
+	exit $status
+    }
+    return
+}
+
+proc debugflags {} {
+    global argv env
+    
+    # (1) Process all --debug flags we can find. This is done before
+    #     cmdr gets hold of the command line to enable the debugging
+    #     of the innards of cmdr itself.
+    # 
+    # (2) Further activate debugging early when specified through the
+    #     environment
+    #
+    # TODO: Put both of these into Cmdr, as convenience commands.
+
+    set copy $argv
+    while {[llength $copy]} {
+	set copy [lassign $copy first]
+	if {$first ne "--debug"} continue
+	set copy [lassign $copy tag]
+	debug on $tag
+    }
+
+    if {[info exists env(MIRROR_DEBUG)]} {
+	foreach tag [split $env(MIRROR_DEBUG) ,] {
+	    debug on [string trim $tag]
+	}
+    }
+    return
+}
+
+# # ## ### ##### GO
+main
