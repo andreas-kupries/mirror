@@ -28,92 +28,127 @@ mirror
 	add ?--vcs vcs? <url> ?name?
 
 		Add repository. The new repository is placed into its
-  		own mirror set. Command tries to auto-detect vcs type
-  		if not specified. Command derives a name from the url
-  		if not specified New repository and mirror become
-  		current.
+  		own mirror set. The command tries to auto-detect the
+  		vcs managing the url if not specified. The command
+  		derives a name for the mirror set from the url if not
+  		specified. The new repository becomes current.
 
-	remove ?url?
+	remove ?repository?
 
 	       Removes specified repository, or current. Previous
-	       current becomes current.
+	       becomes current again.
 
-	rename ?url? <name>
+	       Removing the last repository of a mirror set removes
+	       the mirror set.
 
-	       Change the name of the specified or current
-	       repository. Specified repository becomes current.
+	       Removing the last repository for a specific vcs in the
+	       mirror set removes the store for that vcs.
 
-	merge ?url? ?url?
+	rename ?repository? <name>
 
-	       Merges the specified repositories into a single mirror
-	       set. When only one repository is specified the other is
-	       the current repository. When no repository is specified
-	       the two repositories merged are current and previous
-	       current.
+	       Change the name of the mirror set containing the
+	       specified or current repository. The repository becomes
+	       current. Existing stores attached the mirror set are
+	       renamed to match.
 
-	       The user chooses the name of the merge.
+	merge ?repository...?
 
-	       The merge result becomes the current mirror set. The
-	       two current repositories in the involved mirrors set
-	       become current and previous for the merge result.
+	       Merges the mirror sets of the specified repositories
+	       into a single mirror set. The first repository is the
+	       merge target. If only a single repository is specified
+	       the current repository is used the merge target, and
+	       the specified is merged in. If no repository is
+	       specified the current repository is the merge target,
+	       and the previous is the repository to be merged in.
 
-	split ?url?
+	       The merge target becomes current, and the last of the
+	       merged repositories becomes previous.
 
-		Split the specified or current url from its mirror
-		set. Generates a new mirror set. Name derived from the
-		original mirror set. The split url becomes current.
+	       If some of the repositories point to the same mirror
+	       set the first specified repository for each mirror set
+	       is considered the representative, in terms of becoming
+	       current and previous.
 
+	       If all repositories point to the same mirror set then
+	       no merging takes place.
 
-	current <url> 
+	       The name of the merge target is the name of the merge
+	       result.
 
-		Makes specified repository current. Makes mirror set
-		of repository current.
+	split ?repository?
 
-	update ?url...?
+		Split the specified or current repository from its
+		mirror set. Generates a new mirror set. Name derived
+		from the original mirror set. The newly standalone
+		repository becomes current. If the repository was
+		standalone before the operation nothing is done.
+
+	current
+	@
+
+		Show current and previous repository
+
+	set-current <repository>
+	go
+	=>
+
+		Makes specified repository current.
+
+	update ?repository...?
 
 	       Run an update cycle on the mirror sets associated with
-	       the specified urls. When none are specified process
-	       `take` number of mirror sets from the list of pending
-	       mirror sets. If no mirror sets are pending fill the
-	       list with the entire set of mirror sets before taking.
+	       the specified repositories. When none are specified
+	       process `take` number of mirror sets from the list of
+	       pending mirror sets. If no mirror sets are pending fill
+	       the list with the entire set of mirror sets before
+	       taking.
 
-	list ?url? ?n?
+	list ?repository? ?n?
 
-		Show list of known urls. Sorted lexicographically by
-		mirror set (names), and urls in the mirror set.
+		Show a list of known repositories. The output is
+		sorted lexicographically by mirror set (names), and
+		urls in the mirror set.
 
-	        If specified listing starts from the specified url.
+	        If specified the listing starts from the specified
+	        repository.
 
-		Without url the listing starts either from the first
-	        entry, or after the last entry shown by the previous
-	        invokation of this command.
+		Without repository the listing starts either from the
+	        first repository per the sort order (s.a.), or from
+	        the first repository just after the last repository
+	        shown by the previous invokation of this command.
 
-		Exception to that: If the last writer to the
-		shorthands (see below) was `accept` then the shorthand
-		table is shown.
+		Exception to that: If the last writer to the rolodex
+		(see below) was `accept` then the rolodex is shown
+		instead.
 
-	        Listing past the end resets this to list from the
-	        first entry on the next invokation.
+	        When the listing goes past the last possible
+	        repository it is cut short at that repository, and
+	        further resets the state to cause the command to start
+	        the list at the first repository on the next
+	        invokation.
 
-		Note, this state is separate from the current mirror
-		set and repository. The listing will contain shorthand
-		ids which can be used in lieu of urls in all commands
-		taking urls.
+		Note, this repository reference is separate from the
+		current repository. The listing will contain ids which
+		can be used in lieu of urls in all commands taking
+		repository references.
 
-		If the listing did not show the shorthand table (see
-		above) then any shorthands from previous `accept`s are
-		overwritten.
+		These ids are stored in the rolodex for use by the
+		validation, and each invokation of `list` (and
+		`rewind`) will update it. If the listing did not show
+		the rolodex itself (see above) then any shorthands
+		from previous invokations of `accept` are overwritten.
 
-	        If specified limited to N entries.  If not specified a
-	        default limit is applied.
+	        If specified the listing is limited to N entries.  If
+	        not specified a default limit is applied.
 
 	reset
 
-		Reset list state to first entry.
+		Reset the list state such that the next invokation of
+		`list` wil lstart at the first repository.
 
 	rewind
 
-		Like list, going backward through the set of
+		Like `list`, going backward through the set of
 		repositories.
 
 	limit ?n?
@@ -128,23 +163,24 @@ mirror
 
 	accept <submission-id> ...
 
-		Accept the specified submissions. Each will placed
-		into their own mirror set. The new repository will be
-		entered into the table of shorthands, as if `list` had
-		been invoked. (To any make upcoming merges easier).
+		Accept the specified submissions, with an implied
+		`add`. Each will be placed into their own mirror
+		set. The new repository will be entered into the
+		rolodex, as if `list` had been invoked. (To make any
+		upcoming merges easier).
 
-		Note, multiple separate acceptances accumulate.
+		Note, multiple separate acceptances accumulate in the
+		rolodex.
 
-		Send mail to the specified email addresses to notify
-		them of the acceptance.
+		Send mail to the email addresses specified in the
+		submissions to notify them of the acceptance.
 
 	reject ?-mail? <cause> <submission-id> ...
 
-	       Reject the specified submissions.
-	       Do not send mail by default.
-	       (No need to give my own mail address to spammers)
+	       Reject the specified submissions. Does not send mail by
+	       default. No need to give a valid mail address to
+	       spammers.
 
-	       Mail can be forced, for example if the rejection is due
-	       to reasons other than spam.
-
+	       Sending of mail can be forced, for example if the
+	       rejection is due to reasons other than spam.
 ```

@@ -41,20 +41,32 @@ namespace eval ::m {
 namespace eval ::m::vcs {
     namespace export \
 	setup cleanup update check split merge \
-	id supported list detect code name url-norm name-from-url \
-	Run Runx Silent
+	id supported list detect code name url-norm name-from-url
     namespace ensemble create
-    #namespace export Run Runx Silent
 }
 
 # # ## ### ##### ######## ############# #####################
 
 proc ::m::vcs::setup {vcode name url} {
-    set dir  ${vcode}-[string map {: %3a / %2f} $name]
-    set path [file normalize [file join [m state store] $dir]]
-    file mkdir $path
-    m::vcs::${vcode}::setup $path $url
+    lassign [ToPath $vcode $name] path dir
+
+    # Ensure clean new environment
+    file delete -force -- $path
+    file mkdir            $path
+    
+    m::vcs::${vcode} setup $path $url
     return $dir
+}
+
+proc ::m::vcs::cleanup {vcode dir} {
+    set path [Path $dir]
+    
+    # Release vcs specific special resources ...
+    m::vcs::${vcode} cleanup $path
+
+    # ... and the store directory
+    file delete -force -- $path
+    return 
 }
 
 # # ## ### ##### ######## ############# #####################
@@ -84,6 +96,9 @@ proc ::m::vcs::name-from-url {vcode url} {
     # strip schema, host, user, pass ...
     # strip trailing bogus things ... (fossil specific)
 
+    set gh [string match *github* $url]
+    set gl [string match *gitlab* $url]
+    
     regsub -- {https://}    $url {} url
     regsub -- {http://}     $url {} url
     regsub -- {git@github:} $url {} url
@@ -95,7 +110,13 @@ proc ::m::vcs::name-from-url {vcode url} {
 	    return [lindex [file split $url] end]
 	}
 	git {
-	    return [join [lindex [file split $url] end-1 end] /]
+	    if {$gh} {
+		return [join [lrange [file split $url] end-1 end] /]@gh
+	    } elseif {$gl} {
+		return [join [lrange [file split $url] end-1 end] /]@gl
+	    } else {
+		return [lindex [file split $url] end]
+	    }
 	}
     }
 }
@@ -166,19 +187,15 @@ proc ::m::vcs::id {x} {
     return $id
 }
 
-proc ::m::vcs::Run {args} {
-    debug.m/vcs {}
-    exec 2>@ stderr >@ stdout {*}$args
+# # ## ### ##### ######## ############# #####################
+
+proc ::m::vcs::ToPath {vcode name} {
+    set dir [file join $vcode [string map {: %3a / %2f} $name]]
+    return [::list [Path $dir] $dir]
 }
 
-proc ::m::vcs::Runx {args} {
-    debug.m/vcs {}
-    exec 2>@ stderr {*}$args
-}
-
-proc ::m::vcs::Silent {args} {
-    debug.m/vcs {}
-    exec 2>@ /dev/null >@ /dev/null {*}$args
+proc ::m::vcs::Path {dir} {
+    return [file normalize [file join [m state store] $dir]]
 }
 
 # # ## ### ##### ######## ############# #####################

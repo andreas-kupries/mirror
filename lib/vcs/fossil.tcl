@@ -19,6 +19,7 @@ package provide m::vcs::fossil 0
 ## Requisites
 
 package require Tcl 8.5
+package require m::exec
 package require debug
 package require debug::caller
 
@@ -33,21 +34,18 @@ debug prefix m/vcs/fossil {[debug caller] | }
 namespace eval m::vcs::fossil {
     namespace export setup cleanup update check split merge
     namespace ensemble create
-
-    #namespace import ::m::vcs::Run ::m::vcs::Runx
 }
 
 proc m::vcs::fossil::setup {path args} {
     debug.m/vcs/fossil {}
-    set secondaries [lassign $args primary]
-    set r [FossilOf $path]
     
-    m::vcs::Run fossil clone $primary $r
-    m::vcs::Run fossil remote-url off -R $r
+    set primary [lindex $args 0]
+    set repo    [FossilOf $path]
     
-    foreach url $secondaries {
-	m::vcs::Run fossil pull $url --once -R $r
-    }
+    Fossil clone $primary $repo
+    Fossil remote-url off -R $repo
+
+    update $path {*}$args
     return
 }
 
@@ -58,23 +56,20 @@ proc m::vcs::fossil::cleanup {path} {
 
 proc m::vcs::fossil::update {path args} {
     debug.m/vcs/fossil {}
-    set r [FossilOf $path]
-
+    set repo   [FossilOf $path]
     set before [Count $path]
 
     foreach url $args {
-	Run fossil pull $url --once -R $r
+	Fossil pull $url --once -R $repo
     }
 
     set changed [expr {[Count $path] != $before}]
     return $changed
 }
 
-proc m::vcs::fossil::check {path url} {
+proc m::vcs::fossil::check {primary other} {
     debug.m/vcs/fossil {}
-    # See if the project code can be pulled with a REST call, instead
-    # of only through a clone.
-    return true
+    return [string equal [ProjectCode $primary] [ProjectCode $other]]
 }
 
 proc m::vcs::fossil::split {origin dst} {
@@ -91,6 +86,17 @@ proc m::vcs::fossil::merge {primary secondary} {
 # # ## ### ##### ######## ############# #####################
 ## Helpers
 
+proc m::vcs::fossil::Fossil {args} {
+    debug.m/vcs/fossil {}
+    m exec go fossil {*}$args
+    return
+}
+
+proc m::vcs::fossil::FossilGet {args} {
+    debug.m/vcs/fossil {}
+    return [m exec get fossil {*}$args]
+}
+
 proc m::vcs::fossil::FossilOf {path} {
     debug.m/vcs/fossil {}
     return [file join $path source.fossil]
@@ -99,11 +105,26 @@ proc m::vcs::fossil::FossilOf {path} {
 proc m::vcs::fossil::Count {path} {
     debug.m/vcs/fossil {}
     set f  [FossilOf $path]
-    foreach line [Runx fossil info -R $f] {
-	if {![string match *check-ins* $line]} continue
-	return [lindex $line 1]
+    return [Sel 1 [Grep1 check-ins:* [::split [FossilGet info -R $f] \n]]]
+}
+
+proc m::vcs::fossil::ProjectCode {path} {
+    debug.m/vcs/fossil {}
+    set f  [FossilOf $path]
+    return [Sel 1 [Grep1 project-code:* [::split [FossilGet info -R $f] \n]]]
+}
+
+proc m::vcs::fossil::Grep1 {pattern lines} {
+    debug.m/vcs/fossil {}
+    foreach line $lines {
+	if {![string match $pattern $line]} continue
+	return $line
     }
-    return -code error "Checkin count missing from $f"
+    return -code error "$pattern missing"
+}
+
+proc m::vcs::fossil::Sel {index line} {
+    return [lindex $line $index]
 }
 
 # # ## ### ##### ######## ############# #####################

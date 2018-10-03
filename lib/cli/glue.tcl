@@ -20,9 +20,6 @@ package require cmdr::color
 package require cmdr::table
 package require debug
 package require debug::caller
-#package require linenoise
-#package require textutil::adjust
-#package require try
 
 # # ## ### ##### ######## ############# ######################
 
@@ -37,6 +34,7 @@ namespace eval ::m::glue {
     namespace import ::cmdr::color
 
     namespace import ::cmdr::table::general ; rename general table
+    namespace import ::cmdr::table::dict    ; rename dict    table/d
 }
 
 # # ## ### ##### ######## ############# ######################
@@ -83,7 +81,10 @@ proc ::m::glue::cmd_vcs {config} {
 
 proc ::m::glue::cmd_add {config} {
     debug.m/glue {}
-    package require m::state
+    package require m::current
+    package require m::mset
+    package require m::repo
+    package require m::store
     package require m::vcs
     
     m db transaction {
@@ -109,34 +110,84 @@ proc ::m::glue::cmd_add {config} {
 	puts "  Named      [color note $name]"
 	puts "  Managed by [color note [m vcs name $vcs]]"
     
-	if {[HasRepository $url]} {
+	if {[m repo has $url]} {
 	    m::cmdr::error "Repository already present" \
 		HAVE_ALREADY REPOSITORY
 	}
-	if {[HasMirrorSet $name]} {
+	if {[m mset has $name]} {
 	    m::cmdr::error "Name already present" \
 		HAVE_ALREADY NAME
 	}
-	set mset [AddMirrorSet $name]
-	AddPending $mset
-	PushCurrent [AddRepository $vcs $mset $url]
+	set mset [m mset add $name]
+
+	m current push \
+	    [m repo add $vcs $mset $url]
 
 	puts [color note {Setting up the store ...}]
-	
-	AddTimes \
-	    [AddStore $vcs $mset \
-		 [m vcs setup $vcode $name $url]]
+
+	m store add $vcs $mset [m vcs setup $vcode $name $url]
 
 	puts [color note Done]
     }
 
+    ShowCurrent
     puts [color good OK]
     return
 }
 
 proc ::m::glue::cmd_remove {config} {
     debug.m/glue {}
-    puts [info level 0]		;# XXX TODO FILL-IN remove
+    package require m::current
+    package require m::mset
+    package require m::repo
+    package require m::store
+    package require m::vcs
+    
+    set repo [$config @repository]
+
+    m db transaction {
+	puts "Removing [color note [m repo name $repo]] ..."
+
+	set rinfo [m repo get $repo]
+	dict with rinfo {}
+	# -> url	repo url
+	#    vcs	vcs id
+	#    mset	mirror set id
+	#    name	mirror set name
+
+	m repo remove $repo
+
+	# Remove store if no repositories for the vcs remain in the
+	# mirror set.
+	if {![m repo size/vcs $vcs $mset]} {
+	    puts "- Removing store ..."
+
+	    set store [m store id $vcs $mset]
+	    m vcs cleanup \
+		[m vcs code $vcs] \
+		[m store path $store]
+	    m store remove $store
+	}
+
+	# Remove mirror set if no repositories remain at all.
+	if {![m repo size $mset]} {
+	    puts "- Removing mirror set [color note $name] ..."
+	    m mset remove $mset
+	}
+
+	# Update current and previous
+	if {$repo == [m current next]} {
+	    m current swap
+	    m current pop
+	    m current swap
+	}
+	if {$repo == [m current top]} {
+	    m current pop
+	}
+    }
+    
+    ShowCurrent
+    puts [color good OK]
     return
 }
 
@@ -160,7 +211,32 @@ proc ::m::glue::cmd_split {config} {
 
 proc ::m::glue::cmd_current {config} {
     debug.m/glue {}
-    puts [info level 0]		;# XXX TODO FILL-IN current
+    package require m::repo
+    package require m::current
+
+    ShowCurrent
+    puts [color good OK]
+    return
+}
+
+proc ::m::glue::cmd_swap_current {config} {
+    debug.m/glue {}
+    package require m::repo
+    package require m::current
+
+    m current swap
+    ShowCurrent
+    puts [color good OK]
+    return
+}
+
+proc ::m::glue::cmd_set_current {config} {
+    debug.m/glue {}
+    package require m::repo
+    package require m::current
+
+    m current push [$config @repository]
+    ShowCurrent
     return
 }
 
@@ -195,7 +271,7 @@ proc ::m::glue::cmd_limit {config} {
     if {[$config @limit set?]} {
 	m state limit [$config @limit]
     }
-    puts [m state limit]
+    puts "List display limited to [color note [m state limit]]"
     return
 }
 
@@ -217,85 +293,33 @@ proc ::m::glue::cmd_reject {config} {
     return
 }
 
-# # ## ### ##### ######## ############# ######################
-
-proc ::m::glue::PushCurrent {id} {
+proc ::m::glue::cmd_test_vt_repository {config} {
     debug.m/glue {}
-    m state previous-repository [m state current-repository]
-    m state current-repository $id
-}
-
-proc ::m::glue::AddStore {vcs mset path} {
-    debug.m/glue {}
-    m db eval {
-	INSERT
-	INTO   store
-	VALUES ( NULL, :path, :vcs, :mset )
-    }
-    return [m db last_insert_rowid]
-}
-
-proc ::m::glue::AddTimes {store} {
-    debug.m/glue {}
-    set now [clock seconds]
-    m db eval {
-	INSERT
-	INTO   store_times
-	VALUES ( NULL, :store, :now, :now )
-    }
-    return [m db last_insert_rowid]
-}
-
-proc ::m::glue::AddPending {mset} {
-    debug.m/glue {}
-    m db eval {
-	INSERT
-	INTO   mset_pending
-	VALUES ( :mset )
-    }
+    package require m::repo
+    
+    set map [m repo known]
+    [table/d t {
+	foreach k [lsort -dict [dict keys $map]] {
+	    set v [dict get $map $k]
+	    $t add $k $v
+	}
+    }] show
     return
 }
 
-proc ::m::glue::AddRepository {vcs mset url} {
+proc ::m::glue::cmd_debug_levels {config} {
     debug.m/glue {}
-    m db eval {
-	INSERT
-	INTO   repository
-	VALUES ( NULL, :url, :vcs, :mset )
-    }
-    return [m db last_insert_rowid]
+    puts [info level 0]		;# XXX TODO FILL-IN reject
+    return
 }
 
-proc ::m::glue::HasRepository {url} {
-    debug.m/glue {}
-    m db eval {
-	SELECT count (*)
-	FROM   repository
-	WHERE  url = :url
-    }
-}
+# # ## ### ##### ######## ############# ######################
 
-proc ::m::glue::AddMirrorSet {name} {
+proc ::m::glue::ShowCurrent {} {
     debug.m/glue {}
-    m db eval {
-	INSERT INTO name VALUES ( NULL, :name )
-    }
-    set nid [m db last_insert_rowid]
-    m db eval {
-	INSERT INTO mirror_set VALUES ( NULL, :nid )
-    }
-    return [m db last_insert_rowid]
-}
-
-proc ::m::glue::HasMirrorSet {name} {
-    debug.m/glue {}
-    m db eval {
-	SELECT count (*)
-	FROM   mirror_set M
-	,      name       N
-	WHERE  M.name = N.id
-	AND    N.name = :name
-    }
+    puts "Current:  [color note [m repo name [m current top]]]"
+    puts "Previous: [color note [m repo name [m current next]]]"
+    return
 }
 
 # # ## ### ##### ######## ############# ######################

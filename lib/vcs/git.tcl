@@ -19,6 +19,7 @@ package provide m::vcs::git 0
 ## Requisites
 
 package require Tcl 8.5
+package require m::exec
 package require debug
 package require debug::caller
 
@@ -33,13 +34,11 @@ debug prefix m/vcs/git {[debug caller] | }
 namespace eval m::vcs::git {
     namespace export setup cleanup update check split merge
     namespace ensemble create
-
-    #namespace import ::m::vcs::Run ::m::vcs::Runx
 }
 
 proc m::vcs::git::setup {path args} {
     debug.m/vcs/git {}
-    ::m::vcs::Run git --bare --git-dir [GitOf $path] init
+    m exec go git --bare --git-dir [GitOf $path] init
     update $path {*}$args
     return
 }
@@ -97,7 +96,7 @@ proc m::vcs::git::update {path args} {
     return $changed
 }
 
-proc m::vcs::git::check {path url} {
+proc m::vcs::git::check {primary other} {
     debug.m/vcs/git {}
     # No true check. Any repository can fit with any other.
     # The user is (unfortunately) responsible for keeping
@@ -136,7 +135,7 @@ proc m::vcs::git::Remotes {path} {
 
 proc m::vcs::git::Count {path} {
     debug.m/vcs/git {}
-    return [m::vcs::Runx git --git-dir [GitOf $path] rev-list --all --count]
+    return [m exec get git --git-dir [GitOf $path] rev-list --all --count]
 }
 
 proc m::vcs::git::Owned {remote} {
@@ -164,13 +163,8 @@ proc m::vcs::git::GitOf {path} {
 proc m::vcs::git::Git {args} {
     debug.m/vcs/git {}
     upvar 1 path path
-    m::vcs::Run git --git-dir [GitOf $path] {*}$args
-}
-
-proc m::vcs::git::GitX {args} {
-    debug.m/vcs/git {}
-    upvar 1 path path
-    m::vcs::Runx git --git-dir [GitOf $path] {*}$args
+    m exec go git --git-dir [GitOf $path] {*}$args
+    return
 }
 
 # # ## ### ##### ######## ############# #####################

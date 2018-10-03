@@ -90,6 +90,7 @@ proc ::m::db::SETUP-201809281600 {} {
     C url   TEXT     NOT NULL  UNIQUE
     C vcs   INTEGER  NOT NULL  ^version_control_system
     C mset  INTEGER  NOT NULL  ^mirror_set
+    U vcs mset
     T repository
 
     # - -- --- ----- -------- -------------
@@ -99,6 +100,7 @@ proc ::m::db::SETUP-201809281600 {} {
     C path  TEXT     NOT NULL  UNIQUE
     C vcs   INTEGER  NOT NULL  ^version_control_system
     C mset  INTEGER  NOT NULL  ^mirror_set
+    U vcs mset
     T store
 
     # - -- --- ----- -------- -------------
@@ -139,8 +141,7 @@ proc ::m::db::SETUP-201809281600 {} {
     # - -- --- ----- -------- -------------
     ## Store Times - Per store the times of last update and change
     
-    I+
-    C store    INTEGER  NOT NULL  ^store
+    C store    INTEGER  NOT NULL  ^store PRIMARY KEY
     C updated  INTEGER  NOT NULL
     C changed  INTEGER  NOT NULL
     T store_times

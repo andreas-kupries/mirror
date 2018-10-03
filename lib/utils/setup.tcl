@@ -33,7 +33,7 @@ debug prefix db/setup {[debug caller] | }
 
 namespace eval db::setup {
     namespace import ::db::track::it ; rename it track
-    namespace export D C T I I+ > >+
+    namespace export D C U T I I+ > >+
 }
 
 namespace eval db {
@@ -110,6 +110,12 @@ proc db::setup::C {name type args} {
 	}
     }
     lappend thecols [join $def]
+    return
+}
+
+proc db::setup::U {args} {
+    variable thecols
+    lappend thecols "UNIQUE ( [join $args {, }] )"
     return
 }
 

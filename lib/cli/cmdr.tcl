@@ -172,17 +172,40 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	    Use an alternate database instead of the default.
 	} {
 	    alias D
+	    validate rwfile
 	    when-set [lambda {p x} {
 		package require m::db::location
 		m::db::location set $x
 	    }]
 	}
-    }
 
-    common .verbose {
 	option verbose {
 	    Activate more chatter.
-	} { alias v; presence }
+	} { alias v
+	    presence
+	    when-set [lambda {p x} {
+		package require m::exec
+		m exec verbose on
+	    }]
+	}
+    }
+
+    common .optional-repository {
+	input repository {
+	    Repository to operate on.
+	} { optional ; validate [m::cmdr::vt repository] }
+    }
+
+    common .list-optional-repository {
+	input repository {
+	    Repository to operate on.
+	} { list ; optional ; validate [m::cmdr::vt repository] }
+    }
+
+    common .repository {
+	input repository {
+	    Repository to operate on.
+	} { validate  [m::cmdr::vt repository] }
     }
 
     # # ## ### ##### ######## ############# ######################
@@ -225,12 +248,10 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 
     private remove {
 	description {
-	    Removes specified repository, or current. Previous current
-	    becomes current.
+	    Removes specified repository, or current.
+	    Previous current becomes current.
 	}
-	input url {
-	    Repository to remove.
-	} { optional ; validate str }
+	use .optional-repository
     } [m::cmdr::call cmd_remove]
 
     private add {
@@ -238,10 +259,10 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	    Add repository. The new repository is placed into its own
 	    mirror set. Command tries to auto-detect vcs type if not
 	    specified. Command derives a name from the url if not
-	    specified. New repository and mirror become current.
+	    specified. New repository becomes current.
 	}
 	input url {
-	    Repository to add.
+	    Location of remote repository to add.
 	} { validate str }
 	input name {
 	    Name for the repository.
@@ -255,79 +276,86 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 
     private rename {
 	description {
-	    Change the name of the specified or current
-	    repository. Specified repository becomes current.
+	    Change the name of the mirror set holding the specified or
+	    current repository. Specified repository becomes current.
 	}
-	input url {
-	    Repository to rename.
-	} { optional ; validate str }
+	use .optional-repository
 	input name {
-	    Name for the repository.
+	    New name for the mirror set holding the repository.
 	} { validate str }
     } [m::cmdr::call cmd_rename]
 
     private merge {
 	description {
-	    Merges the specified repositories into a single mirror
-	    set. When only one repository is specified the other is
-	    the current repository. When no repository is specified
-	    the two repositories merged are current and previous
-	    current.
+	    Merges the (mirror sets of the) specified repositories
+	    into a single mirror set. When only one repository is
+	    specified the the current repository is used as the
+	    other. When no repository is specified the current and
+	    previous repositories are merged, current is primary.
 
-	    The user chooses the name of the merge.
-
-	    The merge result becomes the current mirror set. The two
-	    current repositories in the involved mirrors set become
-	    current and previous for the merge result.
+	    The name of the primary repository becomes the name of the
+	    merge. The primary repository becomes current.
 	}
 	input primary {
 	    Repository to merge into
-	} { optional ; validate str }
+	} { optional ; validate [m::cmdr::vt repository] }
 	input secondary {
 	    Repository to merge.
-	} { optional ; validate str }
+	} { optional ; validate [m::cmdr::vt repository] }
     } [m::cmdr::call cmd_merge]
 
     private split {
 	description {
-	    Split the specified or current url from its mirror
-	    set. Generates a new mirror set. Name derived from the
-	    original mirror set. The split repository becomes current.
+	    Split the specified or current repository from its mirror
+	    set. Generates a new mirror set for the repository. The
+	    name will derived from the original name. The referenced
+	    repository becomes current.
+
+	    If the referenced repository is a standalone already then
+	    nothing is done.
 	}
-	input url {
-	    Repository to split off.
-	} { optional ; validate str }
+	use .optional-repository
     } [m::cmdr::call cmd_split]
 
     private current {
 	description {
-	    Makes specified repository current. Makes mirror set of
-	    repository current.
+	    Shows the current and previous repository.
 	}
-	input url {
-	    Repository to make current.
-	} { validate str }
     } [m::cmdr::call cmd_current]
+    alias @
+
+    private set-current {
+	description {
+	    Makes the specified repository current.
+	}
+	use .repository
+    } [m::cmdr::call cmd_set_current]
+    alias =>
+    alias go
+
+    private swap {
+	description {
+	    Swap current and previous repository
+	}
+    } [m::cmdr::call cmd_swap_current]
     
     private update {
 	description {
-	    Run an update cycle on the mirror sets associated with the
-	    specified urls. When none are specified process `take`
-	    number of mirror sets from the list of pending mirror
-	    sets. If no mirror sets are pending fill the list with the
-	    entire set of mirror sets before taking.
+	    Runs an update cycle on the mirror sets associated with
+	    the specified repositories. When no repositories are
+	    specified use `take` number of mirror sets from the list
+	    of pending mirror sets. If no mirror sets are pending
+	    refill the list with the entire set of mirror sets and then
+	    take from the list.
 	}
-	input url {
-	    Repositories to update.
-	} { list ; optional ; validate str }
+	use .list-optional-repository
     } [m::cmdr::call cmd_update]
 
     private list {
 	description {
+	    Show partial list of the known repositories.
 	}
-	input url {
-	    Starting point for listing
-	} { optional ; validate str }
+	use .optional-repository
 	input limit {
 	    Size of listing.
 	} { optional ; validate cmdr::validate::posint }
@@ -350,7 +378,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	    Query/change default limit for repository listing.
 	}
 	input limit {
-	    New number of repository to show by list/ and rewind.
+	    New number of repositories to show by list and rewind.
 	} { optional ; validate cmdr::validate::posint }
     } [m::cmdr::call cmd_limit]
 
@@ -410,6 +438,12 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	common *all* -extend {
 	    section Advanced Debugging
 	}
+
+	private test-vt-repo {
+	    description {
+		Show the knowledge map used by the repository validator.
+	    }
+	} [m::cmdr::call cmd_test_vt_repository]
 
 	private levels {
 	    description {
