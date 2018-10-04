@@ -26,7 +26,9 @@ namespace eval ::m {
     namespace ensemble create
 }
 namespace eval ::m::store {
-    namespace export add has id path remove
+    namespace export \
+	add remove move has id \
+	list-for-mset
     namespace ensemble create
 }
 
@@ -37,41 +39,12 @@ debug prefix m/store {[debug caller] | }
 
 # # ## ### ##### ######## ############# ######################
 
-proc ::m::store::has {vcs mset} {
-    debug.m/store {}
-    return [m db onecolumn {
-	SELECT count (*)
-	FROM   store
-	WHERE  vcs  = :vcs
-	AND    mset = :mset
-    }]
-}
-
-proc ::m::store::id {vcs mset} {
-    debug.m/store {}
-    return [m db onecolumn {
-	SELECT id
-	FROM   store
-	WHERE  vcs  = :vcs
-	AND    mset = :mset
-    }]
-}
-
-proc ::m::store::path {store} {
-    debug.m/store {}
-    return [m db onecolumn {
-	SELECT path
-	FROM   store
-	WHERE  id = :store
-    }]
-}
-
-proc ::m::store::add {vcs mset path} {
+proc ::m::store::add {vcs mset} {
     debug.m/store {}
     m db eval {
 	INSERT
 	INTO   store
-	VALUES ( NULL, :path, :vcs, :mset )
+	VALUES ( NULL, :vcs, :mset )
     }
 
     set store [m db last_insert_rowid]
@@ -98,6 +71,46 @@ proc ::m::store::remove {store} {
 	WHERE id = :store
     }
     return   
+}
+
+proc ::m::store::move {vcs msetnew msetold} {
+    debug.m/store {}
+    m db eval {
+	UPDATE store
+	SET    mset = :msetnew
+	WHERE  vcs  = :vcs
+	AND    mset = :msetold
+    }
+    return
+}
+
+proc ::m::store::has {vcs mset} {
+    debug.m/store {}
+    return [m db onecolumn {
+	SELECT count (*)
+	FROM   store
+	WHERE  vcs  = :vcs
+	AND    mset = :mset
+    }]
+}
+
+proc ::m::store::id {vcs mset} {
+    debug.m/store {}
+    return [m db onecolumn {
+	SELECT id
+	FROM   store
+	WHERE  vcs  = :vcs
+	AND    mset = :mset
+    }]
+}
+
+proc ::m::store::list-for-mset {mset} {
+    debug.m/store {}
+    return [m db eval {
+	SELECT id
+	FROM   store
+	WHERE  mset = :mset
+    }]
 }
 
 # # ## ### ##### ######## ############# ######################

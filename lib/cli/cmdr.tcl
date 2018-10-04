@@ -197,8 +197,8 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
     }
 
     common .list-optional-repository {
-	input repository {
-	    Repository to operate on.
+	input repositories {
+	    Repositories to operate on.
 	} { list ; optional ; validate [m::cmdr::vt repository] }
     }
 
@@ -296,12 +296,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	    The name of the primary repository becomes the name of the
 	    merge. The primary repository becomes current.
 	}
-	input primary {
-	    Repository to merge into
-	} { optional ; validate [m::cmdr::vt repository] }
-	input secondary {
-	    Repository to merge.
-	} { optional ; validate [m::cmdr::vt repository] }
+	use .list-optional-repository
     } [m::cmdr::call cmd_merge]
 
     private split {

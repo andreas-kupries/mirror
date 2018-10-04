@@ -96,8 +96,8 @@ proc ::m::glue::cmd_add {config} {
 	    set vcs [m validate vcs \
 			 validate _ [m vcs detect $url]]
 	}
-	set vcode [m vcs code $vcs]
-	set url   [m vcs url-norm $url]
+	set vcode [m vcs code     $vcs]
+	set url   [m vcs url-norm $vcode $url]
     
 	if {[$config @name set?]} {
 	    set name [$config @name]
@@ -125,7 +125,8 @@ proc ::m::glue::cmd_add {config} {
 
 	puts [color note {Setting up the store ...}]
 
-	m store add $vcs $mset [m vcs setup $vcode $name $url]
+	m vcs setup $vcode $name $url \
+	    [m store add $vcs $mset]
 
 	puts [color note Done]
     }
@@ -152,37 +153,37 @@ proc ::m::glue::cmd_remove {config} {
 	dict with rinfo {}
 	# -> url	repo url
 	#    vcs	vcs id
+	#    vcode	vcs code
 	#    mset	mirror set id
 	#    name	mirror set name
 
 	m repo remove $repo
 
-	# Remove store if no repositories for the vcs remain in the
-	# mirror set.
-	if {![m repo size/vcs $vcs $mset]} {
-	    puts "- Removing store ..."
+	# Remove store for the repo's vcs if no repositories for that
+	# vcs remain in the mirror set.
+	if {![m mset has-vcs $mset $vcs]} {
+	    puts "- Removing $vcode store ..."
 
 	    set store [m store id $vcs $mset]
-	    m vcs cleanup \
-		[m vcs code $vcs] \
-		[m store path $store]
+	    m vcs cleanup $vcode $store
 	    m store remove $store
 	}
 
 	# Remove mirror set if no repositories remain at all.
-	if {![m repo size $mset]} {
+	if {![m mset size $mset]} {
 	    puts "- Removing mirror set [color note $name] ..."
 	    m mset remove $mset
 	}
 
 	# Update current and previous
 	if {$repo == [m current next]} {
-	    m current swap
-	    m current pop
-	    m current swap
+	    #                  (x repo)
+	    m current swap ; # (repo x)
+	    m current pop  ; # (x   '')
 	}
 	if {$repo == [m current top]} {
-	    m current pop
+	    #                 (repo ?)
+	    m current pop ; # (?   '')
 	}
     }
     
@@ -193,13 +194,85 @@ proc ::m::glue::cmd_remove {config} {
 
 proc ::m::glue::cmd_rename {config} {
     debug.m/glue {}
-    puts [info level 0]		;# XXX TODO FILL-IN rename
+    package require m::current
+    package require m::mset
+    package require m::repo
+    package require m::store
+    package require m::vcs
+
+    set repo   [$config @repository]
+    set target [$config @name]
+    debug.m/glue {repo  : $repo}
+    debug.m/glue {target: $target}
+    
+    m db transaction {
+	set rinfo [m repo get $repo]
+	debug.m/glue {rinfo : $rinfo}
+
+	dict with rinfo {}
+	# -> url	repo url
+	#    vcs	vcs id
+	#    vcode      vcs code
+	#    mset	mirror set id
+	#    name	mirror set name - old name
+	
+	puts "Renaming [color note $name] ..."
+	if {[m mset has $target]} {
+	    m::cmdr::error "Target [color note $target] already present" \
+		HAVE_ALREADY NAME
+	}
+
+	m mset rename $mset $target
+
+	foreach store [m store list-for-mset $mset] {
+	    m vcs rename $store $target
+	}
+
+	m current push $repo
+    }
+
+    ShowCurrent
+    puts [color good OK]
     return
 }
 
 proc ::m::glue::cmd_merge {config} {
     debug.m/glue {}
-    puts [info level 0]		;# XXX TODO FILL-IN merge
+    package require m::current
+    package require m::mset
+    package require m::repo
+    package require m::store
+    package require m::vcs
+
+    m db transaction {
+	set repos [MergeFill [$config @repositories]]
+	debug.m/glue {repos = ($repos)}
+	
+	set msets [MergeSets $repos]
+	debug.m/glue {msets = ($msets)}
+	
+	if {[llength $msets] < 2} {
+	    m::cmdr::error \
+		"All repositories are already in the same mirror set." \
+		NOP
+	}
+
+	set secondaries [lassign $msets primary]
+	
+	puts "Target:  [color note [m mset name $primary]]"
+
+	foreach secondary $secondaries {
+	    puts "Merging: [color note [m mset name $secondary]]"
+	    Merge $primary $secondary
+	}
+
+	m current set \
+	    [lindex $repos 0] \
+	    [lindex $repos end]
+    }
+
+    ShowCurrent
+    puts [color good OK]
     return
 }
 
@@ -315,10 +388,94 @@ proc ::m::glue::cmd_debug_levels {config} {
 
 # # ## ### ##### ######## ############# ######################
 
+proc ::m::glue::MergeSets {repos} {
+    debug.m/glue {}
+
+    # List of repos into list of mirror sets. Keep order, integrated
+    # dropping of duplicates.
+    
+    set has {}
+    set result {}
+    foreach r $repos {
+	set mset [dict get [m repo get $r] mset]
+	debug.m/glue {(r $r) -> (m $mset)}
+	
+	if {[dict exist $has $mset]} continue
+	dict set has $mset .
+	lappend result $mset
+    }
+    return $result
+}
+
+proc ::m::glue::MergeFill {repos} {
+    debug.m/glue {}
+    set n [llength $repos]
+
+    if {!$n} {
+	# No repositories. Use current and previous for merge
+	# target and source
+	return [m current get]
+    }
+    if {$n == 1} {
+	# A single repository is the merge origin. Use current as
+	# merge target.
+	return [linsert $repos 0 [m current top]]
+    }
+    return $repos
+}
+
+proc ::m::glue::Merge {primary secondary} {
+    debug.m/glue {}
+    # - Iterate the vcs in the source
+    #   - vcs not in destination: keep store, relink store to target.
+    #   - vcs present: drop source store
+    # - Relink all repositories into target
+
+    set vcss [m mset list-vcs $secondary]
+
+    # Check that all the secondary repositories fit into the primary.
+    foreach vcs $vcss {
+	if {![m store has $vcs $primary]} continue
+	# Get the two stores, and check for compatibility
+
+	set p [m store id $vcs $primary]
+	set s [m store id $vcs $secondary]
+
+	if {[m vcs check [m vcs code $vcs] $p $s]} continue
+
+	m::cmdr::error \
+	    "[m vcs name $vcs] mismatch" \
+	    MISMATCH
+    }
+
+    # Move or merge the stores
+    foreach vcs $vcss {
+	if {![m store has $vcs $primary]} {
+	    m store move $vcs $primary $secondary
+	} else {
+	    m vcs merge [m vcs code $vcs] $primary $secondary
+	    m store remove $secondary
+	}
+    }
+
+    # Move the repositories, drop the merged set.
+    
+    m repo move $vcs $primary $secondary
+    m mset remove             $secondary
+    return
+}
+
 proc ::m::glue::ShowCurrent {} {
     debug.m/glue {}
-    puts "Current:  [color note [m repo name [m current top]]]"
-    puts "Previous: [color note [m repo name [m current next]]]"
+    Show {Current } [m current top]
+    Show {Previous} [m current next]
+    return
+}
+
+proc ::m::glue::Show {label repo} {
+    debug.m/glue {}
+    if {$repo eq {}} return
+    puts "${label}: [color note [m repo name $repo]]"
     return
 }
 

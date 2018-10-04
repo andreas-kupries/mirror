@@ -33,7 +33,7 @@ debug prefix db/setup {[debug caller] | }
 
 namespace eval db::setup {
     namespace import ::db::track::it ; rename it track
-    namespace export D C U T I I+ > >+
+    namespace export D C U T I I+ > >+ X
 }
 
 namespace eval db {
@@ -128,7 +128,16 @@ proc db::setup::T {table} {
     append def "\n);"
     set thecols {}
     R $def
+    return
 }
+
+proc db::setup::X {args} {
+    variable theindex
+    variable thetable
+    R "CREATE INDEX ${thetable}_[incr theindex]\nON $thetable ( [join $args {, }] )"
+    return
+}
+
 
 proc db::setup::> {args} {
     debug.db/setup {}
@@ -200,6 +209,7 @@ proc db::setup::InitializeAndGetVersion {db} {
 namespace eval db::setup {
     variable thecols  {}
     variable thetable {}
+    variable theindex 0
     variable thedbcmd bogus-db-command
 }
 

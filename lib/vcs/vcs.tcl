@@ -22,6 +22,7 @@ package require Tcl 8.5
 package require m::vcs::fossil
 package require m::vcs::git
 package require m::db
+package require fileutil
 package require debug
 package require debug::caller
 
@@ -41,25 +42,44 @@ namespace eval ::m {
 namespace eval ::m::vcs {
     namespace export \
 	setup cleanup update check split merge \
-	id supported list detect code name url-norm name-from-url
+	id supported list detect code name \
+	url-norm name-from-url rename
     namespace ensemble create
 }
 
 # # ## ### ##### ######## ############# #####################
 
-proc ::m::vcs::setup {vcode name url} {
-    lassign [ToPath $vcode $name] path dir
+proc ::m::vcs::setup {vcode name url store} {
+    debug.m/vcs {}
+    # name - mset name
+    # url  - repo url
+    # store id -> Using for path.
+
+    set path [Path $store]
 
     # Ensure clean new environment
     file delete -force -- $path
     file mkdir            $path
+
+    fileutil::writeFile $path/name $name
+    fileutil::writeFile $path/url  $url
+    fileutil::writeFile $path/vcs  $vcode
     
     m::vcs::${vcode} setup $path $url
-    return $dir
+    return
 }
 
-proc ::m::vcs::cleanup {vcode dir} {
-    set path [Path $dir]
+proc ::m::vcs::rename {store name} {
+    debug.m/vcs {}
+
+    set path [Path $store]
+    fileutil::writeFile $path/name $name
+    return
+}
+
+proc ::m::vcs::cleanup {vcode store} {
+    debug.m/vcs {}
+    set path [Path $store]
     
     # Release vcs specific special resources ...
     m::vcs::${vcode} cleanup $path
@@ -67,6 +87,24 @@ proc ::m::vcs::cleanup {vcode dir} {
     # ... and the store directory
     file delete -force -- $path
     return 
+}
+
+proc ::m::vcs::check {vcode primary secondary} {
+    debug.m/vcs {}
+    set p [Path $primary]
+    set s [Path $secondary]
+    
+    return [m::vcs::${vcode} check $p $s]
+}
+
+proc ::m::vcs::merge {vcode primary secondary} {
+    debug.m/vcs {}
+    set p [Path $primary]
+    set s [Path $secondary]
+    
+    m::vcs::${vcode} merge $p $s
+    cleanup $vcode $secondary
+    return
 }
 
 # # ## ### ##### ######## ############# #####################
@@ -79,15 +117,20 @@ proc ::m::vcs::detect {url} {
     return fossil
 }
 
-proc ::m::vcs::url-norm {url} {
+proc ::m::vcs::url-norm {vcode url} {
     # Normalize the incoming url
     # I.e. for a number of known sites, force the use of the https
-    # they support.
+    # they support. Further strip known irrelevant trailers.
 
     lappend map http://github.com    https://github.com
     lappend map http://chiselapp.com https://chiselapp.com
     lappend map http://core.tcl.tk   https://core.tcl.tk
 
+    if {$vcode eq "fossil"} {
+	regsub -- {/index$}    $url {} url
+	regsub -- {/timeline$} $url {} url
+    }
+    
     return [string map $map $url]
 }
 
@@ -188,11 +231,6 @@ proc ::m::vcs::id {x} {
 }
 
 # # ## ### ##### ######## ############# #####################
-
-proc ::m::vcs::ToPath {vcode name} {
-    set dir [file join $vcode [string map {: %3a / %2f} $name]]
-    return [::list [Path $dir] $dir]
-}
 
 proc ::m::vcs::Path {dir} {
     return [file normalize [file join [m state store] $dir]]

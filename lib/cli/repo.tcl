@@ -28,7 +28,9 @@ namespace eval ::m {
     namespace ensemble create
 }
 namespace eval ::m::repo {
-    namespace export add has name known get remove size size/vcs
+    namespace export \
+	add remove move has get name \
+	known
     namespace ensemble create
 }
 
@@ -78,7 +80,7 @@ proc ::m::repo::known {} {
 proc ::m::repo::name {repo} {
     debug.m/repo {}
     return [m db onecolumn {
-	SELECT R.url || ' (in ' || N.name || ')'
+	SELECT R.url || ' (: ' || N.name || ')'
 	FROM   repository R
 	,      mirror_set M
 	,      name       N
@@ -111,18 +113,23 @@ proc ::m::repo::add {vcs mset url} {
 
 proc ::m::repo::get {repo} {
     debug.m/repo {}
-    return [m db eval {
-	SELECT 'url',  R.url
-	,      'vcs',  R.vcs
-	,      'mset', R.mset
-	,      'name', N.name
-	FROM   repository R
-	,      mirror_set M
-	,      name       N
+    set details [m db eval {
+	SELECT 'url'  , R.url
+	,      'vcs'  , R.vcs
+	,      'vcode', V.code
+	,      'mset' , R.mset
+	,      'name' , N.name
+	FROM   repository             R
+	,      mirror_set             M
+	,      name                   N
+	,      version_control_system V
 	WHERE  R.id = :repo
 	AND    M.id = R.mset
 	AND    N.id = M.name
+	AND    V.id = R.vcs
     }]
+    debug.m/repo {=> ($details)}
+    return $details
 }
 
 proc ::m::repo::remove {repo} {
@@ -134,23 +141,15 @@ proc ::m::repo::remove {repo} {
     }]
 }
 
-proc ::m::repo::size/vcs {vcs mset} {
+proc ::m::repo::move {vcs msetnew msetold} {
     debug.m/repo {}
-    return [m db onecolumn {
-	SELECT count (*)
-	FROM   repository
+    m db eval {
+	UPDATE repository
+	SET    mset = :msetnew
 	WHERE  vcs  = :vcs
-	AND    mset = :mset
-    }]
-}
-
-proc ::m::repo::size {mset} {
-    debug.m/repo {}
-    return [m db onecolumn {
-	SELECT count (*)
-	FROM   repository
-	WHERE  mset = :mset
-    }]
+	AND    mset = :msetold
+    }
+    return
 }
 
 # # ## ### ##### ######## ############# ######################

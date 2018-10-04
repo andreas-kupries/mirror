@@ -13,8 +13,8 @@ Streamlined v1 to basics.
 mirror
 	store ?path?
 
-		Query/change store path. Change implies copying all
-	      	existing stores to the new location. Removes all
+		Query/change base store path. Change implies copying
+	      	all existing stores to the new location. Removes all
 	      	pre-existing stores in the new location.
 
 	take ?int?
@@ -48,8 +48,7 @@ mirror
 
 	       Change the name of the mirror set containing the
 	       specified or current repository. The repository becomes
-	       current. Existing stores attached the mirror set are
-	       renamed to match.
+	       current.
 
 	merge ?repository...?
 
@@ -62,12 +61,7 @@ mirror
 	       and the previous is the repository to be merged in.
 
 	       The merge target becomes current, and the last of the
-	       merged repositories becomes previous.
-
-	       If some of the repositories point to the same mirror
-	       set the first specified repository for each mirror set
-	       is considered the representative, in terms of becoming
-	       current and previous.
+	       referenced repositories to merge becomes previous.
 
 	       If all repositories point to the same mirror set then
 	       no merging takes place.

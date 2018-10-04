@@ -27,7 +27,7 @@ namespace eval ::m {
     namespace ensemble create
 }
 namespace eval ::m::current {
-    namespace export push swap pop dup top next
+    namespace export set get push swap pop dup top next
     namespace ensemble create
 }
 
@@ -37,6 +37,18 @@ debug level  m/current
 debug prefix m/current {[debug caller] | }
 
 # # ## ### ##### ######## ############# ######################
+
+proc ::m::current::get {} {
+    debug.m/current {}
+    return [list [top] [next]]
+}
+
+proc ::m::current::set {top next} {
+    debug.m/current {}
+    m state current-repository  $top
+    m state previous-repository $next
+    return
+}
 
 proc ::m::current::top {} {
     debug.m/current {}
@@ -50,14 +62,15 @@ proc ::m::current::next {} {
 
 proc ::m::current::push {repo} {
     debug.m/current {}
-    m state previous-repository [m state current-repository]
-    m state current-repository  $repo
-    return
-}
+    ::set c [m state current-repository]
 
-proc ::m::current::push {repo} {
-    debug.m/current {}
-    m state previous-repository [m state current-repository]
+    debug.m/current {N '$repo'}
+    debug.m/current {C '$c'}
+    
+    if {$repo == $c} return
+    # We push only when current actually changes.
+    
+    m state previous-repository $c
     m state current-repository  $repo
     return
 }
@@ -77,8 +90,8 @@ proc ::m::current::dup {} {
 
 proc ::m::current::swap {} {
     debug.m/current {}
-    set c [m state current-repository]
-    set p [m state previous-repository]
+    ::set c [m state current-repository]
+    ::set p [m state previous-repository]
     m state current-repository  $p
     m state previous-repository $c
     return

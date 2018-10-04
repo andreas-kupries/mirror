@@ -90,14 +90,14 @@ proc ::m::db::SETUP-201809281600 {} {
     C url   TEXT     NOT NULL  UNIQUE
     C vcs   INTEGER  NOT NULL  ^version_control_system
     C mset  INTEGER  NOT NULL  ^mirror_set
-    U vcs mset
     T repository
+    X vcs mset
 
     # - -- --- ----- -------- -------------
     ## Store - Internal equivalent of a repository. Holder of backups
+    ## Note: External path is implied in the row id.
     
     I+
-    C path  TEXT     NOT NULL  UNIQUE
     C vcs   INTEGER  NOT NULL  ^version_control_system
     C mset  INTEGER  NOT NULL  ^mirror_set
     U vcs mset
