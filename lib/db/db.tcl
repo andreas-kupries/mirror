@@ -55,6 +55,13 @@ proc ::m::db {args} {
     # Initialize it.
     ::db setup ::m::db ::m::db::SETUP
 
+    # Under narrative tracing intercept sql commands.
+    debug.m/db {Intercept[rename ::m::db ::m::dbx][proc ::m::db {args} {
+	debug.m/db {}
+	#puts <<<[info level 0]>>>
+	uplevel 1 [list ::m::dbx {*}$args]
+    }]}
+    
     # Re-execute the call using the proper definition.
     uplevel 1 [list ::m::db {*}$args]
 }
@@ -62,7 +69,7 @@ proc ::m::db {args} {
 # # ## ### ##### ######## ############# #####################
 ## Migrations - database schema 
 
-proc ::m::db::SETUP-201809281600 {} {
+proc ::m::db::SETUP-201810051600 {} {
     debug.m/db {}
     # Initial setup. Create the basic tables.
     
@@ -123,13 +130,10 @@ proc ::m::db::SETUP-201809281600 {} {
     C value  TEXT  NOT NULL
     T state
 
-    > 'current-repository'  ''
-    > 'previous-repository' ''
-    > 'take'                '5'
-    > 'store'               '~/.mirror/store'
     > 'limit'               '20'
+    > 'store'               '~/.mirror/store'
+    > 'take'                '5'
     > 'top'                 ''
-    > 'rolodex-origin'      ''
 
     # - -- --- ----- -------- -------------
     ## Mirror Set Pending - List of repositories waiting for an update
@@ -149,9 +153,8 @@ proc ::m::db::SETUP-201809281600 {} {
     # - -- --- ----- -------- -------------
     ## Rolodex - Short hand references to recently seen repositories
 
-    I+
+    I
     C repository INTEGER NOT NULL  ^repository  UNIQUE
-    C tag        TEXT    NOT NULL               UNIQUE
     T rolodex
 
     # - -- --- ----- -------- -------------

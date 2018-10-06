@@ -19,9 +19,10 @@ package provide m::vcs 0
 ## Requisites
 
 package require Tcl 8.5
+package require m::db
+package require m::state
 package require m::vcs::fossil
 package require m::vcs::git
-package require m::db
 package require fileutil
 package require debug
 package require debug::caller
@@ -49,61 +50,92 @@ namespace eval ::m::vcs {
 
 # # ## ### ##### ######## ############# #####################
 
-proc ::m::vcs::setup {vcode name url store} {
+proc ::m::vcs::setup {store vcs name url} {
     debug.m/vcs {}
-    # name - mset name
-    # url  - repo url
     # store id -> Using for path.
-
-    set path [Path $store]
+    # vcs   id -> Decode to plugin name
+    # name     -  mset name
+    # url      -  repo url
+    set path  [Path $store]
+    set vcode [code $vcs]
 
     # Ensure clean new environment
     file delete -force -- $path
     file mkdir            $path
 
-    fileutil::writeFile $path/name $name
-    fileutil::writeFile $path/url  $url
-    fileutil::writeFile $path/vcs  $vcode
-    
-    m::vcs::${vcode} setup $path $url
+    fileutil::writeFile $path/%name $name  ;# Mirror set
+    fileutil::writeFile $path/%vcs  $vcode ;# Manager
+
+    # Create vcs-specific special resources, if any
+    $vcode setup $path $url
     return
 }
 
 proc ::m::vcs::rename {store name} {
     debug.m/vcs {}
-
+    # store id -> Using for path.
+    # name     -  new mset name
     set path [Path $store]
-    fileutil::writeFile $path/name $name
+    fileutil::writeFile $path/%name $name
     return
 }
 
-proc ::m::vcs::cleanup {vcode store} {
+proc ::m::vcs::cleanup {store vcs} {
     debug.m/vcs {}
+    # store id -> Using for path.
+    # vcs   id -> Decode to plugin name
     set path [Path $store]
+    set vcode [code $vcs]
+
+    # TODO MAYBE: check vcode against contents of $path/%vcs.
     
-    # Release vcs specific special resources ...
-    m::vcs::${vcode} cleanup $path
+    # Release vcs-specific special resources, if any
+    $vcode cleanup $path
 
     # ... and the store directory
     file delete -force -- $path
     return 
 }
 
-proc ::m::vcs::check {vcode primary secondary} {
+proc ::m::vcs::check {vcs storea storeb} {
     debug.m/vcs {}
-    set p [Path $primary]
-    set s [Path $secondary]
-    
-    return [m::vcs::${vcode} check $p $s]
+    set patha [Path $storea]
+    set pathb [Path $storeb]
+    set vcode [code $vcs]
+
+    # Check if the two stores are mergable
+    return [$vcode check $patha $pathb]
 }
 
-proc ::m::vcs::merge {vcode primary secondary} {
+proc ::m::vcs::merge {vcs target origin} {
     debug.m/vcs {}
-    set p [Path $primary]
-    set s [Path $secondary]
+    set ptarget [Path $target]
+    set porigin [Path $origin]
+    set vcode   [code $vcs]
+
+    # Merge vcs specific special resources, if any ...
+    $vcode merge $ptarget $porigin
+
+    # Destroy the merged store
+    cleanup $origin $vcs
+    return
+}
+
+proc ::m::vcs::split {vcs origin dst dstname} {
+    debug.m/vcs {}
+    set pdst    [Path $dst]
+    set porigin [Path $origin]
+    set vcode   [code $vcs]
     
-    m::vcs::${vcode} merge $p $s
-    cleanup $vcode $secondary
+    # Ensure clean copy
+    file delete -force -- $pdst
+    file copy   -force -- $porigin $pdst
+
+    # Inlined rename of origin's new copy
+    fileutil::writeFile $pdst/%name $dstname
+    
+    # Split/create vcs specific special resources, if any ...
+    $vcode split $porigin $pdst
     return
 }
 

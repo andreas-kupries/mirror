@@ -31,6 +31,10 @@ debug prefix m/vcs/fossil {[debug caller] | }
 # # ## ### ##### ######## ############# #####################
 ## Definition
 
+namespace eval m::vcs {
+    namespace export fossil
+    namespace ensemble create
+}
 namespace eval m::vcs::fossil {
     namespace export setup cleanup update check split merge
     namespace ensemble create
@@ -74,7 +78,6 @@ proc m::vcs::fossil::check {primary other} {
 
 proc m::vcs::fossil::split {origin dst} {
     debug.m/vcs/fossil {}
-    file copy [FossilOf $origin] [FossilOf $dst]
     return
 }
 

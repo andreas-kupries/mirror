@@ -31,6 +31,10 @@ debug prefix m/vcs/git {[debug caller] | }
 # # ## ### ##### ######## ############# #####################
 ## Definition
 
+namespace eval m::vcs {
+    namespace export git
+    namespace ensemble create
+}
 namespace eval m::vcs::git {
     namespace export setup cleanup update check split merge
     namespace ensemble create
@@ -106,10 +110,6 @@ proc m::vcs::git::check {primary other} {
 
 proc m::vcs::git::split {origin dst} {
     debug.m/vcs/git {}
-    # Note: The mismatching remotes are cleared up by the next call to
-    # `update`.
-    
-    file copy [GitOf $origin] [GitOf $dst]
     return
 }
 
@@ -157,7 +157,7 @@ proc m::vcs::git::RemoteOf {url} {
 
 proc m::vcs::git::GitOf {path} {
     debug.m/vcs/git {}
-    return [file join $path _git]
+    return [file join $path source.git]
 }
 
 proc m::vcs::git::Git {args} {

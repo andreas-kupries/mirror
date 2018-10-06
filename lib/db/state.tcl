@@ -36,28 +36,11 @@ namespace eval ::m {
     namespace ensemble create
 }
 namespace eval ::m::state {
-    namespace export current-repository previous-repository \
-	take store limit top rolodex-origin
+    namespace export take store limit top
     namespace ensemble create
 }
 
 # # ## ### ##### ######## ############# #####################
-
-proc ::m::state::current-repository {{v {}}} {
-    debug.m/state {}
-    if {[llength [info level 0]] == 2} {
-	return [Set current-repository $v]
-    }
-    return [Get current-repository]
-}
-
-proc ::m::state::previous-repository {{v {}}} {
-    debug.m/state {}
-    if {[llength [info level 0]] == 2} {
-	return [Set previous-repository $v]
-    }
-    return [Get previous-repository]
-}
 
 proc ::m::state::take {{v {}}} {
     debug.m/state {}
@@ -89,14 +72,6 @@ proc ::m::state::top {{v {}}} {
 	return [Set top $v]
     }
     return [Get top]
-}
-
-proc ::m::state::rolodex-origin {{v {}}} {
-    debug.m/state {}
-    if {[llength [info level 0]] == 2} {
-	return [Set rolodex-origin $v]
-    }
-    return [Get rolodex-origin]
 }
 
 # # ## ### ##### ######## ############# #####################

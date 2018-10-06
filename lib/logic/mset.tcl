@@ -28,7 +28,8 @@ namespace eval ::m {
 namespace eval ::m::mset {
     namespace export \
 	add remove rename has \
-	name list-vcs has-vcs size
+	name used-vcs has-vcs size \
+	stores
     namespace ensemble create
 }
 
@@ -106,7 +107,16 @@ proc ::m::mset::has {name} {
     }]
 }
 
-proc ::m::mset::list-vcs {mset} {
+proc ::m::mset::stores {mset} {
+    debug.m/mset {}
+    return [m db eval {
+	SELECT id
+	FROM   store
+	WHERE  mset = :mset
+    }]
+}
+
+proc ::m::mset::used-vcs {mset} {
     debug.m/mset {}
     return [m db eval {
 	SELECT DISTINCT vcs

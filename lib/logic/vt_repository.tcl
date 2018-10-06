@@ -22,7 +22,7 @@ package require Tcl 8.5
 package require cmdr::validate::common 1.2
 package require try
 package require m::repo
-package require m::current
+package require m::rolodex
 package require m::match
 package require debug
 package require debug::caller
@@ -59,7 +59,9 @@ debug prefix m/validate/repository {[debug caller] | }
 # # ## ### ##### ######## ############# #####################
 
 proc ::m::validate::repository::release  {p x} { return }
-proc ::m::validate::repository::default  {p}   { return {} }
+proc ::m::validate::repository::default  {p}   {
+    return [m rolodex top]
+}
 proc ::m::validate::repository::complete {p x} {
     debug.m/validate/repository {} 10
     return [complete-enum [dict keys [m repo known]] 0 $x]

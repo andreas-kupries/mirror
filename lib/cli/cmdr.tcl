@@ -72,6 +72,7 @@ proc ::m::cmdr::main {argv} {
       trap {CMDR ACTION BAD} {e o} - \
       trap {CMDR VALIDATE} {e o} - \
       trap {CMDR PARAMETER LOCKED} {e o} - \
+      trap {CMDR PARAMETER UNDEFINED} {e o} - \
       trap {CMDR DO UNKNOWN} {e o} {
 	debug.m/cmdr {trap - cmdline user error}
 	puts stderr "$::argv0 cmdr: [cmdr color error $e]"
@@ -103,11 +104,11 @@ proc ::m::cmdr::main {argv} {
 ## Support commands constructing glue for various callbacks.
 
 # NOTE: call, vt - Possible convenience cmds for Cmdr.
-proc ::m::cmdr::call {args} {
-    lambda {cmd args} {
-	package require m::glue
-	m::glue {*}$cmd {*}$args
-    } $args
+proc ::m::cmdr::call {pkg args} {
+    lambda {pkg args} {
+	package require m::$pkg
+	m $pkg {*}$args
+    } $pkg $args
 }
 
 proc ::m::cmdr::vt {p args} {
@@ -193,7 +194,10 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
     common .optional-repository {
 	input repository {
 	    Repository to operate on.
-	} { optional ; validate [m::cmdr::vt repository] }
+	} { optional
+	    validate [m::cmdr::vt repository]
+	    generate [m::cmdr::call glue gen_current]
+	}
     }
 
     common .list-optional-repository {
@@ -205,7 +209,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
     common .repository {
 	input repository {
 	    Repository to operate on.
-	} { validate  [m::cmdr::vt repository] }
+	} { validate [m::cmdr::vt repository] }
     }
 
     # # ## ### ##### ######## ############# ######################
@@ -228,7 +232,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	input path {
 	    New location of the store
 	} { optional ; validate rwpath }
-    } [m::cmdr::call cmd_store]
+    } [m::cmdr::call glue cmd_store]
 
     private take {
 	description {
@@ -238,21 +242,20 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	input take {
 	    New number of mirror set to process in one update.
 	} { optional ; validate cmdr::validate::posint }
-    } [m::cmdr::call cmd_take]
+    } [m::cmdr::call glue cmd_take]
 
     private vcs {
 	description {
 	    List supported version control systems
 	}
-    } [m::cmdr::call cmd_vcs]
+    } [m::cmdr::call glue cmd_vcs]
 
     private remove {
 	description {
 	    Removes specified repository, or current.
-	    Previous current becomes current.
 	}
 	use .optional-repository
-    } [m::cmdr::call cmd_remove]
+    } [m::cmdr::call glue cmd_remove]
 
     private add {
 	description {
@@ -261,43 +264,53 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	    specified. Command derives a name from the url if not
 	    specified. New repository becomes current.
 	}
+	option vcs {
+	    Version control system handling the repository
+	} {
+	    validate [m::cmdr::vt vcs]
+	    generate [m::cmdr::call glue gen_vcs]
+	}
+	state vcs-code {
+	    Version control system handling the repository.
+	    Internal code, derived from the option value (database id).
+	} {
+	    generate [m::cmdr::call glue gen_vcs_code]
+	}
 	input url {
 	    Location of remote repository to add.
 	} { validate str }
 	input name {
 	    Name for the repository.
-	} { optional ; validate str }
-	option vcs {
-	    Version control system handling the repository
-	} {
-	    validate [m::cmdr::vt vcs]
+	} { optional
+	    validate str
+	    generate [m::cmdr::call glue gen_name]
 	}
-    } [m::cmdr::call cmd_add]
+    } [m::cmdr::call glue cmd_add]
 
     private rename {
 	description {
 	    Change the name of the mirror set holding the specified or
-	    current repository. Specified repository becomes current.
+	    current repository. Renamed repository becomes current.
 	}
 	use .optional-repository
 	input name {
 	    New name for the mirror set holding the repository.
 	} { validate str }
-    } [m::cmdr::call cmd_rename]
+    } [m::cmdr::call glue cmd_rename]
 
     private merge {
 	description {
 	    Merges the (mirror sets of the) specified repositories
 	    into a single mirror set. When only one repository is
-	    specified the the current repository is used as the
-	    other. When no repository is specified the current and
-	    previous repositories are merged, current is primary.
+	    specified the current repository is used as the merge
+	    target. When no repository is specified the current and
+	    previous repositories are merged, current is merge target
 
 	    The name of the primary repository becomes the name of the
-	    merge. The primary repository becomes current.
+	    merge. The merge target becomes current.
 	}
 	use .list-optional-repository
-    } [m::cmdr::call cmd_merge]
+    } [m::cmdr::call glue cmd_merge]
 
     private split {
 	description {
@@ -310,13 +323,13 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	    nothing is done.
 	}
 	use .optional-repository
-    } [m::cmdr::call cmd_split]
+    } [m::cmdr::call glue cmd_split]
 
     private current {
 	description {
-	    Shows the current and previous repository.
+	    Shows the rolodex.
 	}
-    } [m::cmdr::call cmd_current]
+    } [m::cmdr::call glue cmd_current]
     alias @
 
     private set-current {
@@ -324,7 +337,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	    Makes the specified repository current.
 	}
 	use .repository
-    } [m::cmdr::call cmd_set_current]
+    } [m::cmdr::call glue cmd_set_current]
     alias =>
     alias go
 
@@ -332,7 +345,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	description {
 	    Swap current and previous repository
 	}
-    } [m::cmdr::call cmd_swap_current]
+    } [m::cmdr::call glue cmd_swap_current]
     
     private update {
 	description {
@@ -344,29 +357,39 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	    take from the list.
 	}
 	use .list-optional-repository
-    } [m::cmdr::call cmd_update]
+    } [m::cmdr::call glue cmd_update]
 
     private list {
 	description {
 	    Show partial list of the known repositories.
 	}
-	use .optional-repository
-	input limit {
-	    Size of listing.
-	} { optional ; validate cmdr::validate::posint }
-    } [m::cmdr::call cmd_list]
+	option repository {
+	    Repository to start the listing with.
+	} {
+	    alias R
+	    validate [m::cmdr::vt repository]
+	}
+	option limit {
+	    Number of repositories to show.
+	    Defaults to the `limit`.
+	} {
+	    alias L
+	    validate cmdr::validate::posint
+	    generate [m::cmdr::call glue gen_limit]
+	}
+    } [m::cmdr::call glue cmd_list]
 
     private reset {
 	description {
 	    Reset list state to first entry.
 	}
-    } [m::cmdr::call cmd_reset]
+    } [m::cmdr::call glue cmd_reset]
 
     private rewind {
 	description {
 	    Like list, going backward through the set of repositories.
 	}
-    } [m::cmdr::call cmd_rewind]
+    } [m::cmdr::call glue cmd_rewind]
 
     private limit {
 	description {
@@ -375,7 +398,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	input limit {
 	    New number of repositories to show by list and rewind.
 	} { optional ; validate cmdr::validate::posint }
-    } [m::cmdr::call cmd_limit]
+    } [m::cmdr::call glue cmd_limit]
 
     private submissions {
 	description {
@@ -383,7 +406,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	    are shown with a shorthand id for easier reference by accept
 	    or reject.
 	}
-    } [m::cmdr::call cmd_submissions]
+    } [m::cmdr::call glue cmd_submissions]
 
     private accept {
 	description {
@@ -400,7 +423,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	input id {
 	    Submissions to accept
 	} { list ; validate cmdr::validate::posint }
-    } [m::cmdr::call cmd_accept]
+    } [m::cmdr::call glue cmd_accept]
 
     private reject {
 	description {
@@ -420,7 +443,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	input id {
 	    Submissions to accept
 	} { list ; validate cmdr::validate::posint }
-    } [m::cmdr::call cmd_reject]
+    } [m::cmdr::call glue cmd_reject]
 
     # # ## ### ##### ######## ############# ######################
     ## Developer support, debugging.
@@ -438,7 +461,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	    description {
 		Show the knowledge map used by the repository validator.
 	    }
-	} [m::cmdr::call cmd_test_vt_repository]
+	} [m::cmdr::call glue cmd_test_vt_repository]
 
 	private levels {
 	    description {
@@ -446,7 +469,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 		which we can enable to gain a (partial) narrative
 		of the application-internal actions.
 	    }
-	} [m::cmdr::call cmd_debug_levels]
+	} [m::cmdr::call glue cmd_debug_levels]
     }
 
     # # ## ### ##### ######## ############# ######################

@@ -16,6 +16,7 @@
 # # ## ### ##### ######## ############# ######################
 
 package require Tcl 8.5
+package require m::vcs
 package require debug
 package require debug::caller
 
@@ -27,8 +28,7 @@ namespace eval ::m {
 }
 namespace eval ::m::store {
     namespace export \
-	add remove move has id \
-	list-for-mset
+	add remove move rename merge split has id check
     namespace ensemble create
 }
 
@@ -39,28 +39,20 @@ debug prefix m/store {[debug caller] | }
 
 # # ## ### ##### ######## ############# ######################
 
-proc ::m::store::add {vcs mset} {
+proc ::m::store::add {vcs mset name url} {
     debug.m/store {}
-    m db eval {
-	INSERT
-	INTO   store
-	VALUES ( NULL, :vcs, :mset )
-    }
 
-    set store [m db last_insert_rowid]
-    set now   [clock seconds]
+    set store [Add $vcs $mset]
 
-    m db eval {
-	INSERT
-	INTO   store_times
-	VALUES ( :store, :now, :now )
-    }
-
+    m vcs setup $store $vcs $name $url
+    
     return $store
 }
 
 proc ::m::store::remove {store} {
     debug.m/store {}
+    set vcs [VCS $store]
+
     m db eval {
 	DELETE
 	FROM  store_times
@@ -70,18 +62,54 @@ proc ::m::store::remove {store} {
 	FROM  store
 	WHERE id = :store
     }
+
+    m vcs cleanup $store $vcs
     return   
 }
 
-proc ::m::store::move {vcs msetnew msetold} {
+proc ::m::store::merge {target origin} {
     debug.m/store {}
+
+    m vcs merge [VCS $target] $target $origin
+    remove $origin
+    return
+}
+
+proc ::m::store::split {store msetnew} {
+    debug.m/store {}
+
+    set vcs [VCS $store]
+    m vcs split $vcs $store \
+	[Add $vcs $msetnew ] \
+	[MSName $msetnew]
+    return
+}
+
+proc ::m::store::move {store msetnew} {
+    debug.m/store {}
+    # copy of `m mset name` - outline? check for dependency circles
+    set newname [MSName $msetnew]
+    set vcs     [VCS $store]
     m db eval {
 	UPDATE store
 	SET    mset = :msetnew
-	WHERE  vcs  = :vcs
-	AND    mset = :msetold
+	WHERE  id   = :store
     }
+
+    m vcs rename $store $newname
     return
+}
+
+proc ::m::store::rename {store newname} {
+    debug.m/store {}
+    m vcs rename $store $newname
+    return
+}
+
+proc ::m::store::check {storea storeb} {
+    debug.m/store {}
+    debug.m/store {}
+    return [m vcs check [VCS $storea] $storea $storeb]
 }
 
 proc ::m::store::has {vcs mset} {
@@ -104,12 +132,44 @@ proc ::m::store::id {vcs mset} {
     }]
 }
 
-proc ::m::store::list-for-mset {mset} {
+# # ## ### ##### ######## ############# ######################
+
+proc ::m::store::Add {vcs mset} {
     debug.m/store {}
-    return [m db eval {
-	SELECT id
+    m db eval {
+	INSERT
+	INTO   store
+	VALUES ( NULL, :vcs, :mset )
+    }
+
+    set store [m db last_insert_rowid]
+    set now   [clock seconds]
+
+    m db eval {
+	INSERT
+	INTO   store_times
+	VALUES ( :store, :now, :now )
+    }
+    return $store
+}
+
+proc ::m::store::VCS {store} {
+    debug.m/store {}
+    return [m db onecolumn {
+	SELECT vcs
 	FROM   store
-	WHERE  mset = :mset
+	WHERE  id = :store
+    }]
+}
+
+proc ::m::store::MSName {mset} {
+    debug.m/store {}
+    return [m db onecolumn {
+	SELECT N.name
+	FROM   mirror_set M
+	,      name       N
+	WHERE  M.id   = :mset
+	AND    M.name = N.id
     }]
 }
 
