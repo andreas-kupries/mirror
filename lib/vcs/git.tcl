@@ -40,10 +40,10 @@ namespace eval m::vcs::git {
     namespace ensemble create
 }
 
-proc m::vcs::git::setup {path args} {
+proc m::vcs::git::setup {path url} {
     debug.m/vcs/git {}
     m exec go git --bare --git-dir [GitOf $path] init
-    update $path {*}$args
+    update $path [list $url]
     return
 }
 
@@ -53,18 +53,24 @@ proc m::vcs::git::cleanup {path} {
     return
 }
     
-proc m::vcs::git::update {path args} {
+proc m::vcs::git::update {path urls} {
     debug.m/vcs/git {}
     set remotes [Remotes $path]
     # remotes = (url remote ...)
 
     # Old urls managed by the store
     set uold {}
-    foreach {u r} $remotes { dict set uold $u $r }
+    foreach {u r} $remotes {
+	debug.m/vcs/git {Old    $u}
+	dict set uold $u $r
+    }
 
     # New urls to manage
     set unew {}
-    foreach u $args { dict set unew $u . }
+    foreach u $urls {
+	debug.m/vcs/git {New    $u}
+	dict set unew $u .
+    }
 
     # Steps
     # - Remove remotes for urls not managed anymore
@@ -73,11 +79,13 @@ proc m::vcs::git::update {path args} {
 
     foreach {u r} $remotes {
 	if {[dict exists $unew $u]} continue
+	debug.m/vcs/git {Remove $u}
 	# Old remote missing in new, remove
 	Git remote remove $r
     }
-    foreach $u $args {
+    foreach $u $urls {
 	if {[dict exists $uold $u]} continue
+	debug.m/vcs/git {Add    $u}
 	# New remote missing in old, add
 	set r [RemoteOf $u]
 	dict set uold $u $r
@@ -89,15 +97,16 @@ proc m::vcs::git::update {path args} {
 
     set before [Count $path]
     
-    foreach u $args {
+    foreach u $urls {
 	set r [dict get $uold $u]
+	# TODO: capture stdout/err, post process both for better error
+	# detection. Show errors. Store status.
 	catch {   
 	    Git fetch --tags $r
 	}
     }
 
-    set changed [expr {[Count $path] != $before}]
-    return $changed
+    return [list $before [Count $path]]
 }
 
 proc m::vcs::git::check {primary other} {
@@ -126,9 +135,9 @@ proc m::vcs::git::merge {primary secondary} {
 proc m::vcs::git::Remotes {path} {
     debug.m/vcs/git {}
     set result {}
-    foreach r [Git remote] {
+    foreach r [Get remote] {
 	if {![Owned $r]} continue
-	lappend result [UrlfOf $r] $r
+	lappend result [UrlOf $r] $r
     }
     return $result
 }
@@ -165,6 +174,12 @@ proc m::vcs::git::Git {args} {
     upvar 1 path path
     m exec go git --git-dir [GitOf $path] {*}$args
     return
+}
+
+proc m::vcs::git::Get {args} {
+    debug.m/vcs/git {}
+    upvar 1 path path
+    return [m exec get git --git-dir [GitOf $path] {*}$args]
 }
 
 # # ## ### ##### ######## ############# #####################

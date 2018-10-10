@@ -36,7 +36,7 @@ namespace eval ::m {
 }
 
 namespace eval ::m::exec {
-    namespace export verbose go get
+    namespace export verbose go get silent
     namespace ensemble create
 }
 
@@ -74,6 +74,12 @@ proc ::m::exec::get {args} {
     } else {
 	return [exec 2>  [NULL] {*}$args]
     }
+}
+
+proc ::m::exec::silent {args} {
+    debug.m/exec {}
+    exec 2> [NULL] > [NULL] {*}$args
+    return
 }
 
 if {$tcl_platform(platform) eq "windows"} {

@@ -146,6 +146,7 @@ proc ::m::db::SETUP-201810051600 {} {
     ## Store Times - Per store the times of last update and change
     
     C store    INTEGER  NOT NULL  ^store PRIMARY KEY
+    # TODO: store_times schema: +created ?
     C updated  INTEGER  NOT NULL
     C changed  INTEGER  NOT NULL
     T store_times
@@ -158,6 +159,15 @@ proc ::m::db::SETUP-201810051600 {} {
     T rolodex
 
     # - -- --- ----- -------- -------------
+    return
+}
+
+proc ::m::db::SETUP-201810092200 {} {
+    # Added github VCS manager
+
+    T^ version_control_system
+    >+ 'github' 'GitHub'
+
     return
 }
 

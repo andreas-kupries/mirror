@@ -29,7 +29,7 @@ namespace eval ::m::mset {
     namespace export \
 	add remove rename has \
 	name used-vcs has-vcs size \
-	stores
+	stores pending
     namespace ensemble create
 }
 
@@ -153,6 +153,47 @@ proc ::m::mset::name {mset} {
 	WHERE  M.id   = :mset
 	AND    M.name = N.id
     }]
+}
+
+proc ::m::mset::pending {take} {
+    debug.m/mset {}
+
+    # Ask for one more than actually request. This will cause a
+    # short-read (with refill) not only when the table contains less
+    # than take elements, but also when it contains exactly that many.
+    # If the read is not short we know that at least one element is
+    # left.
+    incr take
+    
+    set taken [m db eval {
+	SELECT P.mset
+	FROM   mset_pending P
+	LIMIT :take
+    }]
+    if {[llength $taken] < $take} {
+	# Short read. Clear taken (fast), and refill for next
+	# invokation.
+	m db eval {
+	    DELETE
+	    FROM   mset_pending
+	    ;
+	    INSERT
+	    INTO   mset_pending
+	    SELECT id
+	    FROM   mirror_set
+	}
+    } else {
+	# Full read. Clear taken, the slow way.  Drop the unwanted
+	# sentinel element from the end of the result.
+	set taken [lreplace [K $taken [unset taken]] end end]
+	m db eval [string map [list %% [join $token ,]] {
+	    DELETE
+	    FROM mset_pending
+	    WHERE mset in (%%)
+	}]
+    }
+
+    return $taken
 }
 
 # # ## ### ##### ######## ############# ######################

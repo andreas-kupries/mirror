@@ -297,7 +297,7 @@ proc ::m::glue::cmd_merge {config} {
 	# handle the case of `set only one`.
 	debug.m/glue {repos = ($repos)}
 	
-	set msets [MergeSets $repos]
+	set msets [MirrorSetsOf $repos]
 	debug.m/glue {msets = ($msets)}
 	
 	if {[llength $msets] < 2} {
@@ -422,8 +422,57 @@ proc ::m::glue::cmd_set_current {config} {
 
 proc ::m::glue::cmd_update {config} {
     debug.m/glue {}
-    puts [info level 0]		;# XXX TODO FILL-IN update
-    return
+
+    package require m::mset
+    package require m::repo
+    package require m::state
+    package require m::store
+
+    
+    m db transaction {
+	set verbose [$config @verbose]
+	set now     [clock seconds]
+	set msets   [UpdateSets [$config @repositories]]
+	debug.m/glue {msets = ($msets)}
+	
+	foreach mset $msets {
+	    set mname [m mset name $mset]
+	    puts "Updating Mirror Set [color note $mname] ..."
+	    
+	    set stores [m mset stores $mset]
+	    debug.m/glue {stores = ($stores)}
+
+	    foreach store $stores {
+		set vname [m store vcs-name $store]
+		if {$verbose} {
+		    puts "  [color note $vname] store ... "
+		} else {
+		    puts -nonewline "  $vname store ... "
+		    flush stdout
+		}
+
+		# TODO MAYBE: List the remotes we are pulling from ? => VCS layer, notification callback ...
+		
+		set counts [m store update $store $now]
+		lassign $counts before after
+		if {$before != $after} {
+		    set delta [expr {$after - $before}]
+		    if {$delta < 0} {
+			set mark bad
+		    } else {
+			set mark note
+		    }
+		    puts "[color note Changed] $before $after ([color $mark $delta])"
+		} elseif {$verbose} {
+		    puts [color note "No changes"]
+		} else {
+		    puts "No changes"
+		}	       
+	    }
+	}
+    }
+    
+    OK
 }
 
 proc ::m::glue::cmd_list {config} {
@@ -462,6 +511,7 @@ proc ::m::glue::cmd_list {config} {
 	}
 	
 	# See also ShowCurrent
+	# TODO: extend list with store times ?
 	[table t {Tag Repository Set VCS} {
 	    set id -1
 	    foreach {mname url repo vcode} $series {
@@ -549,7 +599,7 @@ proc ::m::glue::cmd_test_vt_repository {config} {
 
 proc ::m::glue::cmd_debug_levels {config} {
     debug.m/glue {}
-    puts [info level 0]		;# XXX TODO FILL-IN reject
+    puts [info level 0]		;# XXX TODO FILL-IN debug levels
     return
 }
 
@@ -603,7 +653,21 @@ proc ::m::glue::MakeName {prefix} {
     return "${prefix}#$n"
 }
 
-proc ::m::glue::MergeSets {repos} {
+
+proc ::m::glue::UpdateSets {repos} {
+    debug.m/glue {}
+    set n [llength $repos]
+
+    if {!$n} {
+	# No repositories specified.
+	# Pull mirror sets directly from pending
+	return [m mset pending [m state take]]
+    }
+
+    return [MirrorSetsOf $repos]
+}
+
+proc ::m::glue::MirrorSetsOf {repos} {
     debug.m/glue {}
 
     # List of repos into list of mirror sets. Keep order, integrated

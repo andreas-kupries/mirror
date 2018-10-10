@@ -15,14 +15,20 @@
 
 package provide m::vcs 0
 
+# TODO: vcs/plugin extension - extract size
+# TODO: vcs/plugin extension - extract description
+
 # # ## ### ##### ######## ############# #####################
 ## Requisites
 
 package require Tcl 8.5
+package require cmdr::color
 package require m::db
 package require m::state
+package require m::silent
 package require m::vcs::fossil
 package require m::vcs::git
+package require m::vcs::github
 package require fileutil
 package require debug
 package require debug::caller
@@ -46,6 +52,8 @@ namespace eval ::m::vcs {
 	id supported list detect code name \
 	url-norm name-from-url rename
     namespace ensemble create
+
+    namespace import ::cmdr::color
 }
 
 # # ## ### ##### ######## ############# #####################
@@ -69,6 +77,17 @@ proc ::m::vcs::setup {store vcs name url} {
     # Create vcs-specific special resources, if any
     $vcode setup $path $url
     return
+}
+
+proc ::m::vcs::update {store vcs urls} {
+    debug.m/vcs {}
+    # store id -> Using for path.
+    # vcs   id -> Decode to plugin name
+    # urls     -  repo urls to use as sources
+    set path  [Path $store]
+    set vcode [code $vcs]
+
+    return [$vcode update $path $urls]
 }
 
 proc ::m::vcs::rename {store name} {
@@ -143,9 +162,24 @@ proc ::m::vcs::split {vcs origin dst dstname} {
 
 proc ::m::vcs::detect {url} {
     debug.m/vcs {}
+
+    # Consider plugins for detection.
+    # Issue is ordering. See below.
+    
+    if {[string match *github* $url]} {
+	try {
+	    m exec silent git hub help
+	} on ok {e o} {
+	    return github
+	}
+	puts "[color note "git hub"] [color warning "not available"]"
+	# On error fall through to generic git.
+    }
+    
     if {[string match *git* $url]} {
 	return git
     }
+
     return fossil
 }
 

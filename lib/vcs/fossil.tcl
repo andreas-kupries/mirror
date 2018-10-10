@@ -40,16 +40,15 @@ namespace eval m::vcs::fossil {
     namespace ensemble create
 }
 
-proc m::vcs::fossil::setup {path args} {
+proc m::vcs::fossil::setup {path url} {
     debug.m/vcs/fossil {}
     
-    set primary [lindex $args 0]
-    set repo    [FossilOf $path]
+    set repo [FossilOf $path]
     
-    Fossil clone $primary $repo
+    Fossil clone $url $repo
     Fossil remote-url off -R $repo
 
-    update $path {*}$args
+    update $path [list $url]
     return
 }
 
@@ -58,17 +57,18 @@ proc m::vcs::fossil::cleanup {path} {
     return
 }
 
-proc m::vcs::fossil::update {path args} {
+proc m::vcs::fossil::update {path urls} {
     debug.m/vcs/fossil {}
     set repo   [FossilOf $path]
     set before [Count $path]
 
-    foreach url $args {
+    foreach url $urls {
+	# TODO: capture stdout/err, post process both for better error
+	# detection. Show errors. Store status.
 	Fossil pull $url --once -R $repo
     }
 
-    set changed [expr {[Count $path] != $before}]
-    return $changed
+    return [list $before [Count $path]]
 }
 
 proc m::vcs::fossil::check {primary other} {
