@@ -70,24 +70,28 @@ proc m::vcs::github::update {path urls} {
 
     foreach fork [m::vcs::git::Get hub forks --raw] {
 	set repo https://github.com/$fork
+	# Check if the fork is actually available :: The git hub REST
+	# api reports all forks regardless of status wrt the rest of
+	# the system. I.e. a user/repo marked as suspicious and hidden
+	# is still reported here. Checking against the regular web
+	# interface allows us to filter these out.
 	try {
-	    m exec silent curl $repo
+	    m exec get curl -s -f -I $repo
+	    # -I  HEAD only
+	    # -f  Silent fail (ignore fail document)
+	    # -s  Silence other output
 	} on ok {e o} {
 	    lappend urls $repo
 	} on error {e o} {
 	    # report missing user/repo
 	}
     }
-
-    # TODO: Check each fork if actually available.
-    # fork api returns hidden repos and users.
     
     # TODO: capture stdout/err, post process both for better error
     # detection. Show errors. Store status.
 
     return [m vcs git update $path $urls]
 
-    return
     if 0 {
 	XXX STOP
 	export TERM=xterm

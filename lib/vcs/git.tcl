@@ -83,7 +83,7 @@ proc m::vcs::git::update {path urls} {
 	# Old remote missing in new, remove
 	Git remote remove $r
     }
-    foreach $u $urls {
+    foreach u $urls {
 	if {[dict exists $uold $u]} continue
 	debug.m/vcs/git {Add    $u}
 	# New remote missing in old, add

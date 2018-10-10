@@ -78,6 +78,10 @@ proc ::m::exec::get {args} {
 
 proc ::m::exec::silent {args} {
     debug.m/exec {}
+    variable verbose
+    if {$verbose} {
+	puts "> $args"
+    }
     exec 2> [NULL] > [NULL] {*}$args
     return
 }

@@ -165,6 +165,7 @@ proc ::m::db::SETUP-201810051600 {} {
 proc ::m::db::SETUP-201810092200 {} {
     # Added github VCS manager
 
+    D m::db
     T^ version_control_system
     >+ 'github' 'GitHub'
 

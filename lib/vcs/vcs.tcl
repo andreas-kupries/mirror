@@ -25,7 +25,7 @@ package require Tcl 8.5
 package require cmdr::color
 package require m::db
 package require m::state
-package require m::silent
+package require m::exec
 package require m::vcs::fossil
 package require m::vcs::git
 package require m::vcs::github
@@ -188,6 +188,7 @@ proc ::m::vcs::url-norm {vcode url} {
     # I.e. for a number of known sites, force the use of the https
     # they support. Further strip known irrelevant trailers.
 
+    lappend map git@github.com:      https://github.com/
     lappend map http://github.com    https://github.com
     lappend map http://chiselapp.com https://chiselapp.com
     lappend map http://core.tcl.tk   https://core.tcl.tk
@@ -207,18 +208,20 @@ proc ::m::vcs::name-from-url {vcode url} {
 
     set gh [string match *github* $url]
     set gl [string match *gitlab* $url]
-    
-    regsub -- {https://}    $url {} url
-    regsub -- {http://}     $url {} url
-    regsub -- {git@github:} $url {} url
 
-    switch -exact -- $vcode {
+    lappend map "https://"        {}
+    lappend map "http://"         {}
+    lappend map "git@github.com:" {}
+
+    set url [string map $map $url]
+    
+    switch -glob -- $vcode {
 	fossil {
-	    regsub -- {/index$}  $url {} url
-	    regsub -- {/timeline$}  $url {} url
+	    regsub -- {/index$}    $url {} url
+	    regsub -- {/timeline$} $url {} url
 	    return [lindex [file split $url] end]
 	}
-	git {
+	git* {
 	    if {$gh} {
 		return [join [lrange [file split $url] end-1 end] /]@gh
 	    } elseif {$gl} {

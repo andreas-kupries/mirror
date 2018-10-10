@@ -461,6 +461,7 @@ proc ::m::glue::cmd_update {config} {
 			set mark bad
 		    } else {
 			set mark note
+			set delta +$delta
 		    }
 		    puts "[color note Changed] $before $after ([color $mark $delta])"
 		} elseif {$verbose} {
