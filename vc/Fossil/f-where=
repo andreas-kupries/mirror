@@ -1,0 +1,26 @@
+#!/bin/bash
+
+repo="$1"
+orig="$2"
+cmd="update vvar set value='$orig' where name = 'repository'"
+
+if test -f "$repo"
+then
+    sqlite3 $repo "$cmd"
+    exit 0
+fi
+
+if test -d "$repo"
+then
+    for i in _FOSSIL_ .fslckout
+    do
+      if test -f "$repo/$i"
+      then
+	  sqlite3 $repo/$i "$cmd"
+	  exit 0
+      fi
+    done
+fi
+
+echo 1>&2 Usage: $0 'fossil-file|fossil-checkout-dir' repofile
+exit 1

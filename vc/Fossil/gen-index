@@ -1,0 +1,308 @@
+#!/usr/bin/env tclsh
+# Generate index and access scripts for the local fossil repos.
+# Reads the recent-changes or equivalent, specified as argument.
+# Generates html and the script in the directory specified as
+# argument.
+
+package require Tcl 8.5
+package require fileutil
+package require sqlite3
+
+set host  Tagetarl ;#[info hostname]
+set owner "Andreas Kupries" ;#$tcl_platform(user)
+
+proc main {} {
+    do {*}[cmdline]
+    exit 0
+}
+
+proc cmdline {} {
+    global argv
+    if {[llength $argv] != 2} usage
+    return $argv
+}
+
+proc usage {} {
+    global argv0
+    puts stderr "Usage: $argv0 repofile dstdir"
+    exit 1
+}
+
+proc do {repos dst} {
+    global first imports
+    set spec [fileutil::cat $repos]
+    file delete -force $dst
+    file mkdir  $dst
+    cd $dst
+    close stdout
+    open index.html w
+    InitState
+    header
+    eval $spec
+    WriteImports
+    WriteExports
+    trailer
+    return
+}
+
+proc InitState {} {
+    global first imports exports
+    set first 1
+    set imports {}
+    set exports {}
+    return
+}
+
+proc C {time path} {
+    RE "[string map {T {&nbsp;}} $time]&nbsp;" $path
+}
+
+proc S {args} { return
+    T* td colspan 3
+    T hr
+    T/ td
+}
+
+proc R {time path} {
+    global first
+    if {$first} {
+	T tr
+	T th ; t "Unchanged" ; T/ th ;
+	T th ; t "Repository" ; T/ th
+	T th ; t "Description" ; T/ th
+	T/ tr
+	set first 0
+    }
+    RE {} $path
+}
+
+proc RE {time path} {
+    global exports
+    set r [file tail $path]
+    if {[file extension $r] eq ".fossil"} {
+	set r [file rootname $r]
+    }
+
+    set d [I $path]
+
+    T* tr valign top
+
+    T td
+    t $time
+    T/ td
+
+    T td
+    T* a href $r
+    t $r
+    T/ a
+    T/ td
+
+    lappend exports $r
+
+    T td
+    if {$d ne {}} { t $d }
+    T/ td
+
+    T/ tr
+
+    A $r $path
+    P $path
+}
+
+proc P {path} {
+    global imports
+    set p [PI $path]
+    if {$p eq {}} return
+    lappend imports {*}$p
+    return
+}
+
+proc WriteImports {} {
+    global imports
+    fileutil::writeFile [ImportFile] [join [lsort -dict $imports] \n]\n
+    return
+}
+
+proc WriteExports {} {
+    global exports
+    fileutil::writeFile [ExportFile] [join [lsort -dict $exports] \n]\n
+    return
+}
+
+proc ImportFile {} { return imports.txt }
+proc ExportFile {} { return exports.txt }
+
+proc PI {path} {
+    # repository peers
+    set p {}
+    catch {
+	set p [fileutil::cat $path.peers]
+
+	# strip content markers
+	lappend map {fossil }  {}
+	lappend map {content } {}
+	lappend map {sync }    {}
+	lappend map {pull }    {}
+	lappend map {push }    {}
+	lappend map {email }   {}
+	lappend map {user }    {}
+	set p [string map $map $p]
+
+	# strip passwords, comments, trailing eol
+	regsub -all -- {/[^/@]*@}   $p {/} p
+	regsub -all -- {^#[^\n]*\n} $p {} p
+	regsub -all -- {\n$}        $p {} p
+
+	# de-duplicate
+	set p [lsort -uniq [split $p \n]]
+    }
+    return $p
+}
+
+proc I {path} {
+    # get repository description (I'nfo)
+    sqlite3 REPO $path
+
+    set desc [REPO onecolumn {
+	SELECT value
+	FROM config
+	WHERE name = 'project-description'
+    }]
+
+    #puts stderr "$path = <<$desc>>"
+
+    REPO close
+    return $desc
+}
+
+proc A {r path} {
+    set chan [open $r w]
+    puts $chan "#!/usr/bin/fossil"
+    puts $chan "repository: $path"
+    close $chan
+
+    file attributes $r \
+	-permissions u=rwx,go=r
+    return
+}
+
+proc header {} {
+    global host owner
+    T html
+    T head
+    T title
+    t "Mirrors of fossil repositories"
+    T/ title
+    T/ head
+    T body
+    c "Generated via $::argv0 -- $::argv"
+
+    #T* table border 1
+    #T tr
+    #T td
+
+    T h1
+    t "$owner @ $host"
+    T/ h1
+    T h2
+    t "Mirrors of fossil repositories"
+    T/ h2
+    T p
+    t "Generated [clock format [clock seconds]]"
+    T/ p
+
+    T p
+    T* a href [ImportFile]
+    t {Origin locations, imports}
+    T/ a
+    t { (plain text, machine readable)}
+    /T br
+
+    #T p
+    T* a href [ExportFile]
+    t {Our locations, exported}
+    T/ a
+    t { (plain text, machine readable, relative to base path)}
+    T/ p
+
+    T* table border 1
+    T tr
+    T th
+    t {Last modified}
+    T/ th
+
+    T th
+    t Repository
+    T/ th
+
+    T th
+    t Description
+    T/ th
+
+    T/ tr
+}
+
+proc trailer {} {
+    T/ table
+
+    #T/ td
+    #T/ tr
+    #T/ table
+
+    T/ body
+    T/ html
+}
+
+proc T  {x} { puts <${x}> }
+proc T/ {x} { puts </${x}> }
+proc /T {x} { puts <${x}/> }
+proc c {text} { puts "<!-- $text -->" }
+
+proc T* {x args} {
+    puts -nonewline "<${x}"
+    foreach {k v} $args {
+	puts -nonewline " ${k}='$v'"
+    }
+    puts ">"
+}
+
+proc t {text} { puts $text }
+
+main
+# ---------------------
+
+
+
+set marker 1 ; # remove leading markers from the input
+array set L {}
+
+while {1} {
+    if {[gets stdin line] < 0} break
+    if {[eof stdin]} break
+
+    # Handle markers. Deduplicate only adjacent markers.
+    if {[string match {S *} $line]} {
+	if {$marker} continue
+	set marker 1
+	puts $line
+	continue
+    }
+
+    # regular lines.
+    lassign [split $line] cmd stamp repo
+    set repo [file tail $repo]
+    if {[info exists L($repo)]} {
+	# Have a younger change, ignore the older.
+	# Note how this does __not__ reset the marker flag.
+	# If all changes between two markers get ignored the two marker are
+	# seen as adjacent.
+	continue
+    }
+
+    # First change, remember, show, reset marker flag
+    set L($repo) .
+    puts $line
+    set marker 0
+}
+
+exit 0

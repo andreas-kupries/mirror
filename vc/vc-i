@@ -1,0 +1,66 @@
+#!/usr/bin/env tclsh
+# Extend an index
+
+proc main {} {
+    operate {*}[cmdline]
+}
+
+proc cmdline {} {
+    global argv
+    set op add
+    while {1} {
+	switch -glob -- [set o [lindex $argv]] {
+	    -r|--remove {
+		set op remove
+		set argv [lassign $argv _]
+	    }
+	    -- {
+		set argv [lassign $argv _]
+		break
+	    }
+	    * break
+	}
+    }
+
+    if {[llength $argv] < 2} usage
+
+    return [list $op {*}$argv]
+}
+
+proc usage {} {
+    global argv0
+    puts stderr "Usage: $argv0 ?--remove|-r? index value..."
+    exit 1
+}
+
+proc operate {op index args} {
+    set index [string totitle $index]
+
+    package require fileutil
+    set content {}
+    catch {
+	set content [split [string trim [fileutil::cat $index]] \n]
+    }
+
+    op/$op $index $content $args
+    return
+}
+
+proc op/add {index content words} {
+    lappend content {*}$words
+    set content [lsort -dict -uniq $content]
+    fileutil::writeFile $index $content
+    return
+}
+
+proc op/remove {index content words} {
+    foreach c $content { dict set   idx $c . }
+    foreach w $words   { dict unset idx $w }
+
+    set content [lsort -dict -uniq [dict keys $idx]]
+    fileutil::writeFile $index $content
+    return
+}
+
+main
+exit

@@ -1,0 +1,24 @@
+#!/bin/sh
+
+repos="$@"
+if [ "X$repos" = X ] ; then
+    echo 1>&2 "Usage: $0 github-ref ..."
+    echo 1>&2 "          ref = org/repo"
+    echo 1>&2 "          ref = user/repo"
+    exit 1
+fi
+
+for r in $repos
+do
+    echo Cloning ____________________________________________ $r
+    (
+	d=$(dirname $r)
+	b=$(basename $r .git)
+	mkdir -p $d
+	cd $d
+	git clone --mirror git@github.com:$r $b
+    )
+done
+
+echo Cloned _____________________________________________
+exit 0

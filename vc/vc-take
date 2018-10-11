@@ -1,0 +1,4 @@
+#!/bin/bash
+cd $WORKSPACE/etc
+cat take
+echo

@@ -1,0 +1,32 @@
+#!/bin/bash
+
+# Daily script. No state between runs.
+
+echo = = == === ===== ======== ============= =====================
+echo = = $(date) = =
+echo
+
+main () {
+    thelists=$(cat $ETC_DIR/watched-lists)
+    account=$(cat  $ETC_DIR/sf-account)
+
+    for list in $thelists
+    do
+	pull $list $WORKSPACE/list-data
+    done
+}
+
+pull() {
+    dst=$2/$1.mbox.xz
+    xds=$2/$1.mbox
+    mv -f ${dst}.4 ${dst}.5
+    mv -f ${dst}.3 ${dst}.4
+    mv -f ${dst}.2 ${dst}.3
+    mv -f ${dst}.1 ${dst}.2
+    mv -f ${dst}   ${dst}.1
+    wget -O $xds https://${account}@lists.sourceforge.net/mbox/$1
+    xz $xds
+}
+
+main
+exit 0

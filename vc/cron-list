@@ -1,0 +1,8 @@
+#!/bin/bash
+BASE=${HOME}/Data/My/Mirror
+direnv exec ${BASE} \
+    get-lists \
+    >> ${BASE}/logs/get-lists 2>&1
+
+# Notes:
+# - get-lists is a perpetually growing log, handled by logrotate

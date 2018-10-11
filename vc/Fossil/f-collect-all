@@ -1,0 +1,6 @@
+#!/bin/bash
+
+find "$@" -type f -print0 \
+    | xargs -r0 file \
+    | awk '/Fossil repository/ { print $1 }' \
+    | sed -e 's/:$//'

@@ -1,0 +1,26 @@
+#!/bin/sh
+
+orgs="$@"
+
+for org in $orgs
+do
+	if test ! -f $org/.REPOS
+	then
+		echo No .REPOS, please run gh-check-orgs first
+		continue
+	fi
+
+	for repo in $(cat $org/.REPOS)
+	do
+	    # repo = org/repo
+	    repo=$(basename $repo)
+
+	    # Skip repos which are marked as unwanted
+	    if test -f $org/.$repo ; then continue ; fi
+	    # Skip repos we are monitoring
+	    if test -d $org/$repo ; then continue ; fi
+
+	    echo Marking as unwanted: $org/.$repo
+	    touch $org/.$repo
+	done
+done

@@ -1,0 +1,26 @@
+#!/bin/sh
+
+if [ "X$@" = X ] ; then
+    echo 1>&2 "Usage: $0 /path/to/git-repo ..."
+    exit 1
+fi
+
+for r in "$@"
+do
+    echo Fetching ____________________________________________ $r
+    (
+	cd "$r"
+	git fetch -p -t
+	git prune
+    ) 2> $$.err
+
+    if [ -s $$.err ] ; then
+	# In case of troubles add location information to the error channel
+	echo 1>&2 Fetching ____________________________________________ $r
+	cat 1>&2 $$.err
+    fi
+    rm $$.err
+done
+
+echo Fetched _____________________________________________
+exit 0

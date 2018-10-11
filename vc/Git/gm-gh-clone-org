@@ -1,0 +1,15 @@
+#!/bin/sh
+
+orgs="$@"
+if [ "X$orgs" = X ] ; then
+    echo 1>&2 "Usage: $0 github-org|github-user ..."
+    exit 1
+fi
+
+for org in $orgs
+do
+    repos=$(git hub repos $org --no-cache --raw | sort)
+
+    gm-gh-clone $repos
+done
+exit 0

@@ -1,0 +1,130 @@
+#!/bin/bash
+
+# I.  Without state -> Fill (f-collect DIRS ...)
+# II. Have state    -> f-fetch (First N), leave remainder, possibly nothing
+
+# Access to the ssh-agent with the keys for password-less login to the other
+# hosts on the internal network.
+. ${HOME}/.ssh/environment.$(hostname)
+
+echo = = == === ===== ======== ============= =====================
+echo = = $(date) = =
+echo
+
+STATE=$WORKSPACE/state
+LOGS=$WORKSPACE/logs
+ERRORS=$WORKSPACE/errors
+
+main () {
+    if [ -s ${STATE}/pending ] ; then
+	# Drive the state
+	operate
+    else
+	# No state available. Regenerate from configuration
+	setup
+    fi
+}
+
+operate() {
+    # Drive the state
+    take=$(cat $ETC_DIR/take)
+    left=$(expr $take + 1)
+
+    echo Scanning $take, and $(expr $(cat ${STATE}/pending | wc -l) - $take) deferred ...
+
+    head -n "${take}"  ${STATE}/pending > ${STATE}/$$.scan
+    tail -n "+${left}" ${STATE}/pending > ${STATE}/$$.remainder
+
+    mv ${STATE}/$$.remainder ${STATE}/pending
+
+    time f-fetch $(cat ${STATE}/$$.scan)
+
+    rm ${STATE}/$$.scan
+
+    update_eternal_changes
+}
+
+setup() {
+    # No state available. Regenerate from configuration
+    collect_repos
+    rotate_cycle_log
+    rotate_changed
+    rotate_errors
+}
+
+rotate_changed () {
+    rm -f ${STATE}/changed.previous
+    mv    ${STATE}/changed ${STATE}/changed.previous
+
+    touch ${STATE}/changed
+
+    if [ -s ${STATE}/changed.previous ] ; then
+	mail-self "f-fetch updates" ${STATE}/changed.previous
+    fi
+}
+
+update_eternal_changes () {
+    if [ -e ${STATE}/change-event ] ; then
+	# Maintain a log of all changes, separated by markers,
+	# old changes removed in favor of new, adjacent markers
+	# collapsed into one.
+	(   tac ${STATE}/changed ;# adjust order
+	    echo S ===
+	    cat ${STATE}/changed.eternal
+	) | dedup-changed > ${STATE}/changed.$$
+	mv ${STATE}/changed.$$ ${STATE}/changed.eternal
+
+	# Notes
+	# - /changed         - newest update at the end
+	# - /changed.eternal - newest update first
+	# - /pending         - no specific order
+	# - /recent-changes  - newest update first
+
+	consolidated_changes
+	generate_www_table
+	rm ${STATE}/change-event
+    fi
+}
+
+consolidated_changes () {
+    now=$(date +%Y-%m-%dT%H:%M:%S)
+
+    # Regenerate the full table of repositories, with last modified at the
+    # top (Adding all the unmodified repos at the end).
+    ( cat ${STATE}/changed.eternal
+      echo S ===
+      cat ${STATE}/all | sort | sed -e "s|^|R ${now} |" ) \
+    | dedup-changed \
+    > ${STATE}/recent-changes
+}
+
+generate_www_table () {
+    # Regenerate the fossil space of the internal web site.
+    gen-index \
+	${STATE}/recent-changes \
+	${HOME}/Data/My/Web/data/default.website/r
+}
+
+rotate_cycle_log () {
+    rm -f ${LOGS}/get.previous
+    mv    ${LOGS}/get.current  ${LOGS}/get.previous
+}
+
+collect_repos () {
+    echo Scanning watched paths: $(cat $ETC_DIR/watched-paths | wc -l) ...
+
+    time f-collect $(cat $ETC_DIR/watched-paths) > ${STATE}/pending
+    cp  ${STATE}/pending ${STATE}/all
+
+    echo Repositories found: $(cat ${STATE}/pending | wc -l)
+}
+
+rotate_errors () {
+    # Keep only one round of old errors, beyond the current set.
+    rm -rf ${ERRORS}.previous
+    mv     ${ERRORS} ${ERRORS}.previous
+    mkdir  ${ERRORS}
+}
+
+main
+exit 0

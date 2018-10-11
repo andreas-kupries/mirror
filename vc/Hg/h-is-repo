@@ -1,0 +1,26 @@
+#!/bin/sh
+# Detect if we are in the TOPLEVEL directory of a Mercurial (Hg) repo
+
+dir="$1"
+if [ "X$dir" = "X" ] ; then
+    dir="$(pwd)"
+fi
+
+if [ "X$(basename "$dir")" = "X.hg" ] ; then
+    # Inside the .hg directory of a Hg repo, this is not the toplevel
+    exit 1
+fi
+
+if ! cd "$dir" 2>/dev/null
+then
+    exit 1
+fi
+
+# General test, absence of a .hg subdirectory.
+if test ! -d "$dir/.hg"
+then
+    exit 1
+fi
+
+# We are in the toplevel of a .hg repo.
+exit 0

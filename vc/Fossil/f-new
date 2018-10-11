@@ -1,0 +1,7 @@
+#!/bin/bash
+project="$1"
+
+fossil new "${project}.fossil" \
+       >   "${project}.notes"
+touch      "${project}.ignore"
+# See f-fetch for where .ignore is relevant.

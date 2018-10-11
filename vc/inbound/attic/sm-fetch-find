@@ -1,0 +1,10 @@
+#!/bin/sh
+
+if test "X" = "X$1" ; then cd "$1" ; fi
+
+for d in $(find . -type d -print)
+do
+    if test ! -d $d/.svn ; then continue ; fi
+    ( cd $d ; svn update )
+done
+exit 0

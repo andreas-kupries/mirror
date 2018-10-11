@@ -1,0 +1,368 @@
+#!/usr/bin/env tclsh
+# -*- tcl -*-
+package require Tcl 8.5
+package require fileutil 1.16 ;# sqlite and fossil db detection.
+package require lambda
+package require sqlite3
+
+proc main {} {
+    fetch-from [cmdline]
+}
+
+proc cmdline {} {
+    global argv
+    if {![llength $argv]} usage
+    return $argv
+}
+
+proc usage {} {
+    global argv0
+    puts stderr "Usage: $argv0 path path..."
+    exit 1
+}
+
+proc fetch-from {pathlist} {
+    foreach path $pathlist {
+	# Filter bad paths
+	if {![file exists $path]} {
+	    # error message
+	    continue
+	}
+	if {[file type $path] eq "link"} continue
+	if {[fetch-one $path]} continue
+	report "Unsupported VC in $path"
+    }
+}
+
+proc fetch-one {path} {
+    foreach type [types] {
+	if {![is-$type $path]} continue
+	fetch $type $path
+	return 1
+    }
+    return 0
+}
+
+proc types {} { return {fossil git} }
+
+proc fetch {type path} {
+    puts ""
+    puts "_ _ __ ___ _____ ________ _____________ $path"
+
+    set repo [path-$type $path]
+
+    if {[nopeers-$type $repo]} {
+	report "vc-fetch ($type): skip unpeered repo $path"
+	return
+    }
+
+    if {[catch {
+	set prehave [checkins-$type $repo]
+    }]} {
+	# Not an actual repository. Something partial. Ignore.
+	# Examples: git-hub/test/repo/*
+	return
+    }
+
+    lassign [setup-context] elog log
+
+    hooks pre $type  $path $elog $log
+    puts "-- exchange"
+    exchange-$type   $repo       $elog $log
+
+    hooks post $type $path $elog $log
+
+    post-log         $repo $path $elog $log $type
+
+    set posthave [checkins-$type $repo]
+    change-event $path $prehave $posthave
+    return
+}
+
+proc hooks {kind type path elog log} {
+    set dkind [dict get {
+	pre {pre }
+	post post
+    } $kind]
+    # kind of hook: pre|post
+    # type of repository: git|fossil|...
+    set context [file dirname $path]
+    set stem    [file tail $path]
+
+    set hooks [FindHooks $type $kind $stem $context]
+
+    set here    [pwd]
+    cd $context
+
+    foreach hook $hooks {
+	# Skip emacs save files
+	if {[string match *~ $hook]} continue
+	puts "-- $dkind :: $hook"
+	if {[catch {
+	    exec $hook $stem >& ${stem}.std
+	} msg]} {
+	    # In case of errors lift the hook log into the fetch log.  And
+	    # into the repository's error log as well, for the error
+	    # notification mails.
+	    puts "___ ___ ___ Hook Error: $hook $stem _____ ___ __ _ _"
+	    puts "\t>> $msg"
+	    catch { puts [fileutil::cat ${stem}.std] }
+
+	    set   c [open $elog a]
+	    puts $c "___ ___ ___ Hook Error: $hook $stem _____ ___ __ _ _"
+	    puts $c "\t>> $msg"
+	    catch { puts $c [fileutil::cat ${stem}.std] }
+	    close $c
+	}
+	file delete ${stem}.std
+    }
+    cd $here
+    return
+}
+
+proc FindHooks {type kind stem path} {
+    #puts "Hook Find: $type $kind $stem"
+
+    # Search from specific to generic, sort high to low within each block
+    # Return reversed, i.e. from general to special, and low to high in each block.
+    set hooks {}
+
+    # I. Repository (group) specific hooks.
+    MatchIn $type $kind $stem $path
+
+    # II. TODO: Search up in the hierarchy for generic/common hooks.
+    #     Note how the reversed return moves these to the front again.
+
+    while {1} {
+	set path [file dirname $path]
+	if {[file exists $path/.hooks]} {
+	    MatchIn $type $kind $stem $path/.hooks
+	}
+	if {[file exists $path/.ceiling]} break
+    }
+
+    return [lreverse $hooks]
+}
+
+proc Sort {words} { lsort -dict -decreasing $words }
+
+proc MatchIn {type kind stem path} {
+    #puts "Hook Match: $path"
+    upvar 1 hooks hooks
+    lappend hooks {*}[Sort [Match $stem]]
+    lappend hooks {*}[Sort [Match $type]]
+    lappend hooks {*}[Sort [Match any]]
+    return
+}
+
+proc Match {detail} {
+    upvar 1 path path kind kind
+    set pattern ${kind}-hook-${detail}*
+    set r [glob -directory $path -nocomplain $pattern]
+    #puts "Hook: \t$pattern = ($r)"
+    return $r
+}
+
+proc path-fossil {path} { return $path }
+
+proc path-git {path} {
+    set gd $path/.git
+    if {[file exists $gd]} { return $gd }
+    return $path
+}
+
+proc exchange-fossil {path elog log} {
+    exec fx peer exchange -R $path 2> $elog | tee $log
+}
+
+proc exchange-git {path elog log} {
+    # Prune kills all the branches from the non-origin remotes, and then we refetch them :(
+    # catch { exec git --git-dir $path fetch --tags --prune --all 2> $elog | tee $log }
+    catch { exec git --git-dir $path fetch --tags --all 2> $elog | tee $log }
+}
+
+proc checkins-fossil {path} {
+    exec fossil info -R $path | awk {/check-ins/ { print $2 }}
+    # TODO: internal grep & projection.
+}
+
+proc checkins-git {path} {
+    exec git --git-dir $path rev-list --all --count
+}
+
+proc nopeers-fossil {path} {
+    set num [exec fx peers -R ${path} | grep -c content]
+    return [expr {$num == 0}]
+}
+
+proc nopeers-git {path} {
+    set num [exec git --git-dir $path remote -v | grep -c fetch]
+    return [expr {$num == 0}]
+
+}
+
+proc peers-fossil {path} {
+    exec fx peers -R ${path}
+}
+
+proc peers-git {path} {
+    exec g-peer-export $path
+}
+
+proc is-fossil {path} {
+    # Fossil repos are files (sqlite databases)
+    if {[file isdir $path]} { return 0 }
+    if {([file extension $path] eq ".fossil") &&
+	[file exists [file rootname $path].ignore]} {
+	# skip FOO.fossil if there is FOO.ignore
+	# Augments the global filter
+	return 0
+    }
+    #puts ?$path
+    return [expr {"fossil-repository" in [fileutil::fileType $path]}]
+}
+
+proc is-git {path} {
+    # git repos are dirs
+    if {[file isfile $path]} { return 0 }
+    # We are in the internal area of a git repo. That is not a repo in itself.
+    if {[file tail $path] eq ".git"} { return 0 }
+
+    set here [pwd]
+    if {[catch {
+	cd $path
+    }]} { cd $here ; return 0 }
+
+    if {[catch {
+	set res [exec git rev-parse --git-dir 2>/dev/null]
+    }]} {
+	cd $here
+	return 0
+    }
+
+    if {[catch {
+	# Try to count commits. Failing to do so weeds out partially defined
+	# and/or broken git repos.
+	exec git --git-dir $res rev-list --all --count
+    }]} {
+	cd $here
+	return 0
+    }
+
+    cd $here
+    return [expr {$res in {. .git}}]
+}
+
+proc setup-context {} {
+    file mkdir [workspace]/errors
+    set elog   [workspace]/errors/[pid]
+    set log    [workspace]/logs/[pid]
+    list $elog $log
+}
+
+proc tweak-logs-fossil {log elog} {
+    # Drop pseudo-errors from the error log
+    catch { exec grep -v {time skew} $elog > [pid] 2>/dev/null }
+    file rename -force [pid] $elog
+    # Add errors reported in the log to error log
+    catch { exec grep {not authorized} $log >> $elog }
+    return
+}
+
+proc is-git-plain-log {line __} {
+    # currently do not need inter-line state (__)
+    if {[string match {From *}       $line]} { return 1 }
+    if {[string match {*tag update*} $line]} { return 1 }
+    if {[string match {* -> *}       $line]} { return 1 }
+    if {[string match {origin *}     $line]} { return 1 }
+    if {[string match {gh_afork_*}   $line]} { return 1 }
+    return 0
+}
+
+proc tweak-logs-git {log elog} { #return 
+    # Move non-errors from error log over to regular log
+    set elines {}
+    set rlines {}
+    foreach line [split [fileutil::cat $elog] \n] {
+	if {$line eq {}} continue
+	if {[is-git-plain-log $line state]} {
+	    lappend rlines $line
+	} else {
+	    lappend elines $line
+	}
+    }
+    if {[llength $rlines]} {
+	fileutil::appendToFile $log [join $rlines \n]\n
+    }
+    if {[llength $elines]} {
+	fileutil::writeFile $elog [join $elines \n]\n
+    } else {
+	fileutil::writeFile $elog ""
+    }
+
+    return
+}
+
+proc post-log {repo path elog log type} {
+    tweak-logs-$type $log $elog
+
+    if {[file size $elog]} {
+	# Add errors to the general log (stdout)
+	puts ""
+	puts "___ Errors ___"
+	puts [fileutil::cat $elog]
+	puts "___ ______ ___"
+	puts ""
+
+	# Mail errors and save in separate file
+	append details "@ $path\n"
+	append details [peers-$type $repo]\n
+	append details [fileutil::cat $elog]
+	report "vc-fetch issues with $type $path" $details
+
+	do cp -lf $elog [workspace]/errors/[file tail $path]
+	# TODO: file link ?
+    }
+
+    # Keep a copy of the current logs with the repository we mirrored.
+    file copy -force $elog ${repo}.elog
+    file copy -force $log  ${repo}.log
+
+    file delete $elog $log
+    return
+}
+
+proc workspace {} {
+    global env
+    return $env(WORKSPACE)
+}
+
+proc change-event {path prehave posthave} {
+    if {$posthave != $prehave} {
+	# Report changed repository in log and state file.
+	puts *CHANGED*
+	fileutil::appendToFile [workspace]/state/changed \
+	    "C [exec date +%Y-%m-%dT%H:%M:%S] $path\n"
+	# TODO: clock format
+	fileutil::touch [workspace]/state/change-event
+    }
+}
+
+proc report {subject {details {}}} {
+    set rfile [fileutil::tempfile vc_fetch_report_]
+    if {$details ne {}} {
+	fileutil::writeFile $rfile $details\n
+    } else {
+	fileutil::writeFile $rfile $subject\n
+    }
+    do mail-self $subject $rfile
+    file delete $rfile
+    return
+}
+
+proc do {args} {
+    exec >@ stdout 2>@ stderr {*}$args
+}
+
+main
+exit 0

@@ -1,0 +1,115 @@
+#!/bin/bash
+
+# Args = fossil repositories to fetch and update.
+FX_MAIL_STACKTRACE=0
+export FX_MAIL_STACKTRACE
+
+main () {
+    for repo in "$@"
+    do
+	if skip $repo ; then
+	    echo "[$repo]: Skip, user request"
+	    continue
+	fi
+	if nopeers $repo ; then
+	    echo "[$repo]: Skip, no peers to fetch from" | tee $$
+	    mail-self "f-fetch skip unpeered $repo" $$
+	    rm $$
+	    continue
+	fi
+	get $repo
+    done
+}
+
+tweak_logs () {
+    LOG="$1"
+    ELOG="$2"
+    # Drop pseudo-errors from the errors
+    grep -v 'time skew' ${ELOG} > $$ ; mv $$ ${ELOG}
+    # Add errors reported in the log
+    grep 'not authorized' ${LOG} >> ${ELOG}
+}
+
+get () {
+    repo="$1"
+
+    echo
+    echo _ _ __ ___ _____ ________ _____________ $repo
+
+    mkdir -p ${WORKSPACE}/errors
+    ELOG=${WORKSPACE}/errors/$$
+    LOG=${WORKSPACE}/logs/$$
+
+    prehave=$(checkins $repo)
+
+    if [ ! -f ${repo}.peers ] ; then
+	# Save peers
+	fx peer export -R $repo ${repo}.peers
+    else
+	# Import possible changes to peers
+	fx peer import -R $repo ${repo}.peers
+    fi
+
+    time fx peer exchange -R $repo 2> ${ELOG} | tee ${LOG}
+
+    posthave=$(checkins $repo)
+
+    if [ $posthave -ne $prehave ] ; then
+	# Report changed repository in log and state file.
+	echo '*CHANGED*'
+	echo C $(date +%Y-%m-%dT%H:%M:%S) $repo >> ${WORKSPACE}/state/changed
+	touch ${WORKSPACE}/state/change-event
+    fi
+
+    tweak_logs ${LOG} ${ELOG}
+
+    if [ -s ${ELOG} ] ; then
+	# Add errors to the general log (stdout)
+	echo
+	echo ___ Errors ___
+	cat  ${ELOG}
+	echo ___ ______ ___
+	echo
+
+	# Mail errors and save in separate file
+	(   echo @ $repo
+	    fx peers -R $repo
+	    cat ${ELOG} ) > $$
+	mail-self "f-fetch issues with $repo" $$
+	rm $$
+	cp -lf ${ELOG} ${WORKSPACE}/errors/$(basename "$repo")
+    fi
+
+    rm ${ELOG} ${LOG}
+}
+
+checkins () {
+    repo="$1"
+    fossil info -R $repo | awk '/check-ins/ { print $2 }'
+}
+
+# See f-collect
+skip() {
+    repo="$1"
+
+    if [ -f "${repo}.ignore" ] ; then
+	return 0
+    fi
+    if [ -f "$(dirname ${repo})/$(basename ${repo} .fossil).ignore" ] ; then
+	return 0
+    fi
+    return 1
+}
+
+nopeers() {
+    repo="$1"
+
+    npeers=$(fx peers -R ${repo} | grep -c content)
+    if [ ${npeers} -eq 0 ] ; then
+	return 0
+    else
+	return 1
+    fi
+}
+
+main "$@"

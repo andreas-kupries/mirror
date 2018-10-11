@@ -1,0 +1,35 @@
+#!/usr/bin/env tclsh
+
+set marker 1 ; # remove leading markers from the input
+array set L {}
+
+while {1} {
+    if {[gets stdin line] < 0} break
+    if {[eof stdin]} break
+
+    # Handle markers. Deduplicate only adjacent markers.
+    if {[string match {S *} $line]} {
+	if {$marker} continue
+	set marker 1
+	puts $line
+	continue
+    }
+
+    # regular lines.
+    lassign [split $line] cmd stamp repo
+    set repo [file tail $repo]
+    if {[info exists L($repo)]} {
+	# Have a younger change, ignore the older.
+	# Note how this does __not__ reset the marker flag.
+	# If all changes between two markers get ignored the two marker are
+	# seen as adjacent.
+	continue
+    }
+
+    # First change, remember, show, reset marker flag
+    set L($repo) .
+    puts $line
+    set marker 0
+}
+
+exit 0

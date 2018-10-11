@@ -1,0 +1,24 @@
+#!/bin/bash
+
+# See f-fetch
+skip() {
+    repo="$1"
+
+    if [ -f "${repo}.ignore" ] ; then
+	return 0
+    fi
+    if [ -f "$(dirname ${repo})/$(basename ${repo} .fossil).ignore" ] ; then
+	return 0
+    fi
+    return 1
+}
+
+find "$@" -type f -print0 | \
+    while IFS= read -r -d $'\0' line; do
+        if skip $line ; then continue ; fi
+	file $line > $$
+	if  grep -qs 'Fossil repository' $$ ; then
+	    echo $line | awk '{ print $1 }' | sed -e 's/:$//'
+	fi
+	rm $$
+    done

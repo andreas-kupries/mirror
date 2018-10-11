@@ -1,0 +1,17 @@
+#!/bin/bash
+
+src=$1
+dst=$2
+
+if [ "X$dst" = "X" ] ; then
+    dst=$(basename $src)
+    echo BASE=$dst
+    #exit 1
+fi
+
+
+repo=$dst.fossil
+note=$dst.notes
+
+fossil clone $src $repo 2>&1 | tee $note && \
+    fx peer add -R $repo pull content $src

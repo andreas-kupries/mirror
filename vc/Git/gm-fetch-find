@@ -1,0 +1,21 @@
+#!/bin/bash
+
+roots="$@"
+
+if [ "X$roots" = "X" ] ; then
+    roots="$(pwd)"
+fi
+
+repos=""
+have=0
+for root in $roots ; do
+    find "$root" -type d -print0 | (
+	while read -d '' ; do
+	    if ! g-is-repo "$REPLY" ; then
+		continue
+	    fi
+	    gm-fetch "$REPLY"
+	done
+    )
+done
+exit 0

@@ -1,0 +1,13 @@
+#!/bin/bash
+# gitdir = $1
+# peers = $2 (file: tuple (label location)
+
+# 1. remove existing peers.
+#for label in $(g-peer-export $1 | projection 1) ; do git --git-dir $1 remote rm "${label}" ; done
+
+# 2. insert the new set of peers
+
+while read label location
+do
+    git --git-dir $1 remote add "${label}" "$location"
+done < $2

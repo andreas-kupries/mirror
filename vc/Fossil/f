@@ -1,0 +1,240 @@
+#!/bin/bash
+# -*- bash -*-
+
+BIN_DIR="$(cd "$(dirname "$0")" ; pwd)"
+
+# ANSI Color Reference -- more info here:
+# https://en.wikipedia.org/wiki/ANSI_escape_code#Colors
+
+# \x1b[ -- escape sequence
+# m     -- trailing "m" indicates prev. parameters were SGR color specs
+
+# Code list
+#   0 reset
+#   1 bold/bright
+#
+#  30+ text
+#  40+ background
+#
+#  90+ text variants
+# 100+ background variants
+#
+#  30 40 black
+#  31 41 red
+#  32 42 green
+#  33 43 yellow     -- OSX terminal: regular colors, blinks instead
+#  34 44 blue
+#  35 45 magenta
+#  36 46 cyan
+#  37 47 white
+
+# 100 BG grey, non-standard
+
+function f_highlight_changes ()
+{
+    COLOR_RSET='\x1b[0m'        # reset
+    #COLOR_CHGD='\x1b[32m'       # reset;green     -- Changed/Edited
+    COLOR_DELE='\x1b[31m'       # red              -- Intentionally Removed
+    COLOR_INSR='\x1b[32m'       # green            -- Intentionally Added
+    COLOR_EXTR='\x1b[1;32;100m' # bold;green;grey  -- Extra (present, not added)
+    COLOR_MISS='\x1b[1;31;100m' # bold;red;grey    -- Missing (not present, should be)
+
+    sed -e "s/^\(ADDED\)\(.*\)$/$COLOR_INSR\1$COLOR_RSET\2/" \
+        -e "s/^\(DELETED\)\(.*\)$/$COLOR_DELE\1$COLOR_RSET\2/" \
+        -e "s/^\(MISSING\)\(.*\)$/$COLOR_MISS\1$COLOR_RSET\2/" \
+        -e "s/^\(EDITED\)\(.*\)$/$COLOR_RSET\1$COLOR_RSET\2/" \
+        -e "s/^\(EXTRA\)\(.*\)$/$COLOR_EXTR\1$COLOR_RSET\2/" \
+        -e "s/^\(UPDATED_BY_MERGE\)\(.*\)$/$COLOR_RSET\1$COLOR_RSET\2/"
+}
+
+function f_highlight_timeline ()
+{
+    COLOR_RSET='\x1b[0m'       # reset
+    COLOR_CURR='\x1b[1;37;41m' # bold;white;red   -- Current rev marker
+    COLOR_MERG='\x1b[1;34m'    # bold;blue        -- Merge markers
+    COLOR_BRAN='\x1b[1;32;40m' # bold;green;black -- Branch/fork markers
+    COLOR_REVI='\x1b[1;33m'    # yellow           -- Revision id
+
+    sed \
+	-e "s|\*CURRENT\*|${COLOR_CURR}*CURRENT*$COLOR_RSET|g" \
+	-e "s|\*MERGE\*|${COLOR_MERG}*MERGE*$COLOR_RSET|g" \
+	-e "s|\*BRANCH\*|${COLOR_BRAN}*BRANCH*$COLOR_RSET|g" \
+	-e "s|\*FORK\*|${COLOR_BRAN}*BRANCH*$COLOR_RSET|g" \
+	-e "s|\[\([0-9a-z]*\)\]|[${COLOR_REVI}\1$COLOR_RSET]|g"
+}
+
+function f_highlight_diff ()
+{
+    COLOR_RSET='\x1b[0m'        # reset
+    COLOR_INSR='\x1b[1;32;100m' # bold;green;grey -- Lines Added
+    COLOR_DELE='\x1b[1;31;100m' # bold;red;grey   -- Lines Removed
+    COLOR_FILE='\x1b[1;33m'     # bold;yellow     -- File Path / Highlight
+    COLOR_LINE='\x1b[1;34m'     # bold;blue       -- Line Numbers
+    COLOR_FMSG='\x1b[46m'       # ;;cyan          -- File Status Message (ADDED, etc)
+    COLOR_INSF='\x1b[0;32m'     # reset;green     -- Files Added
+    COLOR_DELF='\x1b[0;31m'     # reset;red       -- Files Removed
+
+    sed -e "s/^\(+++\)\(.*\)$/$COLOR_FILE\1\2$COLOR_RSET/" \
+        -e "s/^\(---\)\(.*\)$/$COLOR_FILE\1\2$COLOR_RSET/" \
+        -e "s/^\(=======\)\(.*\)$/$COLOR_FILE\1\2$COLOR_RSET/" \
+        -e "s/^\(Index: \)\(.*\)$/$COLOR_FILE\1\2$COLOR_RSET/" \
+        -e "s/^\(ADDED\)\(.*\)$/$COLOR_FMSG\1${COLOR_INSF}\2$COLOR_RSET/" \
+        -e "s/^\(DELETED\|MISSING\)\(.*\)$/$COLOR_FMSG\1$COLOR_DELF\2$COLOR_RSET/" \
+        -e "s/^\(CHANGED\)\(.*\)$/$COLOR_FMSG\1$COLOR_FILE\2$COLOR_RSET/" \
+        -e "s/^\(@@\)\(.*\)$/$COLOR_LINE\1\2$COLOR_RSET/" \
+        -e "s/^\+\(.*\)$/$COLOR_INSR+\1$COLOR_RSET/" \
+        -e "s/^\-\(.*\)$/$COLOR_DELE-\1$COLOR_RSET/"
+}
+
+function f-extra ()
+{
+    if test -f $HOME/.fossil.ignore -a -r $HOME/.fossil.ignore ; then
+	fossil extra > $$.extra
+	for pattern in $(cat $HOME/.fossil.ignore 2>/dev/null)
+	  do
+	  grep -v "$pattern" $$.extra > $$.kept
+	  mv $$.kept $$.extra
+	done
+	sed < $$.extra -e 's|^|EXTRA	   |'
+	rm $$.extra
+    else
+	fossil extra | sed -e 's|^|EXTRA	   |'
+    fi
+}
+
+function f ()
+{
+    rm $$.* 2> /dev/null
+
+    cmd="$1"
+    shift
+    case "$cmd" in
+	bl) # Branch List
+	    fossil branch list
+	    ;;
+	bc) # Branch Current
+	    fossil branch list|grep '\*'
+	    ;;
+	ch) # CHanges
+	    clear
+	    echo
+	    ( f-extra ; echo ; fossil changes ) | sort -k 2 | f_highlight_changes
+	    echo
+	    ;;
+	delta)
+	    fossil changes|grep 'EDITED\|UPDATED_BY_MERGE' |awk '{ print $2 }' > $$.edited
+	    if test "X$1" != "X" ; then
+		grep "$1" $$.edited|xargs -n1 fossil gdiff
+	    else
+		cat $$.edited|xargs -n1 fossil gdiff
+	    fi
+	    rm $$.edited
+	    ;;
+	d)
+	    fossil diff | f_highlight_diff | less -RS
+	    ;;
+	diff)
+	    fossil diff | f_highlight_diff
+	    ;;
+	dx) fossil diff --tk "$@" &
+	    ;;
+        co)  # COmmit
+            message="$1"
+            shift
+            fossil commit -m "$message" "$@"
+        ;;
+        coe) # COmmit with Edit
+            echo '' > $$.M
+            echo '# Commit message' >> $$.M
+            fossil extra | sed -e 's|^|#EXTRA      |' >> $$.M
+            echo '' >> $$.M
+            fossil changes | sed -e 's|^|#|' >> $$.M
+            echo
+	    if test "X$EDITOR" = "X" ; then
+		vi $$.M
+	    else
+		$EDITOR $$.M
+	    fi
+            grep -v '^#' $$.M > $$$.MF
+            fossil commit -M $$.MF "$@"
+            rm $$.M $$.MF
+        ;;
+	hi) # HIstory
+	    clear
+	    echo
+	    fossil timeline "$@"|f_highlight_timeline
+	    ;;
+	leaves)
+	    clear
+	    echo
+	    fossil leaves "$@"|f_highlight_timeline
+	    ;;
+	up) # UPdate
+	    clear
+	    echo
+	    fossil update "$@"
+	    echo
+	    fossil timeline|f_highlight_timeline
+	    echo
+	    ;;
+	pull)
+	    clear
+	    echo
+	    fossil pull
+	    echo
+	    fossil timeline|f_highlight_timeline
+	    echo
+	    ;;
+	sync)
+	    clear
+	    echo
+	    fossil sync
+	    echo
+	    fossil timeline|f_highlight_timeline
+	    echo
+	    ;;
+	h)
+	    clear
+	    echo
+	    fossil help "$@"
+	    echo
+	    ;;
+	bi)
+	    f bisect "$@"
+	    ;;
+	bir)
+	    f bisect reset
+	    ;;
+	bil)
+	    clear ; echo
+	    f bisect vlist
+	    ;;
+	big)
+	    clear ; echo
+	    f bisect good
+	    f bisect vlist
+	    ;;
+	bib)
+	    clear ; echo
+	    f bisect bad
+	    f bisect vlist
+	    ;;
+	bin)
+	    clear ; echo
+	    f bisect next
+	    f bisect vlist
+	    ;;
+	*)  # All regular commands, without shortcutting
+	    # Attempt to dispatch to external helpers first however.
+
+	    if [ -x "${BIN_DIR}/f-${cmd}" ]
+	    then
+		exec "${BIN_DIR}/f-${cmd}" "$@"
+	    fi
+	    fossil $cmd "$@"
+	;;
+    esac
+}
+
+# Invoke the dispatcher
+f "$@"

@@ -1,0 +1,38 @@
+#!/bin/sh
+# Detect if we are in the TOPLEVEL directory of a git repo (regular,
+# or bare)
+
+dir="$1"
+if [ "X$dir" = "X" ] ; then
+    dir="$(pwd)"
+fi
+
+if [ "X$(basename "$dir")" = "X.git" ] ; then
+    # Inside the .git directory of a git repo, this is not the toplevel
+    exit 1
+fi
+
+if ! cd "$dir" 2>/dev/null
+then
+    exit 1
+fi
+
+# General test
+if ! git rev-parse --git-dir > $$ 2>/dev/null
+then
+    # Failed, not a git directory
+    rm $$
+    exit 1
+fi
+
+# Check result directory path
+res=$(cat $$)
+rm $$
+
+# . and .git are ok, we are in the toplevel dir of a git repo
+if [ "X$res" = "X.git" -o "X$res" = "X." ] ; then
+    exit 0
+fi
+
+# Git repo, but deeper inside, not the toplevel.
+exit 1

@@ -1,0 +1,2 @@
+#!/bin/bash
+fx peer exchange -R "${1}"

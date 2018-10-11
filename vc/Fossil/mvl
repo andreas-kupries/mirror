@@ -1,0 +1,9 @@
+#!/bin/bash
+
+dst="$1"
+shift
+for file in "$@"
+do
+    mv $file $dst
+    ln -s $dst/$(basename $file) $file
+done

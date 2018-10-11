@@ -1,0 +1,19 @@
+#!/bin/sh
+
+repos="$@"
+if [ "X$repos" = X ] ; then
+    echo 1>&2 "Usage: $0 url ..."
+    exit 1
+fi
+
+for r in $repos
+do
+    echo Cloning ____________________________________________ $r
+    (
+	b=$(basename $r .git)
+	git clone --mirror $r $b
+    )
+done
+
+echo Cloned _____________________________________________
+exit 0

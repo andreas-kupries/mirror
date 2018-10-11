@@ -1,0 +1,27 @@
+#!/bin/sh
+
+roots="$@"
+
+if [ "X$roots" = "X" ] ; then
+    roots="$(pwd)"
+fi
+
+repos=""
+have=0
+for root in $roots ; do
+    for d in $(find $root -type d -print) ; do
+	if [ ! g-is-repo $d ; then
+	    continue
+	fi
+	repos="$repos $d"
+	have=1
+    done
+done
+
+if [ $have -eq 0 ] ; then
+    # Nothing to do
+    exit
+fi
+
+gm-fetch $repos
+exit 0

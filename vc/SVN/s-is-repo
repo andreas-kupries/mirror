@@ -1,0 +1,39 @@
+#!/bin/sh
+# Detect if we are in the TOPLEVEL directory of an SVN repo
+
+dir="$1"
+if [ "X$dir" = "X" ] ; then
+    dir="$(pwd)"
+fi
+
+if [ "X$(basename "$dir")" = "X.svn" ] ; then
+    # Inside the .svn directory of a svn repo, this is not the toplevel
+    exit 1
+fi
+
+if ! cd "$dir" 2>/dev/null
+then
+    exit 1
+fi
+
+# General test, absence of a .svn subdirectory.
+if test ! -d "$dir/.svn"
+then
+    exit 1
+fi
+
+# At this point we can be sure that we are in an SVN repository.  We
+# are not sure however if we are in the toplevel of it.  So, move one
+# level up and check for .svn there as well.  If there is nothing we
+# are in the toplevel. Otherwise we are deeper within the
+# repository. Note: SVN places .svn directories in all sub-directories
+# of a repository.
+
+parent="$(dirname "$(readlink -f "$dir")")"
+if test -d "$parent/.svn"
+then
+    exit 1
+fi
+
+# We are in the toplevel of a .svn repo.
+exit 0

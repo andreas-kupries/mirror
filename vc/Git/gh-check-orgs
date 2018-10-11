@@ -1,0 +1,52 @@
+#!/bin/sh
+
+orgs=$(lsdir | sort)
+
+for org in $orgs
+do
+    echo Checking ____________________________________________ $org
+    (
+	# Allow operation under cron, without a terminal
+	if [ "X$TERM" = "X" ] ; then
+	    TERM=xterm
+	fi
+	git hub repos $org --no-cache --raw | sort > $org/.REPOS
+
+	for repo in $(cat $org/.REPOS)
+	do
+	    # repo = org/repo
+	    repo=$(basename $repo)
+
+	    # Skip repos which are marked as unwanted
+	    if test -f $org/.$repo ; then
+		if test -d $org/$repo ; then
+		    # But report if we are also monitoring it.
+		    # Such a repo is either wrongly marked,
+		    # or wrongly monitored.
+		    echo 1>&2 "Superfluous repository: $org/$repo"
+	        fi
+		continue
+	    fi
+	    # Skip repos we are monitoring
+	    if test -d $org/$repo ; then continue ; fi
+
+	    # Here the repo is not monitored, and not noted as unwanted.
+	    # Report as missing.
+
+	    echo 1>&2 "Missing repository: $org/$repo"
+	done
+
+	# TODO: Loop over the monitored repositories and check if they
+	# are gone from the list. These are gone and have to be
+	# mothballed.
+
+    ) 2> $$.err
+
+    if [ -s $$.err ] ; then
+	# In case of troubles add location information to the error channel
+	cat $$.err | wc -l
+	echo 1>&2 Checking ____________________________________________ $org
+	cat $$.err | sort 1>&2
+    fi
+    rm $$.err
+done

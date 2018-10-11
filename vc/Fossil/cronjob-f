@@ -1,0 +1,11 @@
+#!/bin/bash
+BASE=${HOME}/Data/My/MirrorFossil
+direnv exec ${BASE} \
+    get \
+    2>&1 | tee -a ${BASE}/logs/get.current \
+    >>            ${BASE}/logs/get
+
+# Notes:
+# - get is a perpetually growing log, handled by logrotate
+# - get.current only grows through a cycle, and is rotated
+#   by `get` (function `setup`)

@@ -1,0 +1,3 @@
+#!/bin/bash
+# test if the provided file is a fossil repository database.
+[[ "$(file "$1")" == "Fossil repository" ]]

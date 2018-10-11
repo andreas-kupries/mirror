@@ -1,0 +1,41 @@
+#!/usr/bin/env tclsh
+# -*- tcl -*-
+
+if {$argc ni {1 2}} {
+    puts stderr "Usage: $argv0 url ?repo?"
+    exit 1
+}
+
+package require fileutil
+
+lassign $argv url repo
+
+if {[file tail $url] in {index timeline home}} {
+    set url [file dirname $url]
+    # The above command broke the schema prefix of the url.
+    # We now fix that with a map.
+    set url [string map {http:/ http:// https:/ https://} $url]
+}
+
+# General fixups predicates on host (force https where possible)
+lappend map http://chiselapp.com https://chiselapp.com
+lappend map http://core.tcl.tk   https://core.tcl.tk
+
+set url [string map $map $url]
+
+if {$repo == {}} {
+    set repo [file tail $url].fossil
+}
+
+if {[file exists $repo]} {
+    puts stderr "Already have $repo; aborting."
+    exit 1
+}
+
+fileutil::writeFile ${repo}.peers "fossil content pull $url\n"
+
+exec 2>@ stderr >@ stdout fossil clone $url $repo
+exec 2>@ stderr >@ stdout fx peer import -R $repo ${repo}.peers
+
+exit
+

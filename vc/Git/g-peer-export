@@ -1,0 +1,3 @@
+#!/bin/bash
+# gitdir = $1
+git --git-dir $1 remote -v | grep fetch | sed -e 's@ (fetch)$@@'

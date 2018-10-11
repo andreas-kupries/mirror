@@ -1,0 +1,21 @@
+#!/bin/bash
+# PWD = self dir
+
+for repository in */.fslckout
+do
+    rdir=$(dirname $repository)
+    case $rdir in
+	dev*)  # ignore development directories. These are manually maintained.
+	       continue
+	       ;;
+	*)  echo
+	    echo ___ $(date)
+	    echo ___ /// _________ _________ _________ _________ _________ _________ _________ $rdir
+	    (	cd $rdir
+		fossil update 
+	    )
+	    ;;
+    esac
+done
+echo ___ /// _________ _________ _________ _________ _________ _________ _________
+exit

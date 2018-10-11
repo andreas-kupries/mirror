@@ -1,0 +1,550 @@
+#!/usr/bin/env tclsh
+# Generate index and access scripts for the local repos (fossil, git).
+# Reads the recent-changes or equivalent, specified as argument.
+# Generates html and the script in the directory specified as
+# argument.
+
+package require Tcl 8.5
+package require fileutil 1.16 ;# sqlite and fossil db detection.
+package require sqlite3
+package require textutil::adjust
+
+set host  Tagetarl ;#[info hostname]
+set owner "Andreas Kupries" ;#$tcl_platform(user)
+
+proc main {} {
+    do {*}[cmdline]
+    exit 0
+}
+
+proc cmdline {} {
+    global argv
+    if {[llength $argv] != 2} usage
+    return $argv
+}
+
+proc usage {} {
+    global argv0
+    puts stderr "Usage: $argv0 repofile dstdir"
+    exit 1
+}
+
+proc do {repos dst} {
+    global first imports total
+    set spec [fileutil::cat $repos]
+    file delete -force $dst
+    file mkdir  $dst
+    cd $dst
+
+    Push/
+    InitState
+    header
+    eval $spec
+
+    lappend map @size@ "[FSz $total] total"
+
+    WriteImports
+    WriteExports
+    trailer
+    Save2 index.html [string map $map [/Pop]]
+    return
+}
+
+proc InitState {} {
+    global first imports exports total
+    set total 0
+    set first 1
+    set imports {}
+    set exports {}
+    return
+}
+
+proc C {time path} {
+    #pong [info level 0]
+    RE "[string map [list T [nbsp]] $time][nbsp]" $path
+}
+
+proc nbsp {} { return {&nbsp;} }
+
+proc S {args} { return
+    td* colspan 3 { T hr }
+}
+
+proc R {time path} {
+    global first
+    if {$first} {
+        tr= {
+	    th: "Unchanged"
+	    th: "Type"
+	    th: "Repository"
+	    th: "Size"
+	    th: "Peers"
+	    th: "Description"
+	}
+	set first 0
+    }
+    RE {} $path
+}
+
+proc RE {time path} {
+    global exports total
+
+    set type [vc-type $path]
+    # Not reached if path is not a recognizable repository type.
+
+    set r [file tail $path]
+    if {[file extension $r] eq ".fossil"} {
+	set r [file rootname $r]
+    }
+
+    set d [I $path]
+    lassign [Sz $path] sz delta
+
+    if {[string is double -strict $sz]} {
+	incr total $sz
+
+	set sz [FSz $sz]
+	if {[string is integer -strict $delta]} {
+	    append sz "[nbsp](" [FSz $delta +] ")"
+	}
+    }
+
+    set peers [P $path]
+
+    lappend exports $r
+
+    tr* valign top {
+	td: $time
+	td: [string totitle $type]
+	td= { show-$type $r $path }
+	td: $sz
+	if {[llength $peers]} {
+	    td= {
+		link \
+		    [ref-peers "Peers of $type repository $r" $r.peers.html $peers] \
+		    [llength $peers]
+	    }
+	} else {
+	    td: "??"
+	}
+	td: $d
+    }
+    return
+}
+
+proc link {uri {label {}}} {
+    if {$label eq {}} {
+	set label $uri
+    }
+    a* href $uri { t $label }
+    return
+}
+
+proc ref-peers {title f peers} {
+    set pn [llength $peers]
+    if {!$pn} return
+
+    lappend map @ _at_
+    set fpath [string map $map $f]
+
+    Push/
+    html= {
+	head= {
+	    title: $title
+	}
+	body= {
+	    table= {
+		tr= {
+		    th: "#"
+		    th: Location
+		}
+		set n 0
+		foreach p $peers {
+		    tr= {
+			td: [incr n]
+			td= { link $p }
+		    }
+		}
+	    }
+	}
+    }
+    Save2 $fpath [/Pop]
+    return $fpath
+}
+
+
+proc show-fossil {r path} {
+    #pong F:$r
+    # Generate CGI entry point to the web interface (althttpd+fossil server)
+    # of the fossil repository R at PATH, and link to it.
+    cgi-fossil $r $path
+    link $r
+    return
+}
+
+proc show-git {r path} {
+    #pong G:$r
+    # Repository has no web server - yet.
+    t $r
+}
+
+proc P {path} {
+    global imports
+    set p [PI $path]
+    if {![llength $p]} return
+    lappend imports {*}$p
+    return $p
+}
+
+proc WriteImports {} {
+    global imports
+    set peers [lsort -uniq -dict $imports]
+    ref-peers "Union of peers" [ImportFile html] $peers
+    Save2 [ImportFile] [join $peers \n]\n
+    return
+}
+
+proc WriteExports {} {
+    global exports
+    Save2 [ExportFile] [join [lsort -dict $exports] \n]\n
+    return
+}
+
+proc ImportFile {{ext txt}} { return imports.$ext }
+proc ExportFile {} { return exports.txt }
+
+proc PI {path} {
+    # repository peers - locations
+    set p {}
+    lappend map git@github.com: https://github.com/
+    catch {
+	set p [fileutil::cat $path.locations]
+	set p [string trim $p]
+	set p [string map $map $p]
+	set p [split $p \n]
+	set p [lsort -uniq -dict $p]
+    }
+    return $p
+}
+
+proc Redux {unit xv uv} {
+    upvar 1 $xv x $uv uni
+    if {$x < 1024} return
+    set uni $unit
+    set x [expr {$x / 1024. }]
+    return
+}
+
+proc FSz {sz {pos {}}} {
+    if {[catch { incr sz 0 }]} { return $sz }
+    set sign [expr {$sz < 0 ? "-" : "$pos" }]
+    set sz   [expr {abs($sz)}]
+    set unit ""
+
+    Redux K sz unit
+    Redux M sz unit
+    Redux G sz unit
+    Redux T sz unit
+    Redux P sz unit
+    Redux E sz unit
+
+    set sz [format %.2f $sz]
+
+    return $sign$sz$unit
+}
+
+proc Sz {path} {
+    #puts stderr ___________________________:$path
+    set postsz $path.size
+    set presz  $path.size-old
+
+    if {[catch { fileutil::cat $postsz } postsz]} {
+	#puts stderr POS:$postsz
+	set postsz ??
+	set delta  {}
+    } elseif {[catch { fileutil::cat $presz } presz]} {
+	#puts stderr PRE:$presz
+	set delta {}
+    } else {
+	set delta [expr {$postsz - $presz}]
+	if {$delta == 0} { set delta {} }
+    }
+
+    list $postsz $delta
+}
+
+proc I {path} {
+    set dfile $path.desc
+    if {![file exists $dfile]} {
+	#upvar 1 type type
+	#set d [I-$type $path]
+	#fileutil::writeFile $dfile $d
+	#pong "$path = $d"
+	#return $d
+	return {**Not Known**}
+    }
+    return [fileutil::cat $dfile]
+}
+
+proc I-git {path} {
+    set here [pwd]
+
+    cd $path
+    if {[catch {
+	set desc [exec git hub repo-get description]
+    }]} {
+	cd $here
+	return {}
+    }
+    cd $here
+    return $desc
+}
+
+proc I-fossil {path} {
+    # get repository description (I'nfo)
+    sqlite3 REPO $path
+
+    set desc [REPO onecolumn {
+	SELECT value
+	FROM config
+	WHERE name = 'project-description'
+    }]
+
+    #puts stderr "$path = <<$desc>>"
+
+    REPO close
+    return $desc
+}
+
+proc cgi-fossil {r path} {
+    Save2 $r "#!/usr/bin/fossil\nrepository: $path\n"
+    file attributes $r -permissions u=rwx,go=r
+    return
+}
+
+proc Save2 {r text} {
+    fileutil::writeFile $r $text
+    return
+}
+
+proc header {} {
+    global host owner
+    T html
+    head= {
+	title: "Mirrors of various repositories of interest"
+    }
+    T body
+    #c "Generated via $::argv0 -- $::argv"
+
+    h1: "$owner @ $host"
+    h2: "Mirrors of various repositories of interest"
+    p: "Generated [clock format [clock seconds]]"
+
+    p= {
+	link [ImportFile html] {Origin locations, imports}
+	t " ("
+	link [ImportFile] {plain text, machine readable}
+	t ")"
+	/br
+	t "Our locations, exported ("
+	link [ExportFile] {plain text, machine readable, relative to base path}
+	t ")"
+    }
+
+    T* table border 1
+    tr= {
+	th: {Last modified}
+	th: Type
+	th: Repository
+	th: Size
+	th: "Peers"
+	th: Description
+    }
+    tr= {
+	td: {}
+	td: {}
+	td: {}
+	td: @size@
+	td: {}
+	td: {}
+    }
+}
+
+proc trailer {} {
+    T/ table
+    T/ body
+    T/ html
+}
+
+proc vc-type {path} {
+    if {[is-fossil $path]} { return fossil }
+    if {[is-git $path]} { return git }
+    #pong VC?\t$path
+    # Abort the caller.
+    return -code return
+}
+
+proc is-fossil {path} {
+    # Fossil repos are files (sqlite databases)
+    if {[file isdir $path]} { return 0 }
+    if {([file extension $path] eq ".fossil") &&
+	[file exists [file rootname $path].ignore]} {
+	# skip FOO.fossil if there is FOO.ignore
+	# Augments the global filter
+	return 0
+    }
+    #pong ?$path;#:[fileutil::fileType $path]
+    return [expr {"fossil-repository" in [fileutil::fileType $path]}]
+}
+
+proc is-git {path} {
+    # git repos are dirs
+    if {[file isfile $path]} { return 0 }
+    # We are in the internal area of a git repo. That is not a repo in itself.
+    if {[file tail $path] eq ".git"} { return 0 }
+
+    set here [pwd]
+    if {[catch {
+	cd $path
+    }]} { cd $here ; return 0 }
+
+    if {[catch {
+	set res [exec git rev-parse --git-dir 2>/dev/null]
+    }]} {
+	cd $here
+	return 0
+    }
+
+    cd $here
+    return [expr {$res in {. .git}}]
+}
+
+proc pong {text} {
+    puts stderr $text
+}
+
+# # ## ### ##### ######## ############# ##################### 
+## HTML templating
+
+foreach tag {
+    html head title body
+    h1 h2 p table tr td th a
+} {
+    proc ${tag}: {x}    "Tw $tag \$x"
+    proc ${tag}= {x}    "Ts $tag \$x"
+    proc ${tag}* {args} "Ta $tag {*}\$args"
+}
+foreach tag {
+    br
+} {
+    proc /$tag {} "/T $tag"
+}
+unset tag
+
+proc Tw {tag x} { T $tag ; t $x ; T/ $tag }
+
+proc Ts {tag script} {
+    T $tag
+    uplevel 2 $script
+    T/ $tag
+}
+
+proc Ta {tag args} {
+    if {([llength $args] % 2) == 0} {
+	# even: script missing.
+	error "wrong#args"
+    }
+    set script [lpop args]
+    T* $tag {*}$args
+    uplevel 2 $script
+    T/ $tag
+}
+
+proc T  {x} { W <${x}> }
+proc T/ {x} { W </${x}> }
+proc /T {x} { W <${x}/> }
+proc c {text} { W "<!-- $text -->" }
+
+proc T* {x args} {
+    W* "<${x}"
+    foreach {k v} $args {
+	W* " ${k}='$v'"
+    }
+    W ">"
+}
+
+proc t {text} { W $text }
+
+# # ## ### ##### ######## ############# ##################### 
+## Output buffering
+
+proc BSTART {} {
+    global buffer bstash
+    if {![info exists buffer]} { set buffer "" }
+    if {![info exists bstash]} { set bstash {} }
+    return
+}
+
+proc Push/ {} {
+    BSTART
+    global buffer bstash
+    lappend bstash $buffer
+    set buffer {}
+    return
+}
+
+proc /Pop {} {
+    global buffer bstash
+    set result $buffer
+    set buffer [lpop bstash]
+    return $result
+}
+
+proc W  {text} { W* $text\n }
+proc W* {text} { global buffer ; append buffer $text ; return }
+
+# # ## ### ##### ######## ############# ##################### 
+
+proc lpop {var} {
+    upvar 1 $var list
+    set list [lreverse [lassign [lreverse $list] last]]
+    return $last
+}
+
+main
+# ---------------------
+## scratch area, not executed.
+
+set marker 1 ; # remove leading markers from the input
+array set L {}
+
+while {1} {
+    if {[gets stdin line] < 0} break
+    if {[eof stdin]} break
+
+    # Handle markers. Deduplicate only adjacent markers.
+    if {[string match {S *} $line]} {
+	if {$marker} continue
+	set marker 1
+	puts $line
+	continue
+    }
+
+    # regular lines.
+    lassign [split $line] cmd stamp repo
+    set repo [file tail $repo]
+    if {[info exists L($repo)]} {
+	# Have a younger change, ignore the older.
+	# Note how this does __not__ reset the marker flag.
+	# If all changes between two markers get ignored the two marker are
+	# seen as adjacent.
+	continue
+    }
+
+    # First change, remember, show, reset marker flag
+    set L($repo) .
+    puts $line
+    set marker 0
+}
+
+exit 0
