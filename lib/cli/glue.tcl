@@ -67,8 +67,8 @@ proc ::m::glue::gen_name {p} {
 proc ::m::glue::gen_vcs {p} {
     debug.m/glue {}
     # Auto detect vcs of url when not specified by the user.
-    package require m::vcs
     package require m::validate::vcs
+    package require m::vcs
     #
     return [m validate vcs validate $p [m vcs detect [$p config @url]]]
 }
@@ -88,7 +88,7 @@ proc ::m::glue::gen_current {p} {
     package require m::rolodex
     #
     set r [m rolodex top]
-    if {$r ne {}} { return $r }    
+    if {$r ne {}} { return $r }
     $p undefined!
     # Will not reach here
 }
@@ -98,8 +98,8 @@ proc ::m::glue::gen_current_mset {p} {
     # Provide current as mirror set for operation when not specified
     # by the user. Fail if we have no current repository to trace
     # from.
-    package require m::rolodex
     package require m::repo
+    package require m::rolodex
     #
     set r [m rolodex top]
     if {$r ne {}} {
@@ -172,11 +172,11 @@ proc ::m::glue::cmd_vcs {config} {
 
 proc ::m::glue::cmd_add {config} {
     debug.m/glue {}
-    package require m::rolodex
     package require m::mset
     package require m::repo
+    package require m::rolodex
     package require m::store
-    
+
     m db transaction {
 	set url   [$config @url]
 	set vcs   [$config @vcs]
@@ -194,7 +194,7 @@ proc ::m::glue::cmd_add {config} {
 	puts "  Managed by [color note [m vcs name $vcs]]"
 	puts "New"
 	puts "  Mirror set [color note $name]"
-    
+
 	if {[m repo has $url]} {
 	    m::cmdr::error \
 		"Repository already present" \
@@ -207,7 +207,7 @@ proc ::m::glue::cmd_add {config} {
 	}
 
 	# TODO MAYBE: stuff how much of this logic into `repo add` ?
-	
+
 	set mset [m mset add $name]
 
 	m rolodex push [m repo add $vcs $mset $url]
@@ -226,11 +226,11 @@ proc ::m::glue::cmd_add {config} {
 
 proc ::m::glue::cmd_remove {config} {
     debug.m/glue {}
-    package require m::rolodex
     package require m::mset
     package require m::repo
+    package require m::rolodex
     package require m::store
-    
+
     m db transaction {
 	set repo [$config @repository]
 	puts "Removing [color note [m repo name $repo]] ..."
@@ -248,7 +248,7 @@ proc ::m::glue::cmd_remove {config} {
 
 	# TODO MAYBE: stuff how much of the cascading remove logic
 	# TODO MAYBE: into `repo remove` ?
-	
+
 	# Remove store for the repo's vcs if no repositories for that
 	# vcs remain in the mirror set.
 	if {![m mset has-vcs $mset $vcs]} {
@@ -271,27 +271,17 @@ proc ::m::glue::cmd_remove {config} {
 }
 
 proc ::m::glue::cmd_rename {config} {
-    error - xxx mirror set id coming in, not repo
     debug.m/glue {}
-    package require m::rolodex
     package require m::mset
-    package require m::repo
     package require m::store
 
     m db transaction {
-	set repo    [$config @repository] ; debug.m/glue {repo    : $repo}
+	set mset    [$config @mirror-set] ; debug.m/glue {mset    : $mset}
 	set newname [$config @name]       ; debug.m/glue {new name: $newname}
-    	set rinfo   [m repo get $repo]    ; debug.m/glue {rinfo    : $rinfo}
-	dict with rinfo {}
-	# -> url	: repo url
-	#    vcs	: vcs id
-	#    vcode      : vcs code
-	#    mset	: mirror set id
-	#    name	: mirror set name - old name
-	#    store      : store id, of backing store for the repo
+	set oldname [m mset name $mset]
 	
-	puts "Renaming [color note $name] ..."
-	if {$newname eq $name} {
+	puts "Renaming [color note $oldname] ..."
+	if {$newname eq $oldname} {
 	    m::cmdr::error \
 		"The new name is the same as the current name." \
 		NOP
@@ -308,9 +298,6 @@ proc ::m::glue::cmd_rename {config} {
 	foreach store [m mset stores $mset] {
 	    m store rename $store $newname
 	}
-
-	m rolodex push $repo
-	m rolodex commit
     }
 
     ShowCurrent
@@ -318,30 +305,26 @@ proc ::m::glue::cmd_rename {config} {
 }
 
 proc ::m::glue::cmd_merge {config} {
-        error - xxx mirror set id coming in, not repo
     debug.m/glue {}
-    package require m::rolodex
     package require m::mset
     package require m::repo
+    package require m::rolodex
     package require m::store
     package require m::vcs
 
     m db transaction {
-	set repos [MergeFill [$config @repositories]]
+	set msets [Dedup [MergeFill [$config @mirror-sets]]]
 	# __Attention__: Cannot place the mergefill into a generate
 	# clause, the parameter logic is too simple (set / not set) to
 	# handle the case of `set only one`.
-	debug.m/glue {repos = ($repos)}
-	
-	set msets [MirrorSetsOf $repos]
 	debug.m/glue {msets = ($msets)}
-	
+
 	if {[llength $msets] < 2} {
 	    m::cmdr::error \
 		"All repositories are already in the same mirror set." \
 		NOP
 	}
-	
+
 	set secondaries [lassign $msets primary]
 	puts "Target:  [color note [m mset name $primary]]"
 
@@ -349,11 +332,6 @@ proc ::m::glue::cmd_merge {config} {
 	    puts "Merging: [color note [m mset name $secondary]]"
 	    Merge $primary $secondary
 	}
-
-	foreach r [lreverse $repos] {
-	    m rolodex push $r
-	}
-	m rolodex commit
     }
 
     ShowCurrent
@@ -362,9 +340,9 @@ proc ::m::glue::cmd_merge {config} {
 
 proc ::m::glue::cmd_split {config} {
     debug.m/glue {}
-    package require m::rolodex
     package require m::mset
     package require m::repo
+    package require m::rolodex
     package require m::store
     package require m::vcs
 
@@ -398,7 +376,7 @@ proc ::m::glue::cmd_split {config} {
 	puts "  Mirror set [color note $newname]"
 
 	m repo move/1 $repo $msetnew
-	
+
 	if {![m mset has-vcs $mset $vcs]} {
 	    # The moved repository was the last user of its vcs in the
 	    # original mirror set. We can simply move its store over
@@ -406,7 +384,7 @@ proc ::m::glue::cmd_split {config} {
 
 	    puts "  Move store ..."
 
-	    m store move $store $msetnew	    
+	    m store move $store $msetnew
 	} else {
 	    # The originating mset still has users for the store used
 	    # by the moved repo. Need a new store for the moved repo.
@@ -458,23 +436,20 @@ proc ::m::glue::cmd_set_current {config} {
 
 proc ::m::glue::cmd_update {config} {
     debug.m/glue {}
-
     package require m::mset
-    package require m::repo
     package require m::state
     package require m::store
 
-    
     m db transaction {
 	set verbose [$config @verbose]
 	set now     [clock seconds]
-	set msets   [UpdateSets [$config @repositories]]
+	set msets   [UpdateSets [$config @mirror-sets]]
 	debug.m/glue {msets = ($msets)}
-	
+
 	foreach mset $msets {
 	    set mname [m mset name $mset]
 	    puts "Updating Mirror Set [color note $mname] ..."
-	    
+
 	    set stores [m mset stores $mset]
 	    debug.m/glue {stores = ($stores)}
 
@@ -488,7 +463,7 @@ proc ::m::glue::cmd_update {config} {
 		}
 
 		# TODO MAYBE: List the remotes we are pulling from ? => VCS layer, notification callback ...
-		
+
 		set counts [m store update $store $now]
 		lassign $counts before after
 		if {$before != $after} {
@@ -504,23 +479,22 @@ proc ::m::glue::cmd_update {config} {
 		    puts [color note "No changes"]
 		} else {
 		    puts "No changes"
-		}	       
+		}
 	    }
 	}
     }
-    
+
     OK
 }
 
 proc ::m::glue::cmd_list {config} {
     debug.m/glue {}
-
-    package require m::state
     package require m::repo
     package require m::rolodex
-    
+    package require m::state
+
     m db transaction {
-	if {[$config @repository set?]} {	    
+	if {[$config @repository set?]} {
 	    set repo [$config @repository]
 	    set ri [m repo get $repo]
 	    dict with ri {}
@@ -538,7 +512,7 @@ proc ::m::glue::cmd_list {config} {
 
 	debug.m/glue {next   ($next)}
 	debug.m/glue {series ($series)}
-	
+
 	m state top $next
 
 	set n 0
@@ -546,7 +520,7 @@ proc ::m::glue::cmd_list {config} {
 	    m rolodex push $repo
 	    incr n
 	}
-	
+
 	# See also ShowCurrent
 	# TODO: extend list with store times ?
 	[table t {Tag Repository Set VCS} {
@@ -569,8 +543,8 @@ proc ::m::glue::cmd_list {config} {
 
 proc ::m::glue::cmd_reset {config} {
     debug.m/glue {}
-
     package require m::state
+
     m state top {}
 
     puts "List paging reset to start from the top/bottom"
@@ -585,8 +559,8 @@ proc ::m::glue::cmd_rewind {config} {
 
 proc ::m::glue::cmd_limit {config} {
     debug.m/glue {}
-    package require m::state
     package require m::rolodex
+    package require m::state
 
     if {[$config @limit set?]} {
 	set limit [$config @limit]
@@ -597,7 +571,7 @@ proc ::m::glue::cmd_limit {config} {
 
     set n [m state limit]
     set e [expr {$n == 1 ? "entry" : "entries"}]
-    
+
     puts "Per list/rewind, show up to [color note $n] $e"
     OK
 }
@@ -623,7 +597,7 @@ proc ::m::glue::cmd_reject {config} {
 proc ::m::glue::cmd_test_vt_repository {config} {
     debug.m/glue {}
     package require m::repo
-    
+
     set map [m repo known]
     [table/d t {
 	foreach k [lsort -dict [dict keys $map]] {
@@ -690,74 +664,66 @@ proc ::m::glue::MakeName {prefix} {
     return "${prefix}#$n"
 }
 
-
-proc ::m::glue::UpdateSets {repos} {
+proc ::m::glue::UpdateSets {msets} {
     debug.m/glue {}
-    set n [llength $repos]
 
+    set n [llength $msets]
     if {!$n} {
 	# No repositories specified.
 	# Pull mirror sets directly from pending
 	return [m mset pending [m state take]]
     }
 
-    return [MirrorSetsOf $repos]
+    return $msets
 }
 
-proc ::m::glue::MirrorSetsOf {repos} {
-    debug.m/glue {}
-
-    # List of repos into list of mirror sets. Keep order, integrated
-    # dropping of duplicates.
-    
-    set has {}
-    set result {}
-    foreach r $repos {
-	set mset [m repo mset $r]
-	debug.m/glue {(r $r) -> (m $mset)}
-	
-	if {[dict exist $has $mset]} continue
-	dict set has $mset .
-	lappend result $mset
+proc ::m::glue::Dedup {values} {
+    # While keeping the order
+    set res {}
+    set have {}
+    foreach v $values {
+	if {[dict exist $have $v]} continue
+	lappend res $v
+	dict set have $v .
     }
-    return $result
+    return $res
 }
 
-proc ::m::glue::MergeFill {repos} {
+proc ::m::glue::MergeFill {msets} {
     debug.m/glue {}
-    set n [llength $repos]
+    set n [llength $msets]
 
     if {!$n} {
-	# No repositories. Use current and previous for merge
-	# target and source
+	# No mirror sets. Use the mirror sets for current and previous
+	# repository as merge target and source
 
 	set target [m rolodex top]
 	if {$target eq {}} {
 	    m::cmdr::error \
-		"No current repository to merge into" \
+		"No current repository to indicate merge target" \
 		MISSING CURRENT
 	}
 	set origin [m rolodex next]
 	if {$origin eq {}} {
 	    m::cmdr::error \
-		"No previously current repository to merge" \
+		"No previously current repository to indicate merge source" \
 		MISSING PREVIOUS
 	}
-	lappend repos $target $origin
-	return $repos
+	lappend msets [m repo mset $target] [m repo mset $origin]
+	return $msets
     }
     if {$n == 1} {
-	# A single repository is the merge origin. Use current as
-	# merge target.
+	# A single mirror set is the merge origin. Use the mirror set
+	# of the current repository as merge target.
 	set target [m rolodex top]
 	if {$target eq {}} {
 	    m::cmdr::error \
-		"No current repository to merge into" \
+		"No current repository to indicate merge target" \
 		MISSING CURRENT
 	}
-	return [linsert $repos 0 $target]
+	return [linsert $msets 0 [m repo mset $target]]
     }
-    return $repos
+    return $msets
 }
 
 proc ::m::glue::Merge {target origin} {

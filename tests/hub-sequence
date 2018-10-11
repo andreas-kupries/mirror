@@ -9,7 +9,7 @@ echo
 VERBOSE=
 #VERBOSE=--verbose
 
-O m add ${VERBOSE} git@github.com:flightaware/tclreadline FA.tclreadline
+O m add ${VERBOSE} -N FA.tclreadline git@github.com:flightaware/tclreadline
 O m list
 O m update ${VERBOSE} @c
 O m update ${VERBOSE} @c

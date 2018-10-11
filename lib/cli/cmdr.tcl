@@ -201,7 +201,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
     }
 
     common .list-optional-mirror-set {
-	input repositories {
+	input mirror-sets {
 	    Repositories to operate on.
 	} { list ; optional ; validate [m::cmdr::vt mset] }
     }
@@ -305,12 +305,14 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 
     private rename {
 	description {
-	    Change the name of the mirror set holding the specified or
-	    current repository. Renamed repository becomes current.
+	    Change the name of the specified mirror set, or the mirror
+	    set indicated by the current repository.
+
+	    The rolodex does not change.
 	}
 	use .optional-mirror-set
 	input name {
-	    New name for the mirror set holding the repository.
+	    New name for the mirror set.
 	} { validate str }
     } [m::cmdr::call glue cmd_rename]
 
@@ -326,7 +328,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	    The name of the primary mirror set becomes the name of the
 	    merge.
 
-	    // XXX change to no change, or to first from mset - The merge target becomes current.
+	    The rolodex does not change.
 	}
 	use .list-optional-mirror-set
     } [m::cmdr::call glue cmd_merge]
@@ -368,14 +370,13 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
     
     private update {
 	description {
-	    Runs an update cycle on the mirror sets associated with
-	    the specified repositories. When no repositories are
-	    specified use `take` number of mirror sets from the list
-	    of pending mirror sets. If no mirror sets are pending
-	    refill the list with the entire set of mirror sets and then
-	    take from the list.
+	    Runs an update cycle on the specified mirror sets. When no
+	    mirror sets are specified use the next `take` number of
+	    mirror sets from the list of pending mirror sets. If no
+	    mirror sets are pending refill the list with the entire
+	    set of mirror sets and then take from the list.
 	}
-	use .list-optional-repository
+	use .list-optional-mirror-set
     } [m::cmdr::call glue cmd_update]
 
     private list {

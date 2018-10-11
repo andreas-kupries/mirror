@@ -6,17 +6,17 @@ sleep 2
 clear
 echo
 
-O m add https://github.com/andreas-kupries/marpa			A
-O m add https://chiselapp.com/user/andreas_kupries/repository/marpa	B
+O m add https://github.com/andreas-kupries/marpa			-N A
+O m add https://chiselapp.com/user/andreas_kupries/repository/marpa	-N B
 O m merge
-O m add https://core.tcl.tk/akupries/marpa/index			C
+O m add https://core.tcl.tk/akupries/marpa/index			-N C
 O m merge 
 O m rename TclMarpa
 
-O m add https://github.com/andreas-kupries/atom			A
-O m add https://chiselapp.com/user/andreas_kupries/repository/atom	B
+O m add https://github.com/andreas-kupries/atom				-N A
+O m add https://chiselapp.com/user/andreas_kupries/repository/atom	-N B
 O m merge
-O m add https://core.tcl.tk/akupries/atom/index			C
+O m add https://core.tcl.tk/akupries/atom/index				-N C
 O m merge 
 O m rename Atom
 
