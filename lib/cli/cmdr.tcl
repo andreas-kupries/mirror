@@ -379,6 +379,14 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	use .list-optional-mirror-set
     } [m::cmdr::call glue cmd_update]
 
+    private updates {
+	description {
+	    Show compressed history of past updates.
+	    Sorted by last changed, updated, created.
+	    Empty lines between update cycles
+	}
+    } [m::cmdr::call glue cmd_updates]
+
     private pending {
 	description {
 	    Show list of currently pending mirror sets. I.e mirror

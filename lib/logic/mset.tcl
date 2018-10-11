@@ -253,7 +253,7 @@ proc ::m::mset::take-pending {take} {
 	# Full read. Clear taken, the slow way.  Drop the unwanted
 	# sentinel element from the end of the result.
 	set taken [lreplace [K $taken [unset taken]] end end]
-	m db eval [string map [list %% [join $token ,]] {
+	m db eval [string map [list %% [join $taken ,]] {
 	    DELETE
 	    FROM mset_pending
 	    WHERE mset in (%%)
@@ -262,6 +262,10 @@ proc ::m::mset::take-pending {take} {
 
     return $taken
 }
+
+# # ## ### ##### ######## ############# ######################
+
+proc ::m::mset::K {x y} { set x }
 
 # # ## ### ##### ######## ############# ######################
 package provide m::mset 0

@@ -16,6 +16,7 @@
 # # ## ### ##### ######## ############# ######################
 
 package require Tcl 8.5
+package require m::db
 package require m::vcs
 package require debug
 package require debug::caller
@@ -29,7 +30,7 @@ namespace eval ::m {
 namespace eval ::m::store {
     namespace export \
 	add remove move rename merge split update has check \
-	id vcs-name
+	id vcs-name updates
     namespace ensemble create
 }
 
@@ -181,6 +182,27 @@ proc ::m::store::vcs-name {store} {
     }]
 }
 
+proc ::m::store::updates {} {
+    debug.m/store {}
+
+    return [m db eval {
+	SELECT N.name    AS mname
+	,      V.code    AS vcode
+	,      T.changed AS changed
+	,      T.updated AS updated
+	,      T.created AS created
+	FROM store_times            T
+	,    store                  S
+	,    mirror_set             M
+	,    version_control_system V
+	,    name                   N
+	WHERE T.store = S.id
+	AND   S.mset  = M.id
+	AND   S.vcs   = V.id
+	AND   M.name  = N.id
+	ORDER BY changed DESC, updated DESC, created DESC
+    }]
+}
 # # ## ### ##### ######## ############# ######################
 
 proc ::m::store::Add {vcs mset} {

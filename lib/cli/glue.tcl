@@ -487,15 +487,44 @@ proc ::m::glue::cmd_update {config} {
     OK
 }
 
+proc ::m::glue::cmd_updates {config} {
+    debug.m/glue {}
+    package require m::store
+    
+    m db transaction {
+	set series [m store updates]
+	set first 1
+	[table t {{Mirror Set} VCS Changed Updated Created} {
+	    set last {}
+	    foreach {mname vcode changed updated created} $series {
+		if {$updated == $created} {
+		    if {$first} {
+			$t add - - - - -
+		    }
+		    set first 0
+		} elseif {($last ne {}) && ($updated != $last)} {
+		    $t add - - - - -
+		}
+		set last $updated
+		set changed [Date $changed]
+		set updated [Date $updated]
+		set created [Date $created]
+		$t add $mname $vcode $changed $updated $created
+	    }
+	}] show
+    }
+    OK
+}
+
 proc ::m::glue::cmd_pending {config} {
     debug.m/glue {}
     package require m::mset
     package require m::state
     
-    set series [m mset pending]
-    set take   [m state take]
-
     m db transaction {
+	set series [m mset pending]
+	set take   [m state take]
+
 	[table t {{} {Mirror Set} #Repositories} {
 	    foreach {mname numrepo} $series {
 		if {$take} {
@@ -639,7 +668,14 @@ proc ::m::glue::cmd_debug_levels {config} {
 
 # # ## ### ##### ######## ############# ######################
 
+proc ::m::glue::Date {epoch} {
+    debug.m/glue {}
+    # TODO: better date/time formatting (ISO)
+    clock format $epoch
+}
+
 proc ::m::glue::ShowCurrent {} {
+    debug.m/glue {}
     package require m::repo
     package require m::rolodex
 
@@ -701,6 +737,7 @@ proc ::m::glue::UpdateSets {msets} {
 }
 
 proc ::m::glue::Dedup {values} {
+    debug.m/glue {}
     # While keeping the order
     set res {}
     set have {}
