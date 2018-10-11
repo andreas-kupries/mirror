@@ -1,0 +1,111 @@
+#!/bin/bash
+./up
+./cl
+sleep 2
+clear
+echo
+
+F() {
+    if "$@"
+    then echo FAIL. Unexpected ok.
+    else echo OK__. Expected failure
+    fi
+}
+
+O() {
+    if "$@"
+    then echo OK__. Expected ok.
+    else echo FAIL. Unexpected failure
+    fi
+}
+
+lr() {
+    echo ___________________________________________ /// list repo ///
+    ./sq '
+SELECT V.code
+,      N.name
+,      S.id
+,      R.url
+FROM   repository             R
+,      mirror_set             M
+,      name                   N
+,      version_control_system V
+,      store                  S
+WHERE  M.id   = R.mset
+AND    N.id   = M.name
+AND    V.id   = R.vcs
+AND    S.vcs  = R.vcs
+AND    S.mset = R.mset
+ORDER BY url ASC
+'
+}
+
+# Testing sequence for commands
+# - add (fossil, git)
+# - merge, split
+# - current (alias @)
+# - rename
+# - swap
+# - remove
+
+# TODO
+# - update
+# - list, reset, rewind
+# - submissions, accept, reject
+# - debug levels
+
+O ./m add http://chiselapp.com/user/andreas_kupries/repository/marpa -N marpa/chisel
+F ./m add http://chiselapp.com/user/andreas_kupries/repository/kettle -N marpa/chisel ;# fail dup name
+O ./m add https://core.tcl.tk/akupries/marpa/index
+F ./m add https://core.tcl.tk/akupries/marpa/index ;# fail dup repo
+O ./m merge
+# todo merge without current, without previous and incomplete cli
+O ./m split
+O ./m @
+F ./m split ;# fail - to small - core alone
+O ./m merge
+O ./m rename marpa
+F ./m rename marpa ; # fail - same name
+lr
+F ./m merge ; # fail - all repos in same set
+O ./m add http://github.com/andreas-kupries/marpa
+O ./m debug test-vt-repo
+O ./m swap
+O ./m merge
+O ./m swap
+O ./m split
+O ./m merge
+lr
+O ./m reset
+O ./m rename marpa
+O ./m @
+O ./m swap
+O ./m go chisel
+O ./m remove chisel ;# repository url substring matching
+O ./m remove core   ;# merge current/previous with the rolodex ?
+O ./m remove github ;# a larger stack ?
+O ./m @
+
+# Configuration query and manipulation
+
+O ./m take
+O ./m limit
+O ./m store
+O ./m vcs
+O ./m take 10
+O ./m limit 30
+O ./m store FOO
+O ./m take
+O ./m limit
+O ./m store
+O ./m take 5
+O ./m limit 20
+O ./m store ~/.mirror/store
+
+F ./m take   0 ;# fail validation
+F ./m limit  0 ;# fail ditto
+F ./m take  -1 ;# fail bad option
+F ./m limit -1 ;# fail bad option
+
+# Here the database is empty again and all configuration values are
+# back to their defaults.

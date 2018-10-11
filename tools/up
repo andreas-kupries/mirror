@@ -1,0 +1,18 @@
+#!/bin/bash
+clear
+echo
+ftilde
+rtilde
+sleep 2
+clear
+echo
+./build.tcl uninstall
+sleep2
+clear
+echo
+./build.tcl install
+sleep 2
+clear
+echo
+date
+echo

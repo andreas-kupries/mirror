@@ -1,0 +1,59 @@
+#!/bin/bash
+./up
+./cl
+sleep 2
+clear
+echo
+
+F() {
+    if "$@"
+    then echo FAIL. Unexpected ok.
+    else echo OK__. Expected failure
+    fi
+}
+
+O() {
+    if "$@"
+    then echo OK__. Expected ok.
+    else echo FAIL. Unexpected failure
+    fi
+}
+
+lr() {
+    echo ___________________________________________ /// list repo ///
+    ./sq '
+SELECT V.code
+,      N.name
+,      S.id
+,      R.url
+FROM   repository             R
+,      mirror_set             M
+,      name                   N
+,      version_control_system V
+,      store                  S
+WHERE  M.id   = R.mset
+AND    N.id   = M.name
+AND    V.id   = R.vcs
+AND    S.vcs  = R.vcs
+AND    S.mset = R.mset
+ORDER BY url ASC
+'
+}
+
+O ./m add https://github.com/andreas-kupries/marpa			A
+O ./m add https://chiselapp.com/user/andreas_kupries/repository/marpa	B
+O ./m merge
+O ./m add https://core.tcl.tk/akupries/marpa/index			C
+O ./m merge 
+O ./m rename TclMarpa
+
+O ./m add https://github.com/andreas-kupries/atom			A
+O ./m add https://chiselapp.com/user/andreas_kupries/repository/atom	B
+O ./m merge
+O ./m add https://core.tcl.tk/akupries/atom/index			C
+O ./m merge 
+O ./m rename Atom
+
+O ./m list
+O ./m @
+O ./m update --verbose

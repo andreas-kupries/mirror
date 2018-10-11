@@ -1,0 +1,29 @@
+#!/bin/bash
+./up
+./cl
+sleep 2
+clear
+echo
+
+VERBOSE=
+#VERBOSE=--verbose
+
+F() {
+    if "$@"
+    then echo FAIL. Unexpected ok.
+    else echo OK__. Expected failure
+    fi
+}
+
+O() {
+    if "$@"
+    then echo OK__. Expected ok.
+    else echo FAIL. Unexpected failure
+    fi
+}
+
+O ./m add ${VERBOSE} git@github.com:flightaware/tclreadline FA.tclreadline
+O ./m list
+O ./m update ${VERBOSE} @c
+O ./m update ${VERBOSE} @c
+#O ./m remove @c

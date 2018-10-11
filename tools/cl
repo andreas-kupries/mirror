@@ -1,0 +1,6 @@
+#!/bin/bash
+
+rm -vrf \
+   $HOME/.local/mirror.sqlite \
+   $HOME/.mirror/store
+exit
