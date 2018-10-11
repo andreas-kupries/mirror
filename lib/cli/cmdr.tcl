@@ -379,9 +379,17 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	use .list-optional-mirror-set
     } [m::cmdr::call glue cmd_update]
 
+    private pending {
+	description {
+	    Show list of currently pending mirror sets. I.e mirror
+	    sets waiting for an update.  Order shown is the order they
+	    are taken, from the top down.
+	}
+    } [m::cmdr::call glue cmd_pending]
+
     private list {
 	description {
-	    Show partial list of the known repositories.
+	    Show (partial) list of the known repositories.
 	}
 	option repository {
 	    Repository to start the listing with.

@@ -487,6 +487,29 @@ proc ::m::glue::cmd_update {config} {
     OK
 }
 
+proc ::m::glue::cmd_pending {config} {
+    debug.m/glue {}
+    package require m::mset
+    package require m::state
+    
+    set series [m mset pending]
+    set take   [m state take]
+
+    m db transaction {
+	[table t {{} {Mirror Set} #Repositories} {
+	    foreach {mname numrepo} $series {
+		if {$take} {
+		    $t add * $mname $numrepo
+		    incr take -1
+		} else {
+		    $t add {} $mname $numrepo
+		}
+	    }
+	}] show
+    }
+    OK
+}
+
 proc ::m::glue::cmd_list {config} {
     debug.m/glue {}
     package require m::repo
@@ -671,7 +694,7 @@ proc ::m::glue::UpdateSets {msets} {
     if {!$n} {
 	# No repositories specified.
 	# Pull mirror sets directly from pending
-	return [m mset pending [m state take]]
+	return [m mset take-pending [m state take]]
     }
 
     return $msets

@@ -16,6 +16,7 @@
 # # ## ### ##### ######## ############# ######################
 
 package require Tcl 8.5
+package require m::db
 package require debug
 package require debug::caller
 
@@ -29,7 +30,7 @@ namespace eval ::m::mset {
     namespace export \
 	add remove rename has \
 	name used-vcs has-vcs size \
-	stores pending known
+	stores take-pending pending known
     namespace ensemble create
 }
 
@@ -205,7 +206,23 @@ proc ::m::mset::name {mset} {
     }]
 }
 
-proc ::m::mset::pending {take} {
+proc ::m::mset::pending {} {
+    debug.m/mset {}
+    return [m db eval {
+	SELECT N.name
+	,      (SELECT count (*)
+		FROM  repository R
+		WHERE R.mset = P.mset)
+	FROM   mset_pending P
+	,      mirror_set   M
+	,      name         N
+	WHERE P.mset = M.id
+	AND   N.id   = M.name
+	ORDER BY P.ROWID
+    }]
+}
+
+proc ::m::mset::take-pending {take} {
     debug.m/mset {}
 
     # Ask for one more than actually request. This will cause a

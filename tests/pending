@@ -1,0 +1,39 @@
+#!/bin/bash
+
+up
+cl
+sleep 2
+clear
+echo
+
+O m add https://core.tcl.tk/akupries/marpa/index
+O m add https://chiselapp.com/user/andreas_kupries/repository/marpa
+O m swap
+O m merge
+O m add http://github.com/andreas-kupries/marpa
+O m swap
+O m merge
+
+#O m add https://core.tcl.tk/akupries/crimp
+#O m add https://core.tcl.tk/akupries/lspace
+O m add https://core.tcl.tk/akupries/array
+O m add https://core.tcl.tk/akupries/atom
+O m add https://core.tcl.tk/akupries/backup
+O m add https://core.tcl.tk/akupries/blob
+O m add https://core.tcl.tk/akupries/bookflow
+O m add https://core.tcl.tk/akupries/change
+O m add https://core.tcl.tk/akupries/cmdr
+O m add https://core.tcl.tk/akupries/crunch
+O m add https://core.tcl.tk/akupries/dbutil
+O m add https://core.tcl.tk/akupries/famfamfam
+O m add https://core.tcl.tk/akupries/fx
+O m add https://core.tcl.tk/akupries/kettle
+O m add https://core.tcl.tk/akupries/kinetcl
+O m add https://core.tcl.tk/akupries/linenoise-utilities
+O m add https://core.tcl.tk/akupries/parsetools
+O m add https://core.tcl.tk/akupries/struct
+O m add https://core.tcl.tk/akupries/tclyaml
+
+O m list
+O m @
+O m pending
