@@ -1,27 +1,14 @@
 #!/bin/bash
-./up
-./cl
+
+up
+cl
 sleep 2
 clear
 echo
 
-F() {
-    if "$@"
-    then echo FAIL. Unexpected ok.
-    else echo OK__. Expected failure
-    fi
-}
-
-O() {
-    if "$@"
-    then echo OK__. Expected ok.
-    else echo FAIL. Unexpected failure
-    fi
-}
-
-O ./m add http://chiselapp.com/user/andreas_kupries/repository/marpa
-O ./m add https://core.tcl.tk/akupries/marpa/index
-O ./m add http://github.com/andreas-kupries/marpa
+O m add http://chiselapp.com/user/andreas_kupries/repository/marpa
+O m add https://core.tcl.tk/akupries/marpa/index
+O m add http://github.com/andreas-kupries/marpa
 #lr
-O ./m list
-O ./m @
+O m list
+O m @

@@ -1,0 +1,8 @@
+#!/bin/bash
+
+source $(dirname "$0")/colors
+
+if "$@"
+then printf "%bOK__.%b Expected ok." "${OK_COLOR}" "${NO_COLOR}"
+else printf "%bFAIL. Unexpected failure%b" "${ERROR_COLOR}" "${NO_COLOR}"
+fi
