@@ -172,5 +172,18 @@ proc ::m::db::SETUP-201810092200 {} {
     return
 }
 
+proc ::m::db::SETUP-201810111600 {} {
+    # Added column `created` to `store_times`
+
+    D m::db
+    C store    INTEGER  NOT NULL  ^store PRIMARY KEY
+    C created  INTEGER  NOT NULL
+    C updated  INTEGER  NOT NULL
+    C changed  INTEGER  NOT NULL
+    < store_times  store updated updated changed
+    #                    ^ use last update as fake creation
+    return
+}
+
 # # ## ### ##### ######## ############# #####################
 return

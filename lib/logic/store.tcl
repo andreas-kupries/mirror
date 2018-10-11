@@ -197,7 +197,7 @@ proc ::m::store::Add {vcs mset} {
     m db eval {
 	INSERT
 	INTO   store_times
-	VALUES ( :store, :now, :now )
+	VALUES ( :store, :now, :now, :now )
     }
     return $store
 }

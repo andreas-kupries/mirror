@@ -1,0 +1,25 @@
+#!/bin/bash
+
+echo ___________________________________________ /// list repo ///
+sq '
+SELECT V.code
+,      N.name
+,      T.created
+,      T.updated
+,      T.changed
+,      R.url
+FROM   store_times            T
+,      mirror_set             M
+,      name                   N
+,      version_control_system V
+,      store                  S
+,      repository             R
+WHERE  M.id   = R.mset
+AND    N.id   = M.name
+AND    V.id   = R.vcs
+AND    S.vcs  = R.vcs
+AND    S.mset = R.mset
+AND    S.id   = T.store
+ORDER BY url ASC
+'
+
