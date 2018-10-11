@@ -52,9 +52,16 @@ proc ::m::glue::gen_limit {p} {
 
 proc ::m::glue::gen_name {p} {
     debug.m/glue {}
+    package require m::mset
     package require m::vcs
-    # Derive a name from the url when no such was specified by the user.
-    return [m vcs name-from-url [$p config @vcs-code] [$p config @url]]
+
+    # Derive a name from the url when no such was specified by the
+    # user. Add a serial number if that name is already in use.
+    set name [m vcs name-from-url [$p config @vcs-code] [$p config @url]]
+    if {[m mset has $name]} {
+	set name [MakeName $name]
+    }
+    return $name
 }
 
 proc ::m::glue::gen_vcs {p} {
@@ -63,7 +70,7 @@ proc ::m::glue::gen_vcs {p} {
     package require m::vcs
     package require m::validate::vcs
     #
-    return [m validate vcs validate _ [m vcs detect [$p config @url]]]
+    return [m validate vcs validate $p [m vcs detect [$p config @url]]]
 }
 
 proc ::m::glue::gen_vcs_code {p} {
@@ -83,7 +90,26 @@ proc ::m::glue::gen_current {p} {
     set r [m rolodex top]
     if {$r ne {}} { return $r }    
     $p undefined!
-    # Will not here
+    # Will not reach here
+}
+
+proc ::m::glue::gen_current_mset {p} {
+    debug.m/glue {}
+    # Provide current as mirror set for operation when not specified
+    # by the user. Fail if we have no current repository to trace
+    # from.
+    package require m::rolodex
+    package require m::repo
+    #
+    set r [m rolodex top]
+    if {$r ne {}} {
+	set m [m repo mset $r]
+	if {$m ne {}} {
+	    return $m
+	}
+    }
+    $p undefined!
+    # Will not reach here
 }
 
 # # ## ### ##### ######## ############# ######################
@@ -127,9 +153,17 @@ proc ::m::glue::cmd_vcs {config} {
     puts [color note {Supported VCS}]
 
     m db transaction {
-	[table t {Code Name} {
+	[table t {Code Name Issues} {
 	    foreach {code name} [m vcs list] {
-		$t add $code $name
+		set issues [m vcs issues $code]
+		if {$issues ne {}} {
+		    # TODO lmap forward compat
+		    foreach issue [split $issues \n] {
+			lappend tmp [color bad $issue]
+		    }
+		    set issues [join $tmp \n]
+		}
+		$t add $code $name $issues
 	    }
 	}] show
     }
@@ -237,6 +271,7 @@ proc ::m::glue::cmd_remove {config} {
 }
 
 proc ::m::glue::cmd_rename {config} {
+    error - xxx mirror set id coming in, not repo
     debug.m/glue {}
     package require m::rolodex
     package require m::mset
@@ -283,6 +318,7 @@ proc ::m::glue::cmd_rename {config} {
 }
 
 proc ::m::glue::cmd_merge {config} {
+        error - xxx mirror set id coming in, not repo
     debug.m/glue {}
     package require m::rolodex
     package require m::mset
@@ -677,7 +713,7 @@ proc ::m::glue::MirrorSetsOf {repos} {
     set has {}
     set result {}
     foreach r $repos {
-	set mset [dict get [m repo get $r] mset]
+	set mset [m repo mset $r]
 	debug.m/glue {(r $r) -> (m $mset)}
 	
 	if {[dict exist $has $mset]} continue

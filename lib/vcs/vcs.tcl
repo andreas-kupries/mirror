@@ -49,8 +49,8 @@ namespace eval ::m {
 namespace eval ::m::vcs {
     namespace export \
 	setup cleanup update check split merge \
-	id supported list detect code name \
-	url-norm name-from-url rename
+	rename id supported list code name \
+	detect url-norm name-from-url issues
     namespace ensemble create
 
     namespace import ::cmdr::color
@@ -160,27 +160,23 @@ proc ::m::vcs::split {vcs origin dst dstname} {
 
 # # ## ### ##### ######## ############# #####################
 
+proc ::m::vcs::issues {vcode} {
+    debug.m/vcs {}
+    return [$vcode issues]
+}
+
 proc ::m::vcs::detect {url} {
     debug.m/vcs {}
 
-    # Consider plugins for detection.
-    # Issue is ordering. See below.
-    
-    if {[string match *github* $url]} {
-	try {
-	    m exec silent git hub help
-	} on ok {e o} {
-	    return github
-	}
-	puts "[color note "git hub"] [color warning "not available"]"
-	# On error fall through to generic git.
-    }
-    
-    if {[string match *git* $url]} {
-	return git
-    }
+    # Note: Ordering is important.
+    # Capture specific things first (github)
+    # Least specific (fossil) is last.
 
-    return fossil
+    github detect $url
+    git    detect $url
+    fossil detect $url
+
+    return -code error "Unable to determine vcs for $url"
 }
 
 proc ::m::vcs::url-norm {vcode url} {

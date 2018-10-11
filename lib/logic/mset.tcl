@@ -29,7 +29,7 @@ namespace eval ::m::mset {
     namespace export \
 	add remove rename has \
 	name used-vcs has-vcs size \
-	stores pending
+	stores pending known
     namespace ensemble create
 }
 
@@ -39,6 +39,56 @@ debug level  m/mset
 debug prefix m/mset {[debug caller] | }
 
 # # ## ### ##### ######## ############# ######################
+
+proc ::m::mset::known {} {
+    debug.m/mset {}
+
+    # Return map to mirror set ids.
+    # Keys:
+    # - rolodex ids (+ '@current', '@', '@prev')
+    # - repository urls
+    # - mirror set names
+
+    set map {}
+    set mid {}
+
+    # Repository and mirror set information in one trip.
+    m db eval {
+	SELECT M.id   AS id
+	,      R.id   AS rid
+	,      M.name AS mname
+	,      R.url  AS url
+	FROM   repository R
+	,      mirror_set M
+	WHERE  R.mset = M.id
+    } {
+	dict set mid $rid $id
+	dict set map $url   $id
+	dict set map $mname $id
+    }
+
+    # See also m::repo::known
+    # Note, different ids! mset, not repo.
+    set c {}
+    set p {}
+    set id -1
+    foreach r [m rolodex get] {
+	set p $c ; set c $r ; incr id
+	dict set map "@$id" [dict get $mid $r]
+    }
+    if {$p ne {}} {
+	set p [dict get $mid $p]
+	dict set map @prev $p
+	dict set map @-1   $p
+    }
+    if {$c ne {}} {
+	set c [dict get $mid $c]
+	dict set map @current $c
+	dict set map @        $c
+    }
+
+    return $map
+}
 
 proc ::m::mset::add {name} {
     debug.m/mset {}

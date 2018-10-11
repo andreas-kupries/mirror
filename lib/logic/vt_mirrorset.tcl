@@ -3,17 +3,17 @@
 ## Repositories - Validation
 
 # @@ Meta Begin
-# Package m::validate::repository 0 
+# Package m::validate::mset 0 
 # Meta author   {Andreas Kupries}
 # Meta location https://core.tcl.tk/akupries/????
 # Meta platform tcl
-# Meta summary     Repository validation
-# Meta description Repository validation
-# Meta subject    {repository - validation}
+# Meta summary     mirror set validation
+# Meta description mirror set validation
+# Meta subject    {mirror set - validation}
 # Meta require {Tcl 8.5-}
 # @@ Meta End
 
-package provide m::validate::repository 0
+package provide m::validate::mset 0
 
 # # ## ### ##### ######## ############# #####################
 ## Requisites
@@ -29,8 +29,8 @@ package require debug::caller
 
 # # ## ### ##### ######## ############# ######################
 
-debug level  m/validate/repository
-debug prefix m/validate/repository {[debug caller] | }
+debug level  m/validate/mset
+debug prefix m/validate/mset {[debug caller] | }
 
 # # ## ### ##### ######## ############# #####################
 ## Definition
@@ -40,10 +40,10 @@ namespace eval ::m {
     namespace ensemble create
 }
 namespace eval ::m::validate {
-    namespace export repository
+    namespace export mset
     namespace ensemble create
 }
-namespace eval ::m::validate::repository {
+namespace eval ::m::validate::mset {
     namespace export default validate complete release
     namespace ensemble create
 
@@ -52,30 +52,30 @@ namespace eval ::m::validate::repository {
 }
 # # ## ### ##### ######## ############# #####################
 
-debug define m/validate/repository
-debug level  m/validate/repository
-debug prefix m/validate/repository {[debug caller] | }
+debug define m/validate/mset
+debug level  m/validate/mset
+debug prefix m/validate/mset {[debug caller] | }
 
 # # ## ### ##### ######## ############# #####################
 
-proc ::m::validate::repository::release  {p x} { return }
-proc ::m::validate::repository::default  {p}   {
-    return [m rolodex top]
+proc ::m::validate::mset::release  {p x} { return }
+proc ::m::validate::mset::default  {p}   {
+    return [m repo mset [m rolodex top]]
 }
-proc ::m::validate::repository::complete {p x} {
-    debug.m/validate/repository {} 10
-    return [complete-enum [dict keys [m repo known]] 0 $x]
+proc ::m::validate::mset::complete {p x} {
+    debug.m/validate/mset {} 10
+    return [complete-enum [dict keys [m mset known]] 0 $x]
 }
-proc ::m::validate::repository::validate {p x} {
-    debug.m/validate/repository {}
+proc ::m::validate::mset::validate {p x} {
+    debug.m/validate/mset {}
 
     set known [m repo known]
     set match [m match substring id $known nocase $x]
 
     switch -exact -- $match {
 	ok        { return $id }
-	fail      { fail $p REPOSITORY "a repository"              $x }
-	ambiguous { fail $p REPOSITORY "an unambiguous repository" $x }
+	fail      { fail $p MSET "a mirror set"              $x }
+	ambiguous { fail $p MSET "an unambiguous mirror set" $x }
     }
 }
 

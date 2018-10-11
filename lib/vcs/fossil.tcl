@@ -36,11 +36,25 @@ namespace eval m::vcs {
     namespace ensemble create
 }
 namespace eval m::vcs::fossil {
-    namespace export setup cleanup update check split merge
+    namespace export setup cleanup update check split merge \
+	issues detect
     namespace ensemble create
 }
 
-proc m::vcs::fossil::setup {path url} {
+# # ## ### ##### ######## ############# ######################
+
+proc ::m::vcs::fossil::detect {url} {
+    debug.m/vcs/fossil {}
+    return -code return fossil
+}
+
+proc ::m::vcs::fossil::issues {} {
+    debug.m/vcs/fossil {}
+    if {[llength [auto_execok fossil]]} return
+    return "`fossil` not found in PATH"
+}
+
+proc ::m::vcs::fossil::setup {path url} {
     debug.m/vcs/fossil {}
     
     set repo [FossilOf $path]
@@ -52,12 +66,12 @@ proc m::vcs::fossil::setup {path url} {
     return
 }
 
-proc m::vcs::fossil::cleanup {path} {
+proc ::m::vcs::fossil::cleanup {path} {
     debug.m/vcs/fossil {}
     return
 }
 
-proc m::vcs::fossil::update {path urls} {
+proc ::m::vcs::fossil::update {path urls} {
     debug.m/vcs/fossil {}
     set repo   [FossilOf $path]
     set before [Count $path]
@@ -71,17 +85,17 @@ proc m::vcs::fossil::update {path urls} {
     return [list $before [Count $path]]
 }
 
-proc m::vcs::fossil::check {primary other} {
+proc ::m::vcs::fossil::check {primary other} {
     debug.m/vcs/fossil {}
     return [string equal [ProjectCode $primary] [ProjectCode $other]]
 }
 
-proc m::vcs::fossil::split {origin dst} {
+proc ::m::vcs::fossil::split {origin dst} {
     debug.m/vcs/fossil {}
     return
 }
 
-proc m::vcs::fossil::merge {primary secondary} {
+proc ::m::vcs::fossil::merge {primary secondary} {
     debug.m/vcs/fossil {}
     return
 }
@@ -89,35 +103,35 @@ proc m::vcs::fossil::merge {primary secondary} {
 # # ## ### ##### ######## ############# #####################
 ## Helpers
 
-proc m::vcs::fossil::Fossil {args} {
+proc ::m::vcs::fossil::Fossil {args} {
     debug.m/vcs/fossil {}
     m exec go fossil {*}$args
     return
 }
 
-proc m::vcs::fossil::FossilGet {args} {
+proc ::m::vcs::fossil::FossilGet {args} {
     debug.m/vcs/fossil {}
     return [m exec get fossil {*}$args]
 }
 
-proc m::vcs::fossil::FossilOf {path} {
+proc ::m::vcs::fossil::FossilOf {path} {
     debug.m/vcs/fossil {}
     return [file join $path source.fossil]
 }
 
-proc m::vcs::fossil::Count {path} {
+proc ::m::vcs::fossil::Count {path} {
     debug.m/vcs/fossil {}
     set f  [FossilOf $path]
     return [Sel 1 [Grep1 check-ins:* [::split [FossilGet info -R $f] \n]]]
 }
 
-proc m::vcs::fossil::ProjectCode {path} {
+proc ::m::vcs::fossil::ProjectCode {path} {
     debug.m/vcs/fossil {}
     set f  [FossilOf $path]
     return [Sel 1 [Grep1 project-code:* [::split [FossilGet info -R $f] \n]]]
 }
 
-proc m::vcs::fossil::Grep1 {pattern lines} {
+proc ::m::vcs::fossil::Grep1 {pattern lines} {
     debug.m/vcs/fossil {}
     foreach line $lines {
 	if {![string match $pattern $line]} continue
@@ -126,7 +140,7 @@ proc m::vcs::fossil::Grep1 {pattern lines} {
     return -code error "$pattern missing"
 }
 
-proc m::vcs::fossil::Sel {index line} {
+proc ::m::vcs::fossil::Sel {index line} {
     return [lindex $line $index]
 }
 

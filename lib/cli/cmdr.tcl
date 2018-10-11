@@ -191,6 +191,21 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	}
     }
 
+    common .optional-mirror-set {
+	input mirror-set {
+	    The mirror set to operate on.
+	} { optional
+	    validate [m::cmdr::vt mset]
+	    generate [m::cmdr::call glue gen_current_mset]
+	}
+    }
+
+    common .list-optional-mirror-set {
+	input repositories {
+	    Repositories to operate on.
+	} { list ; optional ; validate [m::cmdr::vt mset] }
+    }
+
     common .optional-repository {
 	input repository {
 	    Repository to operate on.
@@ -265,7 +280,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	    specified. New repository becomes current.
 	}
 	option vcs {
-	    Version control system handling the repository
+	    Version control system handling the repository.
 	} {
 	    validate [m::cmdr::vt vcs]
 	    generate [m::cmdr::call glue gen_vcs]
@@ -277,11 +292,12 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	    generate [m::cmdr::call glue gen_vcs_code]
 	}
 	input url {
-	    Location of remote repository to add.
+	    Location of the repository to add.
 	} { validate str }
-	input name {
-	    Name for the repository.
-	} { optional
+	option name {
+	    Name for the mirror set to hold the repository.
+	} {
+	    alias N
 	    validate str
 	    generate [m::cmdr::call glue gen_name]
 	}
@@ -292,7 +308,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	    Change the name of the mirror set holding the specified or
 	    current repository. Renamed repository becomes current.
 	}
-	use .optional-repository
+	use .optional-mirror-set
 	input name {
 	    New name for the mirror set holding the repository.
 	} { validate str }
@@ -300,24 +316,27 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 
     private merge {
 	description {
-	    Merges the (mirror sets of the) specified repositories
-	    into a single mirror set. When only one repository is
-	    specified the current repository is used as the merge
-	    target. When no repository is specified the current and
-	    previous repositories are merged, current is merge target
+	    Merges the specified mirror sets into a single mirror
+	    set. When only one mirror set is specified the set of the
+	    current repository is used as the merge target. When no
+	    mirror sets are specified at all the mirror sets of
+	    current and previous repositories are merged, using
+	    the mirror set of current as merge target
 
-	    The name of the primary repository becomes the name of the
-	    merge. The merge target becomes current.
+	    The name of the primary mirror set becomes the name of the
+	    merge.
+
+	    // XXX change to no change, or to first from mset - The merge target becomes current.
 	}
-	use .list-optional-repository
+	use .list-optional-mirror-set
     } [m::cmdr::call glue cmd_merge]
 
     private split {
 	description {
 	    Split the specified or current repository from its mirror
 	    set. Generates a new mirror set for the repository. The
-	    name will derived from the original name. The referenced
-	    repository becomes current.
+	    name will be derived from the original name. The
+	    referenced repository becomes current.
 
 	    If the referenced repository is a standalone already then
 	    nothing is done.

@@ -35,6 +35,8 @@ package provide m::vcs::github 0
 ## Requisites
 
 package require Tcl 8.5
+package require fileutil
+package require struct::set
 package require m::exec
 package require m::vcs::git
 package require debug
@@ -53,100 +55,185 @@ namespace eval m::vcs {
     namespace ensemble create
 }
 namespace eval m::vcs::github {
-    namespace import ::m::vcs::git::setup
     namespace import ::m::vcs::git::cleanup
     namespace import ::m::vcs::git::check
     namespace import ::m::vcs::git::split
     namespace import ::m::vcs::git::merge
     
-    namespace export setup cleanup update check split merge
+    namespace export setup cleanup update check split merge \
+	issues detect
     namespace ensemble create
 }
+
+# # ## ### ##### ######## ############# #####################
+
+proc ::m::vcs::github::detect {url} {
+    debug.m/vcs/github {}
+    if {![string match *github* $url]} return
+    if {[catch {
+	m exec silent git hub help
+    }]} {
+	puts "[color note "git hub"] [color warning "not available"]"
+	# Fall through
+	return
+    }
+    return -code return github
+}
+
+proc ::m::vcs::github::issues {} {
+    debug.m/vcs/github {}
+    set issues {}
+    if {![llength [auto_execok curl]]} {
+	lappend issues "`curl` not found in PATH"
+    }
+    if {![llength [auto_execok git]]} {
+	lappend issues "`git` not found in PATH"
+    }
+    if {[catch {
+	m exec silent git hub help
+    }]} {
+	lappend issues "`git hub` not installed."
+    }
+    if {![llength $issues]} return
+    return [join $issues \n]
+}
+
+proc ::m::vcs::github::setup {path url} {
+    debug.m/vcs/github {}
+    # url = https://github.com/owner/repo
+    # origin = ................^^^^^^^^^^
+    #    
+    # Saving origin information for `git hub fork` to use to always
+    # target the proper repository when asking for information about
+    # the forks.
+    OriginSave $path \
+	[join [lrange [file split $url] end-1 end] /]
+
+    m vcs git setup $path $url
+    update $path [list $url]
+}
     
-proc m::vcs::github::update {path urls} {
+proc ::m::vcs::github::update {path urls} {
+    debug.m/vcs/github {}
+
+    set forks [Forks $path]
+    set old   [ForksLoad $path]
+    
+    lassign [struct::set intersect3 $old $forks] _ gone new
+    
+    foreach fork $new {
+	lassign [::split $fork /] org repo
+	set label m-vcs-github-fork-$org
+ 	set url https://github.com/$fork
+	m::vcs::git::Git remote add $label $url
+    }
+
+    set git [m::vcs::git::GitOf $path]
+    
+    foreach fork $gone {
+	lassign [::split $fork /] user repo
+	set label m-vcs-github-fork-$user
+
+	# Convert all branches defined by this remote (i.e. user or
+	# org) into a versioned tag. The versioning means that there
+	# will be no naming conflicts if this fork is added later
+	# again, removed again, etc.
+
+	# __Attention__: This code knows a bit about the internal
+	# organization of a git repository, directory wise. It uses
+	# this to extract the branch names and associated uuids for a
+	# remote. Writing the tags however is done through `git`
+	# itself.
+
+	foreach branch [glob -nocomplain -directory $git/refs/remotes/$label *] {
+	    set uuid   [string trim [fileutil::cat $branch]]
+	    set branch [file tail $branch]
+	    set tag    [Tag $git/refs/tags ${user}/${branch}]
+	    
+	    m::vcs::git::Git tag $tag $uuid
+	}
+	
+	m::vcs::git::Git remote remove $label 
+    }
+
+    # Save fork information for future updates. See above for usage
+    # (change detection).
+    ForksSave $path $forks
+
+    return [m vcs git update $path $urls]
+}
+
+# # ## ### ##### ######## ############# #####################
+## Helpers
+
+proc ::m::vcs::github::Tag {path label} {
+    debug.m/vcs/github {}
+    set n 1
+    while {1} {
+	set tag attic/${label}/$n
+	if {![file exists $path/$tag]} { return $tag }
+	incr n
+    }
+}
+
+proc ::m::vcs::github::Forks {path} {
     debug.m/vcs/github {}
     global env
     set env(TERM) xterm
 
-    foreach fork [m::vcs::git::Get hub forks --raw] {
-	set repo https://github.com/$fork
+    # Pull the origin to query about forks
+    set origin [OriginLoad $path]
+
+    set forks {}
+    foreach fork [m::vcs::git::Get hub forks --raw $origin] {
+	set url https://github.com/$fork
 	# Check if the fork is actually available :: The git hub REST
 	# api reports all forks regardless of status wrt the rest of
 	# the system. I.e. a user/repo marked as suspicious and hidden
 	# is still reported here. Checking against the regular web
 	# interface allows us to filter these out.
 	try {
-	    m exec get curl -s -f -I $repo
+	    m exec get curl -s -f -I $url
 	    # -I  HEAD only
 	    # -f  Silent fail (ignore fail document)
 	    # -s  Silence other output
 	} on ok {e o} {
-	    lappend urls $repo
+	    lappend forks $fork
 	} on error {e o} {
-	    # report missing user/repo
+	    # report a missing fork
 	}
     }
-    
-    # TODO: capture stdout/err, post process both for better error
-    # detection. Show errors. Store status.
 
-    return [m vcs git update $path $urls]
-
-    if 0 {
-	XXX STOP
-	export TERM=xterm
-	# Save the forks git hub knows about the repository.
-	( cd $repo ; git hub forks --raw ) > ${repo}.forks
-	# lines - line = org/repo
-
-	org=$(dirname $fork)
-	echo "gh_afork_${org}	git@github.com:$fork"
-	url = 
-
-
-	Do our own check for added/removed forks, and adding custom tags for the removed things.
-
-
-
-	# Check for new forks to add or reactivate
-	dict for {name location} $incoming {
-	    # Skip remotes already managed
-	    if {[dict exists $current $name]} continue
-	    # New remote. It is no problem if the USER had a remote before.  Such a
-	    # remote was removed. And while we have tags for the old branches these
-	    # have a serial number (1, 2, ...), so even a second, etc removal will not
-	    # cause clashes. Just more tags.
-
-	    lappend lines "git remote add $name $location"
-	}
-
-	# Check for forks to deactivate - This done by adding its as tags, and then
-	# removing the remote.
-	dict for {name location} $current {
-	    # Ignore unmanaged
-	    if {![string match gh_afork_* $name]} continue
-	    # Skip remotes still present
-	    if {[dict exists $incoming $name]} continue
-
-	    # Managed remote is gone from origin. Remove, keep as tags
-	    set md "mkdir -p refs/tags/attic"
-	    set cp "cp -rf refs/remotes/$name [tagname $name]"
-	    set rm "git remote remove $name"
-	    lappend lines "$md && $cp && $rm"
-	}
-    }
+    return $forks
 }
 
-# # ## ### ##### ######## ############# #####################
-## Helpers
+proc ::m::vcs::github::OriginSave {path origin} {
+    debug.m/vcs/github {}
+    fileutil::writeFile $path/origin $origin
+    return
+}
 
-proc m::vcs::github:://tagname {name} {
-    set n 1
-    while {1} {
-	set tag refs/tags/attic/${name}_$n
-	if {![file exists $tag]} { return $tag }
-	incr n
+proc ::m::vcs::github::OriginLoad {path} {
+    debug.m/vcs/github {}
+    return [fileutil::cat $path/origin]
+}
+
+proc ::m::vcs::github::ForksSave {path forks} {
+    debug.m/vcs/github {}
+    fileutil::writeFile $path/forks [join $forks \n]
+    return
+}
+
+proc ::m::vcs::github::ForksLoad {path} {
+    debug.m/vcs/github {}
+    if {[catch {
+	fileutil::cat $path/forks
+    } forks]} {
+	set forks {}
+    } else {
+	set forks [::split [string trim $forks] \n]
     }
+    return $forks
 }
 
 # # ## ### ##### ######## ############# #####################

@@ -30,7 +30,7 @@ namespace eval ::m {
 namespace eval ::m::repo {
     namespace export \
 	add remove move/mset move/1 has get name \
-	known get-n
+	known get-n mset
     namespace ensemble create
 }
 
@@ -50,12 +50,15 @@ proc ::m::repo::known {} {
     set map {}
 
     m db eval {
-	SELECT id, url
+	SELECT id
+	,      url
 	FROM   repository
     } {
 	dict set map $url $id
     }
 
+    # See also m::mset::known
+    # Note, different ids! repo, not mset
     set c {}
     set p {}
     set id -1
@@ -108,6 +111,17 @@ proc ::m::repo::add {vcs mset url} {
     }
 
     return [m db last_insert_rowid]
+}
+
+proc ::m::repo::mset {repo} {
+    debug.m/repo {}
+    set mset [m db onecolumn {
+	SELECT mset
+	FROM   repository
+	WHERE  id = :repo
+    }]
+    debug.m/repo {=> ($mset)}
+    return $mset
 }
 
 proc ::m::repo::get {repo} {
