@@ -2,60 +2,77 @@
 # # ## ### ##### ######## ############# ######################
 
 # @@ Meta Begin
-# Package fx::mailer 0
+# Package cm::mailer 0
 # Meta author      {Andreas Kupries}
 # Meta category    ?
 # Meta description ?
-# Meta location    https://core.tcl-lang.org/akupries/fx
+# Meta location    http:/core.tcl.tk/akupries/cm
 # Meta platform    tcl
 # Meta require     sqlite3
-# Meta subject     fossil
+# Meta subject     conference management
 # Meta summary     ?
 # @@ Meta End
 
 package require Tcl 8.5
 package require cmdr::color
+package require cmdr::table
 package require tls
 package require smtp
 package require mime
-package require fx::fossil
-package require fx::mailgen
-package require fx::table
-package require fx::mgr::config
-package require fx::validate::mail-config
+package require cm::db
+package require cm::db::config
+package require cm::mailgen
+package require cm::validate::config
 
-debug level  fx/mailer
-debug prefix fx/mailer {[debug caller] | }
+debug level  cm/mailer
+debug prefix cm/mailer {[debug caller] | }
 
 # # ## ### ##### ######## ############# ######################
 
-namespace eval ::fx {
+namespace eval ::cm {
     namespace export mailer
     namespace ensemble create
 }
-namespace eval ::fx::mailer {
-    namespace export get-config get get-global has has-global \
-	has-local send good-address dedup-addresses test-address \
-	drop-address
+namespace eval ::cm::mailer {
+    namespace export \
+	cmd_test_address cmd_test_mail_config \
+	good-address dedup-addresses drop-address \
+	get-config get has send batch
     namespace ensemble create
 
     namespace import ::cmdr::color
-    namespace import ::fx::fossil
-    namespace import ::fx::mailgen
-    namespace import ::fx::mgr::config
-    namespace import ::fx::validate::mail-config
 
-    namespace import ::fx::table::do
-    rename do table
+    namespace import ::cm::db
+    namespace import ::cm::mailgen
+
+    namespace import ::cm::validate::config
+    rename config vt-config
+
+    namespace import ::cm::db::config
+
+    namespace import ::cmdr::table::general ; rename general table
 }
 
 # # ## ### ##### ######## ############# ######################
 
-proc ::fx::mailer::test-address {config} {
-    debug.fx/mailer {}
+proc ::cm::mailer::cmd_test_mail_config {config} {
+    debug.cm/mailer {}
+
+    send \
+	[get-config] \
+	[list [$config @destination]] \
+	[mailgen testmail \
+	     [get sender] \
+	     {} {}] on
+    #TODO: re-add header, footer?
+    return
+}
+
+proc ::cm::mailer::cmd_test_address {config} {
+    debug.cm/mailer {}
     set address [$config @address]
 
-    puts "Decoding ($address) :="
+    puts "Decoding \"[color name $address]\" :="
     [table t {Part Value Notes} {
 	set address [string map {{;} {,}} $address]
 	set first 1
@@ -109,8 +126,8 @@ proc ::fx::mailer::test-address {config} {
 
 # # ## ### ##### ######## ############# ######################
 
-proc ::fx::mailer::dedup-addresses {addrlist} {
-    debug.fx/mailer {}
+proc ::cm::mailer::dedup-addresses {addrlist} {
+    debug.cm/mailer {}
     # We assume that all addresses are good.
     # We keep the longest input of each with the same 'address'.
 
@@ -137,31 +154,31 @@ proc ::fx::mailer::dedup-addresses {addrlist} {
     return $r
 }
 
-proc ::fx::mailer::drop-address {addr addrlist} {
-    debug.fx/mailer {}
+proc ::cm::mailer::drop-address {addr addrlist} {
+    debug.cm/mailer {}
     # We assume that all addresses are good.
     # We do not care about duplicates.
     # - If the input has them, the output will too.
 
     set addr [dict get [lindex [mime::parseaddress $addr] 0] address]
 
-    debug.fx/mailer {subtract = $addr}
+    debug.cm/mailer {subtract = $addr}
 
     set result {}
     foreach a $addrlist {
 	set route [dict get [lindex [mime::parseaddress $a] 0] address]
-	debug.fx/mailer {route = $route}
+	debug.cm/mailer {route = $route}
 	if {$route eq $addr} continue
-	debug.fx/mailer {  kept}
+	debug.cm/mailer {  kept}
 	lappend result $a
     }
 
-    debug.fx/mailer {==> ($result)}
+    debug.cm/mailer {==> ($result)}
     return $result
 }
 
-proc ::fx::mailer::good-address {addr} {
-    debug.fx/mailer {}
+proc ::cm::mailer::good-address {addr} {
+    debug.cm/mailer {}
     set r [lindex [mime::parseaddress $addr] 0]
 
     # TODO: Check how it looks with multiple addresses, and bad syntax.
@@ -182,16 +199,12 @@ proc ::fx::mailer::good-address {addr} {
     return 1
 }
 
-proc ::fx::mailer::get {setting} {
+proc ::cm::mailer::get {setting} {
     return [Get 0 $setting]
 }
 
-proc ::fx::mailer::get-global {setting} {
-    return [GetGlobal 0 $setting]
-}
-
-proc ::fx::mailer::get-config {} {
-    debug.fx/mailer {}
+proc ::cm::mailer::get-config {} {
+    debug.cm/mailer {}
 
     foreach {option listify setting} {
 	-debug    0 debug
@@ -201,74 +214,51 @@ proc ::fx::mailer::get-config {} {
 	-servers  1 host
 	-ports    0 port
     } {
-	lappend config $option [Get $listify $setting]
+	lappend mconfig $option [Get $listify $setting]
     }
 
-    lappend config -tlspolicy ::fx::mailer::TlsPolicy
-    lappend config -header [list From [Get 0 sender] ]
-    return $config
+    lappend mconfig -tlspolicy ::cm::mailer::TlsPolicy
+    lappend mconfig -header [list From [Get 0 sender] ]
+    return $mconfig
 }
 
-proc ::fx::mailer::Get {listify setting} {
-    debug.fx/mailer {}
-
-    if {$setting eq "project-name"} {
-	# Pseudo mail config item
-	# Check for an override first.
-	set v [config get-with-default \
-		   [mail-config internal   project] \
-		   [mail-config default-of project]]
-
-	if {$v eq {}} {
-	    # No override, use regular name, with fallback to location.
-	    set v [config get-with-default \
-		       project-name \
-		       [file rootname [file tail [fossil repository-location]]]]
-	}
-    } else {
-	set v [config get-with-default \
-		   [mail-config internal   $setting] \
-		   [mail-config default-of $setting]]
-    }
+proc ::cm::mailer::Get {listify setting} {
+    debug.cm/mailer {}
+    set v [config get* \
+	       [vt-config internal   $setting] \
+	       [vt-config default-of $setting]]
     if {$listify} { set v [list $v] }
     return $v
 }
 
-proc ::fx::mailer::GetGlobal {listify setting} {
-    debug.fx/mailer {}
-    set v [config get-global [mail-config internal $setting]]
-    if {$listify} { set v [list $v] }
-    return $v
-}
-
-proc ::fx::mailer::has {setting} {
-    debug.fx/mailer {}
-    if {$setting eq "project-name"} {
-	return 1
-    }
-    return [config has [mail-config internal $setting]]
-}
-
-proc ::fx::mailer::has-global {setting} {
-    debug.fx/mailer {}
-    if {$setting eq "project-name"} {
-	return 0
-    }
-    return [config has-global [mail-config internal $setting]]
-}
-
-proc ::fx::mailer::has-local {setting} {
-    debug.fx/mailer {}
-    if {$setting eq "project-name"} {
-	return 1
-    }
-    return [config has-local [mail-config internal $setting]]
+proc ::cm::mailer::has {setting} {
+    debug.cm/mailer {}
+    return [config has [vt-config internal $setting]]
 }
 
 # # ## ### ##### ######## ############# ######################
 
-proc ::fx::mailer::send {config receivers corpus {verbose 0}} {
-    debug.fx/mailer {}
+proc ::cm::mailer::batch {r a n destinations script} {
+    upvar 1 $r receiver $a address $n name
+
+    package require cm::db::contact
+    cm db contact setup
+
+    db do eval [string map [list @@@ [join $destinations ,]] {
+	SELECT E.id    AS receiver,
+               E.email AS address,
+	       C.dname AS name
+	FROM   email   E,
+	       contact C
+	WHERE E.id IN (@@@)
+	AND   C.id = E.contact
+    }] {
+	uplevel 1 $script
+    }
+}
+
+proc ::cm::mailer::send {mconfig receivers corpus {verbose 0}} {
+    debug.cm/mailer {}
     #if {[suspended]} return
     #if {![llength $receivers]} return
 
@@ -282,25 +272,26 @@ proc ::fx::mailer::send {config receivers corpus {verbose 0}} {
     set token [mime::initialize -string $corpus]
 
     foreach dst $receivers {
-	puts "    To: $dst"
-	mailgen context-push "To: $dst"
+	puts -nonewline "    To: [color name $dst] ... "
+	flush stdout
+
 	try {
 	    # Can the 'From' be configured via -header here ?
-	    # I.e. config ? Alternate: -originator
+	    # I.e. mconfig ? Alternate: -originator
 
 	    set res [smtp::sendmessage $token \
 			 -header [list To $dst] \
-			 {*}$config]
+			 {*}$mconfig]
 	    foreach item $res {
 		puts "    ERR $item"
 	    }
 	} finally {
-	    mailgen context-pop
 	}
+	puts [color good OK]
     }
 
     mime::finalize $token
-    puts "    Sent"
+    puts Done
 
     variable mailcounter
     incr     mailcounter
@@ -309,12 +300,12 @@ proc ::fx::mailer::send {config receivers corpus {verbose 0}} {
 
 # # ## ### ##### ######## ############# ######################
 
-proc ::fx::mailer::TlsPolicy {args} {
-    debug.fx/mailer {}
+proc ::cm::mailer::TlsPolicy {args} {
+    debug.cm/mailer {}
     puts $args
     return secure
 }
 
 # # ## ### ##### ######## ############# ######################
-package provide fx::mailer 0
+package provide cm::mailer 0
 return

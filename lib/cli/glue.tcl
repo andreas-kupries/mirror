@@ -114,6 +114,41 @@ proc ::m::glue::gen_current_mset {p} {
 
 # # ## ### ##### ######## ############# ######################
 
+proc ::m::glue::cmd_mailconfig_show {config} {
+    debug.m/glue {}
+    package require m::state
+
+    m db transaction {
+	[table/d t {
+	    $t add Host   [m state mail-host]
+	    $t add Port   [m state mail-port]
+	    $t add User   [m state mail-user]
+	    $t add Pass   [m state mail-pass]
+	    $t add TLS    [m state mail-tls]
+	    $t add Sender [m state mail-sender]
+	    $t add Header [m state mail-header]
+	    $t add Footer [m state mail-footer]
+	}] show
+    }
+    OK
+}
+
+proc ::m::glue::cmd_mailconfig {key desc config} {
+    debug.m/glue {}
+    package require m::state
+
+    m db transaction {
+	if {[$config @value set?]} {
+	    m state $key [$config @value]
+	}
+
+	set value [m state $key]
+    }
+
+    puts "The $desc: [color note $value]"
+    OK
+}
+
 proc ::m::glue::cmd_store {config} {
     debug.m/glue {}
     package require m::state
@@ -124,9 +159,10 @@ proc ::m::glue::cmd_store {config} {
 	    # TODO: copy/move all backing stores to the new location.
 	    puts [color bad {TODO: Move backing store to new base}]
 	}
-	puts "Stores at [color note [m state store]]"
     }
-    return
+
+    puts "Stores at [color note [m state store]]"
+    OK
 }
 
 proc ::m::glue::cmd_take {config} {
@@ -139,11 +175,11 @@ proc ::m::glue::cmd_take {config} {
 	}
 
 	set n [m state take]
-	set g [expr {$n == 1 ? "mirror set" : "mirror sets"}]
-
-	puts "Per update, take [color note $n] $g"
     }
-    return
+
+    set g [expr {$n == 1 ? "mirror set" : "mirror sets"}]
+    puts "Per update, take [color note $n] $g"
+    OK
 }
 
 proc ::m::glue::cmd_vcs {config} {
@@ -609,16 +645,18 @@ proc ::m::glue::cmd_limit {config} {
     package require m::rolodex
     package require m::state
 
-    if {[$config @limit set?]} {
-	set limit [$config @limit]
+    m db transaction {
+	if {[$config @limit set?]} {
+	    set limit [$config @limit]
 
-	m state limit $limit
-	m rolodex truncate
+	    m state limit $limit
+	    m rolodex truncate
+	}
+
+	set n [m state limit]
     }
-
-    set n [m state limit]
+    
     set e [expr {$n == 1 ? "entry" : "entries"}]
-
     puts "Per list/rewind, show up to [color note $n] $e"
     OK
 }

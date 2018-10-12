@@ -130,10 +130,10 @@ proc ::m::db::SETUP-201810051600 {} {
     C value  TEXT  NOT NULL
     T state
 
-    > 'limit'               '20'
-    > 'store'               '~/.mirror/store'
-    > 'take'                '5'
-    > 'top'                 ''
+    > 'limit'               '20'              ;# Show this many repositories per `list`
+    > 'store'               '~/.mirror/store' ;# Directory for the backend stores
+    > 'take'                '5'               ;# Check this many mirrors sets per `update`
+    > 'top'                 ''                ;# State for `list`, next repository to show.
 
     # - -- --- ----- -------- -------------
     ## Mirror Set Pending - List of repositories waiting for an update
@@ -200,6 +200,34 @@ proc ::m::db::SETUP-201810111600 {} {
     C changed  INTEGER  NOT NULL
     < store_times  store updated updated changed
     #                    ^ use last update as fake creation
+    return
+}
+
+proc ::m::db::SETUP-201810121600 {} {
+    # Added mail configuration to the general state table
+    
+    set h {This is a semi-automated mail by @cmd@, on behalf of @sender@.}
+    
+    D m::db
+    T^ state
+
+    #                           -- Debugging
+    > 'mail-debug'  '0'         ;# Bool. Activates low-level debugging in smtp/mime
+
+    #                           -- SMTP configuration
+    > 'mail-host'   'localhost' ;# Name of the mail-relay host to talk to
+    > 'mail-port'   '25'        ;# Port where the mail-relay host accepts SMTP
+    > 'mail-user'   'undefined' ;# account accepted by the mail-relay host
+    > 'mail-pass'   ''          ;# and associated credentials
+    > 'mail-tls'    '0'         ;# Bool. Activates TLS to secure SMTP transactions
+
+    #                           -- Mail content configuration
+    > 'mail-sender' 'undefined' ;# Email address to place into From/Sender headers
+    > 'mail-header' '$h'        ;# Text to place before the generated content
+    > 'mail-footer' ''          ;# Text to place after the generated content
+    #                            # Note: Template processing happens after the content
+    #                            # is assembled, i.e. affects header and footer.
+    
     return
 }
 

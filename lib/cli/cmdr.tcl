@@ -108,7 +108,7 @@ proc ::m::cmdr::call {pkg args} {
     lambda {pkg args} {
 	package require m::$pkg
 	m $pkg {*}$args
-    } $pkg $args
+    } $pkg {*}$args
 }
 
 proc ::m::cmdr::vt {p args} {
@@ -481,6 +481,35 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	} { list ; validate cmdr::validate::posint }
     } [m::cmdr::call glue cmd_reject]
 
+    officer mail {
+	description {
+	    Access to the mail configuration
+	}
+
+	private show {
+	    description {
+		Show the entire mail configuration
+	    }
+	} [m::cmdr::call glue cmd_mailconfig_show]
+	default
+	
+	foreach {k v d} {
+	    host   str     {name of mail relay host}
+	    port   cmdr::validate::posint {port for SMTP on the mail relay host}
+	    user   str     {account on the mail relay host}
+	    pass   str     {credentials for the mail account}
+	    tls    boolean {TLS use to secure SMTP}
+	    sender str     {nominal sender of all mail}
+	    header str     {header text before generated content}
+	    footer str     {footer text after generated content}
+	} {
+     	    private $k [string map [list V $v K $k D $d] {
+		description { Set or query D }
+		input value { The D } { optional ; validate V }
+	    }] [m::cmdr::call glue cmd_mailconfig mail-$k $d]
+	}
+    }
+    
     # # ## ### ##### ######## ############# ######################
     ## Developer support, debugging.
 
