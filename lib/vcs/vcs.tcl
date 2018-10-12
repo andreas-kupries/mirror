@@ -50,7 +50,7 @@ namespace eval ::m::vcs {
     namespace export \
 	setup cleanup update check split merge \
 	rename id supported list code name \
-	detect url-norm name-from-url issues
+	detect url-norm name-from-url version
     namespace ensemble create
 
     namespace import ::cmdr::color
@@ -160,9 +160,11 @@ proc ::m::vcs::split {vcs origin dst dstname} {
 
 # # ## ### ##### ######## ############# #####################
 
-proc ::m::vcs::issues {vcode} {
+proc ::m::vcs::version {vcode iv} {
     debug.m/vcs {}
-    return [$vcode issues]
+    upvar 1 $iv issues
+    set issues {}
+    return [$vcode version issues]
 }
 
 proc ::m::vcs::detect {url} {

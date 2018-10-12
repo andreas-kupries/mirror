@@ -37,7 +37,7 @@ namespace eval m::vcs {
 }
 namespace eval m::vcs::fossil {
     namespace export setup cleanup update check split merge \
-	issues detect
+	version detect
     namespace ensemble create
 }
 
@@ -48,10 +48,14 @@ proc ::m::vcs::fossil::detect {url} {
     return -code return fossil
 }
 
-proc ::m::vcs::fossil::issues {} {
+proc ::m::vcs::fossil::version {iv} {
     debug.m/vcs/fossil {}
-    if {[llength [auto_execok fossil]]} return
-    return "`fossil` not found in PATH"
+    if {[llength [auto_execok fossil]]} {
+	return [lindex [m exec get fossil version] 4]
+    }
+    upvar 1 $iv issues
+    lappend issues "`fossil` not found in PATH"
+    return
 }
 
 proc ::m::vcs::fossil::setup {path url} {

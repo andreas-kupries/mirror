@@ -35,6 +35,7 @@ package provide m::vcs::github 0
 ## Requisites
 
 package require Tcl 8.5
+package require cmdr::color
 package require fileutil
 package require struct::set
 package require m::exec
@@ -61,8 +62,10 @@ namespace eval m::vcs::github {
     namespace import ::m::vcs::git::merge
     
     namespace export setup cleanup update check split merge \
-	issues detect
+	detect version
     namespace ensemble create
+
+    namespace import ::cmdr::color
 }
 
 # # ## ### ##### ######## ############# #####################
@@ -79,23 +82,31 @@ proc ::m::vcs::github::detect {url} {
     }
     return -code return github
 }
-
-proc ::m::vcs::github::issues {} {
+    
+proc ::m::vcs::github::version {iv} {
     debug.m/vcs/github {}
-    set issues {}
-    if {![llength [auto_execok curl]]} {
-	lappend issues "`curl` not found in PATH"
-    }
+    upvar 1 $iv issues
+    set ok 1
     if {![llength [auto_execok git]]} {
+	set ok 0
 	lappend issues "`git` not found in PATH"
-    }
-    if {[catch {
+    } elseif {[catch {
 	m exec silent git hub help
     }]} {
+	set ok 0
 	lappend issues "`git hub` not installed."
     }
-    if {![llength $issues]} return
-    return [join $issues \n]
+    if {![llength [auto_execok curl]]} {
+	lappend issues [color bad "`curl` not found in PATH"]
+    }
+
+    if {!$ok} return
+
+    set v [m exec get git hub version]
+    set v [::split $v \n]
+    set v [lindex $v 0 end]
+    set v [string trim $v ']
+    return $v
 }
 
 proc ::m::vcs::github::setup {path url} {

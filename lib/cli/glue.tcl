@@ -153,17 +153,19 @@ proc ::m::glue::cmd_vcs {config} {
     puts [color note {Supported VCS}]
 
     m db transaction {
-	[table t {Code Name Issues} {
+	[table t {Code Name Version} {
 	    foreach {code name} [m vcs list] {
-		set issues [m vcs issues $code]
-		if {$issues ne {}} {
-		    # TODO lmap forward compat
-		    foreach issue [split $issues \n] {
-			lappend tmp [color bad $issue]
-		    }
-		    set issues [join $tmp \n]
+		set version [m vcs version $code issues]
+		set vmsg {}
+		if {$version ne {}} {
+		    lappend vmsg [color note $version]
 		}
-		$t add $code $name $issues
+		if {[llength $issues]} {
+		    foreach issue $issues {
+			lappend vmsg [color bad $issue]
+		    }
+		}
+		$t add $code $name [join $vmsg \n]
 	    }
 	}] show
     }

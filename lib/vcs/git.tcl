@@ -38,7 +38,7 @@ namespace eval m::vcs {
 }
 namespace eval m::vcs::git {
     namespace export setup cleanup update check split merge \
-	issues detect
+	version detect
     namespace ensemble create
 }
 
@@ -50,10 +50,14 @@ proc ::m::vcs::git::detect {url} {
     return -code return git
 }
 
-proc ::m::vcs::git::issues {} {
+proc ::m::vcs::git::version {iv} {
     debug.m/vcs/git {}
-    if {[llength [auto_execok git]]} return
-    return "`git` not found in PATH"
+    if {[llength [auto_execok git]]} {
+	return [lindex [m exec get git version] end]
+    }
+    upvar 1 $iv issues
+    lappend issues "`git` not found in PATH"
+    return
 }
 
 proc ::m::vcs::git::setup {path url} {
