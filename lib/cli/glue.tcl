@@ -443,9 +443,9 @@ proc ::m::glue::cmd_update {config} {
     package require m::store
 
     m db transaction {
-	set verbose [$config @verbose]
-	set now     [clock seconds]
-	set msets   [UpdateSets [$config @mirror-sets]]
+	set verbose  [$config @verbose]
+	set nowcycle [clock seconds]
+	set msets    [UpdateSets [$config @mirror-sets]]
 	debug.m/glue {msets = ($msets)}
 
 	foreach mset $msets {
@@ -466,7 +466,7 @@ proc ::m::glue::cmd_update {config} {
 
 		# TODO MAYBE: List the remotes we are pulling from ? => VCS layer, notification callback ...
 
-		set counts [m store update $store $now]
+		set counts [m store update $store $nowcycle [clock seconds]]
 		lassign $counts before after
 		if {$before != $after} {
 		    set delta [expr {$after - $before}]
@@ -495,19 +495,12 @@ proc ::m::glue::cmd_updates {config} {
     
     m db transaction {
 	set series [m store updates]
-	set first 1
 	[table t {{Mirror Set} VCS Changed Updated Created} {
-	    set last {}
 	    foreach {mname vcode changed updated created} $series {
-		if {$updated == $created} {
-		    if {$first} {
-			$t add - - - - -
-		    }
-		    set first 0
-		} elseif {($last ne {}) && ($updated != $last)} {
+		if {$created eq "."} {
 		    $t add - - - - -
+		    continue
 		}
-		set last $updated
 		set changed [Date $changed]
 		set updated [Date $updated]
 		set created [Date $created]
@@ -672,8 +665,8 @@ proc ::m::glue::cmd_debug_levels {config} {
 
 proc ::m::glue::Date {epoch} {
     debug.m/glue {}
-    # TODO: better date/time formatting (ISO)
-    clock format $epoch
+    if {$epoch eq {}} return
+    return [clock format $epoch -format {%Y-%m-%d %H:%M:%S}]
 }
 
 proc ::m::glue::ShowCurrent {} {

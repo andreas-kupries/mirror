@@ -2,7 +2,8 @@
 
 echo ___________________________________________ /// list repo ///
 sq '
-SELECT V.code
+SELECT S.id
+,      V.code
 ,      N.name
 ,      T.created
 ,      T.updated

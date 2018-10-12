@@ -87,7 +87,7 @@ proc ::m::store::split {store msetnew} {
     return
 }
 
-proc ::m::store::update {store now} {
+proc ::m::store::update {store cycle now} {
     debug.m/store {}
 
     set vcs [VCS $store]
@@ -110,14 +110,14 @@ proc ::m::store::update {store now} {
     if {$after != $before} {
 	m db eval {
 	    UPDATE store_times
-	    SET updated = :now
+	    SET updated = :cycle
 	    ,   changed = :now
 	    WHERE store = :store
 	}
     } else {
 	m db eval {
 	    UPDATE store_times
-	    SET updated = :now
+	    SET updated = :cycle
 	    WHERE store = :store
 	}
     }
@@ -185,7 +185,17 @@ proc ::m::store::vcs-name {store} {
 proc ::m::store::updates {} {
     debug.m/store {}
 
-    return [m db eval {
+    # From the db.tcl notes on store_times
+    #
+    # 1. created <= changed <= updated
+    # 2. (created == changed) -> never changed.
+
+    set series {}
+    
+    # Block 1: Changed stores, changed order descending
+    # Insert separators when `updated` changes.
+    set last {}
+    m db eval {
 	SELECT N.name    AS mname
 	,      V.code    AS vcode
 	,      T.changed AS changed
@@ -196,12 +206,50 @@ proc ::m::store::updates {} {
 	,    mirror_set             M
 	,    version_control_system V
 	,    name                   N
-	WHERE T.store = S.id
-	AND   S.mset  = M.id
-	AND   S.vcs   = V.id
-	AND   M.name  = N.id
-	ORDER BY changed DESC, updated DESC, created DESC
-    }]
+	WHERE T.store   = S.id
+	AND   S.mset    = M.id
+	AND   S.vcs     = V.id
+	AND   M.name    = N.id
+	AND   T.created != T.changed
+	ORDER BY T.changed DESC
+    } {
+	if {($last ne {}) && ($last != $updated)} {
+	    lappend series . . . . .
+	}
+	lappend series $mname $vcode $changed $updated $created
+	set last $updated
+    }
+
+    set first [llength $series]
+
+    # Block 2: All unchanged stores, creation order descending,
+    # i.e. last created top/first.
+    m db eval {
+	SELECT N.name    AS mname
+	,      V.code    AS vcode
+	,      T.changed AS changed
+	,      T.updated AS updated
+	,      T.created AS created
+	FROM store_times            T
+	,    store                  S
+	,    mirror_set             M
+	,    version_control_system V
+	,    name                   N
+	WHERE T.store   = S.id
+	AND   S.mset    = M.id
+	AND   S.vcs     = V.id
+	AND   M.name    = N.id
+	AND   T.created = T.changed
+	ORDER BY T.created DESC
+    } {
+	if {$first} {
+	    lappend series . . . . .
+	}
+	lappend series $mname $vcode {} {} $created
+	set first 0
+    }
+
+    return $series    
 }
 # # ## ### ##### ######## ############# ######################
 

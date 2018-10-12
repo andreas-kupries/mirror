@@ -144,13 +144,17 @@ proc ::m::db::SETUP-201810051600 {} {
     
     # - -- --- ----- -------- -------------
     ## Store Times - Per store the times of last update and change
+    #
+    # Notes on the recorded times:
+    #
+    # - Invariant: changed <= updated
+    #   Because not every update causes a change.
     
     C store    INTEGER  NOT NULL  ^store PRIMARY KEY
-    # TODO: store_times schema: +created ?
     C updated  INTEGER  NOT NULL
     C changed  INTEGER  NOT NULL
     T store_times
-
+    
     # - -- --- ----- -------- -------------
     ## Rolodex - Short hand references to recently seen repositories
 
@@ -174,7 +178,21 @@ proc ::m::db::SETUP-201810092200 {} {
 
 proc ::m::db::SETUP-201810111600 {} {
     # Added column `created` to `store_times`
-
+    #
+    # Notes on the recorded times:
+    #
+    # - Invariant: changed <= updated
+    #   Because not every update causes a change.
+    #
+    # - Invariant: created <= changed
+    #   Because a change can happen only after we have store
+    #
+    # - (created == changed)
+    #   -> Never seen any change for this store.
+    #
+    # Overall
+    #		created <= changed <= updated
+    
     D m::db
     C store    INTEGER  NOT NULL  ^store PRIMARY KEY
     C created  INTEGER  NOT NULL
