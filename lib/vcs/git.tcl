@@ -52,10 +52,15 @@ proc ::m::vcs::git::detect {url} {
 
 proc ::m::vcs::git::version {iv} {
     debug.m/vcs/git {}
-    if {[llength [auto_execok git]]} {
-	return [lindex [m exec get git version] end]
-    }
     upvar 1 $iv issues
+    if {[llength [auto_execok git]]} {
+	set v [lindex [m exec get git version] end]
+	if {[package vcompare $v 2.6.1] <= 0} {
+	    lappend issues "$v <= 2.6.1 not sufficient"
+	    return
+	}
+	return $v
+    }
     lappend issues "`git` not found in PATH"
     return
 }
