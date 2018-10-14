@@ -114,6 +114,98 @@ proc ::m::glue::gen_current_mset {p} {
 
 # # ## ### ##### ######## ############# ######################
 
+proc ::m::glue::cmd_reply_add {config} {
+    debug.m/glue {}
+    package require m::db
+    package require m::reply
+    
+    m db transaction {
+	set reply [$config @reply]
+	set text  [$config @text]
+	set mail  [$config @auto-mail]
+
+	puts "New reason to reject a submission:"
+	puts "  Name:      [color note $reply]"
+	puts "  Text:      [color note $text]"
+	puts "  auto-Mail: [expr {$mail ? "yes" : "no"}]"
+	
+	m reply add $reply $mail $text
+    }
+    OK
+}
+
+proc ::m::glue::cmd_reply_remove {config} {
+    debug.m/glue {}
+    package require m::db
+    package require m::reply
+    
+    m db transaction {
+	set reply [$config @reply]
+	set name  [$config @reply string]
+
+	puts "Remove [color note $name] as reason for rejecting a submission."
+	if {[m reply default? $reply]} {
+	    m::cmdr::error \
+		"Cannot remove default reason" \
+		UNREMOVABLE DEFAULT
+	}
+
+	m reply remove $reply
+    }
+    OK
+}
+
+proc ::m::glue::cmd_reply_change {config} {
+    debug.m/glue {}
+    package require m::db
+    package require m::reply
+    
+    m db transaction {
+	set reply [$config @reply]
+	set name  [$config @reply string]
+	set text  [$config @text]
+
+	puts "Change reason [color note $name] to reject a submission:"
+	puts "  New text: [color note $text]"
+	
+	m reply change $reply $text
+    }
+    OK
+}
+
+proc ::m::glue::cmd_reply_default {config} {
+    debug.m/glue {}
+    package require m::db
+    package require m::reply
+    
+    m db transaction {
+	set reply [$config @reply]
+	set name [$config @reply string]
+	puts "Set [color note $name] as default reason to reject a submission."
+
+	m reply default! $reply
+    }
+    OK
+}
+
+proc ::m::glue::cmd_reply_show {config} {
+    debug.m/glue {}
+    package require m::db
+    package require m::reply
+    
+    m db transaction {
+	[table t {{} Name Mail Text} {
+	    foreach {name default mail text} [m reply list] {
+		set mail    [expr {$mail    ? "*" : ""}]
+		set default [expr {$default ? "#" : ""}]
+		
+		$t add $default [color note $name] $mail $text
+	    }
+	}] show
+    }
+    OK
+}
+
 proc ::m::glue::cmd_mailconfig_show {config} {
     debug.m/glue {}
     package require m::state

@@ -138,13 +138,14 @@ proc ::m::mset::remove {mset} {
 
 proc ::m::mset::rename {mset name} {
     debug.m/mset {}
-    return [m db eval {
+    m db eval {
 	UPDATE name
-	SET name = :name
-	WHERE id IN ( SELECT name
-		      FROM   mirror_set
-		      WHERE  id = :mset )
-    }]
+	SET    name = :name
+	WHERE  id IN ( SELECT name
+		       FROM   mirror_set
+		       WHERE  id = :mset )
+    }
+    return
 }
 
 proc ::m::mset::has {name} {

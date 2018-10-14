@@ -1,0 +1,19 @@
+#!/bin/bash
+
+up
+cl
+sleep 2
+clear
+echo
+
+O m mail reply show
+O m mail reply
+F m mail reply add spam foo
+F m mail reply remove bogus
+O m mail reply add -M trial trial
+O m mail reply change trial foo
+O m mail reply default trial
+O m mail reply
+F m mail reply remove trial
+O m mail reply default spam
+O m mail reply remove trial

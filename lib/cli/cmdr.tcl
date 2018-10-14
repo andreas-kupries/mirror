@@ -508,6 +508,74 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 		input value { The D } { optional ; validate V }
 	    }] [m::cmdr::call glue cmd_mailconfig mail-$k $d]
 	}
+
+	officer reply {
+	    description {
+		Manage the templates used in mail replies.
+		This is all about the different reasons for
+		rejecting a submission.
+	    }
+
+	    common .reply {
+		input reply {
+		    The reply template to work with.
+		} { validate [m::cmdr::vt reply] }
+	    }
+
+	    common .notreply {
+		input reply {
+		    The name for a not-yet-known reply template.
+		} { validate [m::cmdr::vt notreply] }
+	    }
+	    common .text {
+		input text {
+		    The text of the template
+		} { validate str }
+	    }
+	    
+	    private show {
+		description {
+		    Show the known reply templates.
+		}
+	    } [m::cmdr::call glue cmd_reply_show]
+	    default
+
+	    private add {
+		description {
+		    Add a new reply template.
+		    By default the template will not
+		    cause mail to be sent.
+		}
+		option auto-mail {
+		    Automatically send mail when this
+		    reply is used.
+		} { presence ; alias M }
+		use .notreply
+		use .text
+	    } [m::cmdr::call glue cmd_reply_add]
+
+	    private remove {
+		description {
+		    Remove a known template.
+		}
+		use .reply
+	    } [m::cmdr::call glue cmd_reply_remove]
+
+	    private change {
+		description {
+		    Change the text for known template
+		}
+		use .reply
+		use .text
+	    } [m::cmdr::call glue cmd_reply_change]
+
+	    private default {
+		description {
+		    Make reply the default
+		}
+		use .reply
+	    } [m::cmdr::call glue cmd_reply_default]
+	}
     }
     
     # # ## ### ##### ######## ############# ######################

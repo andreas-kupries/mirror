@@ -231,5 +231,26 @@ proc ::m::db::SETUP-201810121600 {} {
     return
 }
 
+proc ::m::db::SETUP-201810131603 {} {
+    # Add tables for rejection mail content
+    # (submission processing)
+
+    D m::db
+    I+
+    C name      TEXT    NOT NULL UNIQUE
+    C automail  INTEGER NOT NULL
+    C isdefault INTEGER NOT NULL
+    C text      TEXT    NOT NULL
+    T reply
+
+    set sm "It is spam"
+    set om "It is off-topic here"
+    set rm "It was intentionally removed before and we will not add it again"
+    
+    >+ 'spam'     0 1 '$sm' ;# default reason
+    >+ 'offtopic' 1 0 '$om'
+    >+ 'removed'  1 0 '$rm'
+}
+
 # # ## ### ##### ######## ############# #####################
 return

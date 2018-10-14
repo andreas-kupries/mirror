@@ -18,6 +18,7 @@
 package require Tcl 8.5
 package require m::state
 package require m::mail::asm
+package require m::reply
 package require debug
 package require debug::caller
 

@@ -1,5 +1,7 @@
-#!/usr/bin/env tclsh8.6
+#!/usr/bin/env tclsh
 # -*- tcl -*-
+
+package require Tcl 8.5
 
 # CLI
 # Database migration

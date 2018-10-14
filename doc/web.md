@@ -12,8 +12,11 @@ For this we need a single dialog / form page.
 
 Data to enter are
 
-   - location of the repository
-   - email of the submitter to be able to ask questions
+   - location of the repository (required)
+   - name of the mirror set ? -- no, will choose my own anyway
+   - email of the submitter to be able to ask questions (required)
+   - submitter name (optional)
+   - date+time of entry (required, automatic)
 
 The form backend can read the table of existing repositories and
 auto-reject (nicely) anything which is already known.
@@ -52,6 +55,7 @@ https://akupries.tclers.tk/r/index.html
 |id	|int	|PK		|				|
 |when	|int	|		|epoch of submission time	|
 |email	|text	|		|		     		|
+|name	|text	|nullable	|				|
 |url	|text	|unique		|				|
 
 ### rejection
@@ -59,6 +63,5 @@ https://akupries.tclers.tk/r/index.html
 |Name	|Type	|Modifiers	|Comments	|
 |---	|---	|---		|---		|
 |id	|int	|PK		|		|
-|email	|text	|		|		|
 |url	|text	|unique		|		|
-|cause	|text	|		|		|
+|cause	|text	|		|web info	|

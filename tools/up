@@ -6,11 +6,11 @@ rtilde
 sleep 2
 clear
 echo
-./build.tcl uninstall
+$SUDO ./build.tcl uninstall
 sleep 2
 clear
 echo
-./build.tcl install
+$SUDO ./build.tcl install
 sleep 2
 clear
 echo

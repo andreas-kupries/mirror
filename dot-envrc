@@ -1,2 +1,8 @@
 PATH_add tools
 PATH_add tests
+
+case $(uname) in
+Darwin) SUDO=sudo	;;
+*)	SUDO=		;;
+esac
+export SUDO
