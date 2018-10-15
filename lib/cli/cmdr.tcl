@@ -108,7 +108,7 @@ proc ::m::cmdr::call {pkg args} {
     lambda {pkg args} {
 	package require m::$pkg
 	m $pkg {*}$args
-    } $pkg $args
+    } $pkg {*}$args
 }
 
 proc ::m::cmdr::vt {p args} {
@@ -515,6 +515,105 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	    reasons.
 	}
     } [m::cmdr::call glue cmd_rejected]
+    
+    # # ## ### ##### ######## ############# ######################
+
+    officer mail {
+	description {
+	    Access to the mail configuration
+	}
+
+	private show {
+	    description {
+		Show the entire mail configuration
+	    }
+	} [m::cmdr::call glue cmd_mailconfig_show]
+	default
+	
+	foreach {k v d} {
+	    host   str     {name of mail relay host}
+	    port   cmdr::validate::posint {port for SMTP on the mail relay host}
+	    user   str     {account on the mail relay host}
+	    pass   str     {credentials for the mail account}
+	    tls    boolean {TLS use to secure SMTP}
+	    sender str     {nominal sender of all mail}
+	    header str     {header text before generated content}
+	    footer str     {footer text after generated content}
+	} {
+     	    private $k [string map [list V $v K $k D $d] {
+		description { Set or query D }
+		input value { The D } { optional ; validate V }
+	    }] [m::cmdr::call glue cmd_mailconfig mail-$k $d]
+	}
+
+	officer reply {
+	    description {
+		Manage the templates used in mail replies.
+		This is all about the different reasons for
+		rejecting a submission.
+	    }
+
+	    common .reply {
+		input reply {
+		    The reply template to work with.
+		} { validate [m::cmdr::vt reply] }
+	    }
+
+	    common .notreply {
+		input reply {
+		    The name for a not-yet-known reply template.
+		} { validate [m::cmdr::vt notreply] }
+	    }
+	    common .text {
+		input text {
+		    The text of the template
+		} { validate str }
+	    }
+	    
+	    private show {
+		description {
+		    Show the known reply templates.
+		}
+	    } [m::cmdr::call glue cmd_reply_show]
+	    default
+
+	    private add {
+		description {
+		    Add a new reply template.
+		    By default the template will not
+		    cause mail to be sent.
+		}
+		option auto-mail {
+		    Automatically send mail when this
+		    reply is used.
+		} { presence ; alias M }
+		use .notreply
+		use .text
+	    } [m::cmdr::call glue cmd_reply_add]
+
+	    private remove {
+		description {
+		    Remove a known template.
+		}
+		use .reply
+	    } [m::cmdr::call glue cmd_reply_remove]
+
+	    private change {
+		description {
+		    Change the text for known template
+		}
+		use .reply
+		use .text
+	    } [m::cmdr::call glue cmd_reply_change]
+
+	    private default {
+		description {
+		    Make reply the default
+		}
+		use .reply
+	    } [m::cmdr::call glue cmd_reply_default]
+	}
+    }
     
     # # ## ### ##### ######## ############# ######################
     ## Developer support, debugging.

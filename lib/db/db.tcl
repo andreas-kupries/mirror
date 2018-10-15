@@ -130,10 +130,10 @@ proc ::m::db::SETUP-201810051600 {} {
     C value  TEXT  NOT NULL
     T state
 
-    > 'limit'               '20'
-    > 'store'               '~/.mirror/store'
-    > 'take'                '5'
-    > 'top'                 ''
+    > 'limit'               '20'              ;# Show this many repositories per `list`
+    > 'store'               '~/.mirror/store' ;# Directory for the backend stores
+    > 'take'                '5'               ;# Check this many mirrors sets per `update`
+    > 'top'                 ''                ;# State for `list`, next repository to show.
 
     # - -- --- ----- -------- -------------
     ## Mirror Set Pending - List of repositories waiting for an update
@@ -223,6 +223,55 @@ proc ::m::db::SETUP-201810141600 {} {
     T rejected
 
     return
+}
+
+proc ::m::db::SETUP-201810121600 {} {
+    # Added mail configuration to the general state table
+    
+    set h {This is a semi-automated mail by @cmd@, on behalf of @sender@.}
+    
+    D m::db
+    T^ state
+
+    #                           -- Debugging
+    > 'mail-debug'  '0'         ;# Bool. Activates low-level debugging in smtp/mime
+
+    #                           -- SMTP configuration
+    > 'mail-host'   'localhost' ;# Name of the mail-relay host to talk to
+    > 'mail-port'   '25'        ;# Port where the mail-relay host accepts SMTP
+    > 'mail-user'   'undefined' ;# account accepted by the mail-relay host
+    > 'mail-pass'   ''          ;# and associated credentials
+    > 'mail-tls'    '0'         ;# Bool. Activates TLS to secure SMTP transactions
+
+    #                           -- Mail content configuration
+    > 'mail-sender' 'undefined' ;# Email address to place into From/Sender headers
+    > 'mail-header' '$h'        ;# Text to place before the generated content
+    > 'mail-footer' ''          ;# Text to place after the generated content
+    #                            # Note: Template processing happens after the content
+    #                            # is assembled, i.e. affects header and footer.
+    
+    return
+}
+
+proc ::m::db::SETUP-201810131603 {} {
+    # Add tables for rejection mail content
+    # (submission processing)
+
+    D m::db
+    I+
+    C name      TEXT    NOT NULL UNIQUE
+    C automail  INTEGER NOT NULL
+    C isdefault INTEGER NOT NULL
+    C text      TEXT    NOT NULL
+    T reply
+
+    set sm "It is spam"
+    set om "It is off-topic here"
+    set rm "It was intentionally removed before and we will not add it again"
+    
+    >+ 'spam'     0 1 '$sm' ;# default reason
+    >+ 'offtopic' 1 0 '$om'
+    >+ 'removed'  1 0 '$rm'
 }
 
 # # ## ### ##### ######## ############# #####################

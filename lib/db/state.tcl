@@ -36,45 +36,28 @@ namespace eval ::m {
     namespace ensemble create
 }
 namespace eval ::m::state {
-    namespace export take store limit top
-    namespace ensemble create
+    namespace ensemble create -map [apply {{} {
+	foreach k {
+	    take store limit top
+	    mail-debug
+	    mail-host mail-port mail-user mail-pass
+	    mail-tls mail-sender mail-header mail-footer
+	} {
+	    dict set map $k [list ::m::state::Process $k]
+	}
+	return $map
+    }}]
 }
 
 # # ## ### ##### ######## ############# #####################
 
-proc ::m::state::take {{v {}}} {
+proc ::m::state::Process {k {v {}}} {
     debug.m/state {}
-    if {[llength [info level 0]] == 2} {
-	return [Set take $v]
+    if {[llength [info level 0]] == 3} {
+	return [Set $k $v]
     }
-    return [Get take]
+    return [Get $k]
 }
-
-proc ::m::state::store {{v {}}} {
-    debug.m/state {}
-    if {[llength [info level 0]] == 2} {
-	return [Set store $v]
-    }
-    return [Get store]
-}
-
-proc ::m::state::limit {{v {}}} {
-    debug.m/state {}
-    if {[llength [info level 0]] == 2} {
-	return [Set limit $v]
-    }
-    return [Get limit]
-}
-
-proc ::m::state::top {{v {}}} {
-    debug.m/state {}
-    if {[llength [info level 0]] == 2} {
-	return [Set top $v]
-    }
-    return [Get top]
-}
-
-# # ## ### ##### ######## ############# #####################
 
 proc ::m::state::Get {key} {
     debug.m/state {}
