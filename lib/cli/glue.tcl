@@ -880,7 +880,7 @@ proc ::m::glue::cmd_reject {config} {
 	    puts "  Rejected $url"
 	    puts "  By       $name"
 	    
-	    m submission reject $submission $cause
+	    m submission reject $submission $text
 
 	    if {!$mail} continue
 	    puts "    Sending rejection notice to $email ..."
