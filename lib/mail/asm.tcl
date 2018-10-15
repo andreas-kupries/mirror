@@ -22,7 +22,11 @@ package require debug::caller
 # # ## ### ##### ######## ############# ######################
 
 namespace eval ::m {
-    namespace export mail::asm
+    namespace export mail
+    namespace ensemble create
+}
+namespace eval ::m::mail {
+    namespace export asm
     namespace ensemble create
 }
 namespace eval ::m::mail::asm {
@@ -37,11 +41,12 @@ debug prefix m/mail/asm {[debug caller] | }
 
 # # ## ### ##### ######## ############# ######################
 
-proc ::m::mail::asm::begin {sender subject} {
+proc ::m::mail::asm::begin {thesender subject} {
     debug.m/mail/asm {}
     upvar 1 __lines __lines __sender sender
-    set     lines {}
-
+    set lines  {}
+    set sender $thesender
+    
     set date [clock format [clock seconds] -format {%d %b %Y %H:%M:%S %z}]
     + "Subject: $subject"
     + "Date:    $date"
@@ -66,7 +71,7 @@ proc ::m::mail::asm::done {footer} {
     }
 
     + ""
-    return -code return [join $lines \n]
+    return -code return [join $__lines \n]
 }
 
 proc ::m::mail::asm::+ {line} {

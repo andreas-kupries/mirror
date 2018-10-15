@@ -203,28 +203,6 @@ proc ::m::db::SETUP-201810111600 {} {
     return
 }
 
-proc ::m::db::SETUP-201810141600 {} {
-    # Add tables for external submissions
-    # - submissions
-    # - rejected submissions (for easy auto-rejection on replication)
-
-    D m::db
-    I+
-    C url       TEXT NOT NULL UNIQUE
-    C email     TEXT NOT NULL
-    C submitter TEXT
-    C sdate     INTEGER NOT NULL
-    T submission
-    X sdate
-
-    I+
-    C url    TEXT NOT NULL UNIQUE
-    C reason TEXT NOT NULL
-    T rejected
-
-    return
-}
-
 proc ::m::db::SETUP-201810121600 {} {
     # Added mail configuration to the general state table
     
@@ -272,6 +250,28 @@ proc ::m::db::SETUP-201810131603 {} {
     >+ 'spam'     0 1 '$sm' ;# default reason
     >+ 'offtopic' 1 0 '$om'
     >+ 'removed'  1 0 '$rm'
+}
+
+proc ::m::db::SETUP-201810141600 {} {
+    # Add tables for external submissions
+    # - submissions
+    # - rejected submissions (for easy auto-rejection on replication)
+
+    D m::db
+    I+
+    C url       TEXT NOT NULL UNIQUE
+    C email     TEXT NOT NULL
+    C submitter TEXT
+    C sdate     INTEGER NOT NULL
+    T submission
+    X sdate
+
+    I+
+    C url    TEXT NOT NULL UNIQUE
+    C reason TEXT NOT NULL
+    T rejected
+
+    return
 }
 
 # # ## ### ##### ######## ############# #####################

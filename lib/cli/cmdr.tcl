@@ -107,7 +107,7 @@ proc ::m::cmdr::main {argv} {
 proc ::m::cmdr::call {pkg args} {
     lambda {pkg args} {
 	package require m::$pkg
-	m $pkg {*}$args
+	m {*}[string map {:: { }} $pkg] {*}$args
     } $pkg {*}$args
 }
 
@@ -499,23 +499,26 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	}
 	option mail {
 	    Trigger generation and sending of rejection mail
-	} { alias M ; presence }
+	} { alias M }
 	option cause {
 	    Cause of rejection
-	} { alias C ; validate str }
-	# ^ TODO vt reply
+	} { alias C ; validate [m::cmdr::vt reply]
+	    generate [m::cmdr::call validate::reply default]
+	}
 	input id {
 	    Submissions to reject
 	} { list ; validate [m::cmdr::vt submission] }
     } [m::cmdr::call glue cmd_reject]
-
+    alias decline
+    
     private rejected {
 	description {
 	    Show the table of rejected submissions, with associated
 	    reasons.
 	}
     } [m::cmdr::call glue cmd_rejected]
-    
+    alias declined
+
     # # ## ### ##### ######## ############# ######################
 
     officer mail {

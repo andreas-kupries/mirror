@@ -55,7 +55,7 @@ proc ::m::reply::known {} {
 	,      name
 	FROM   reply
     } {
-	dict set map $name $id
+	dict set map [string tolower $name] $id
     }
 
     return $map
@@ -107,12 +107,11 @@ proc ::m::reply::change {reply text} {
 
 proc ::m::reply::default {} {
     debug.m/reply {}
-    m db onecolumn {
+    return [m db onecolumn {
 	SELECT id
 	FROM   reply
 	WHERE  isdefault = 1
-    }
-    return
+    }]
 }
 
 proc ::m::reply::default! {reply} {

@@ -25,7 +25,11 @@ package require debug::caller
 # # ## ### ##### ######## ############# ######################
 
 namespace eval ::m {
-    namespace export mail::generator
+    namespace export mail
+    namespace ensemble create
+}
+namespace eval ::m::mail {
+    namespace export generator
     namespace ensemble create
 }
 namespace eval ::m::mail::generator {
@@ -52,34 +56,34 @@ proc ::m::mail::generator::test {} {
 
 proc ::m::mail::generator::reply {template submission} {
     debug.m/mail/generator {}
-    # submission data ... receiver, url, other things ...
-    ##
-    # url
-    # mset name
-    # submitter name
-    # email
-    # submission date (epoch)
-
+    # submission data
+    # - url
+    # - submitter (name)
+    # - email
+    # - when - submission date (formatted)
+    set sender [m state mail-sender]
+    
     dict for {k v} $submission {
-	lappend map @s:${k}@ [T-$k $v]
+	lappend map @s:${k}@ $v
     }
+    lappend map @sender@ $sender
 
     # First line of the template is the mail subject.
     # The remainder is the mail body.
-    set template [m mail template $template]
-    set body     [join [lassign [split $template \n] subject] \n]
+    set body [join [lassign [split $template \n] subject] \n]
     
-    asm begin [m state sender] [string map $map $subject]
-    asm body [string map $map [m state header]]
+    asm begin $sender [string map $map $subject]
+    asm body [string map $map [m state mail-header]]
     asm +    [string map $map $body]
-    asm done [string map $map [m state footer]]
+    asm done [string map $map [m state mail-footer]]
 }
 
 # # ## ### ##### ######## ############# ######################
 
-proc ::m::mail::generator::T- {value} {
-    set value
-}
+proc ::m::mail::generator::T-url       {value} { set value }
+proc ::m::mail::generator::T-when      {value} { set value }
+proc ::m::mail::generator::T-submitter {value} { set value }
+proc ::m::mail::generator::T-email     {value} { set value }
 
 # # ## ### ##### ######## ############# ######################
 package provide m::mail::generator 0

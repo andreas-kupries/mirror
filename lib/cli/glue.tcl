@@ -771,6 +771,16 @@ proc ::m::glue::cmd_submit {config} {
 	}
 	puts "Submitted [color note $url]"
 	puts "By        $name"
+
+	# TODO ...
+	# Most checking done by the web form
+
+	# - url already known ?
+	# - url already rejected ?
+
+	# Further:
+	#
+	# - url 200 OK ?
 	
 	m submission add $url $email $submitter
     }
@@ -784,6 +794,8 @@ proc ::m::glue::cmd_accept {config} {
     package require m::rolodex
     package require m::store
     package require m::submission
+    package require m::mail::generator
+    package require m::mailer
 
     m db transaction {
 	set submission [$config @id]
@@ -800,12 +812,32 @@ proc ::m::glue::cmd_accept {config} {
 	    
 	puts "Accepted $url"
 	puts "By       $name"
-	    
+
+	dict set details when [Date $when]
+	if {![info exists $submitter] || ($submitter eq {})} {
+	    dict set details submitter $email
+	}
+
 	m submission accept $submission
 	Add $config
 
-	puts "Sending mail ..."
-	# TODO send mail
+	# TODO: Ordering ... mail failure has to undo the store
+	# creation, and other non-database effects of `Add`.
+	
+	puts "Sending acceptance mail to $email ..."
+
+	lappend mail "Mirror. Accepted submission of @url@"
+	lappend mail "Hello @submitter@"
+	lappend mail
+	lappend mail "Thank you for your submission of @url@ to us, as of @when@."
+	lappend mail ""
+	lappend mail "Your submission has been accepted. The repository should appear on our web-pages soon."
+	lappend mail ""
+	lappend mail "Sincerely"
+	lappend mail "  @sender@"
+
+	m mailer to $email \
+	    [m mail generator reply [join $mail \n] $details]
     }
     OK
 }
@@ -813,17 +845,25 @@ proc ::m::glue::cmd_accept {config} {
 proc ::m::glue::cmd_reject {config} {
     debug.m/glue {}
     package require m::submission
-    # TODO: reply
+    package require m::mail::generator
+    package require m::mailer
+    package require m::reply
 
     m db transaction {
 	set submissions [$config @id]
-	set mail        [$config @mail]
 	set cause       [$config @cause]
 
-	# TODO: get cause info
-	# TODO: merge mail info
+	set cdetails [m reply get $cause]
+	dict with cdetails {}
+	debug.m/glue {reply $cause => ($cdetails)}
+	# -> text
+	#    mail
 
-	puts "Cause: $cause"
+	if {[$config @mail set?]} {
+	    set mail [$config @mail]
+	}
+
+	puts "Cause: $text"
 
 	foreach submission $submissions {
 	    set details [m submission get $submission]
@@ -842,10 +882,22 @@ proc ::m::glue::cmd_reject {config} {
 	    
 	    m submission reject $submission $cause
 
-	    if {$mail} {
-		puts "    Sending mail ..."
-		# TODO send mail
-	    }
+	    if {!$mail} continue
+	    puts "    Sending rejection notice to $email ..."
+
+	    lappend mail "Mirror. Declined submission of @url@"
+	    lappend mail "Hello @submitter@"
+	    lappend mail
+	    lappend mail "Thank you for your submission of @url@ to us, as of @when@."
+	    lappend mail ""
+	    lappend mail "We are sorry to tell you that we decline it."
+	    lappend mail $text ;# cause
+	    lappend mail ""
+	    lappend mail "Sincerely"
+	    lappend mail "  @sender@"
+
+	    m mailer to $email \
+		[m mail generator reply [join $mail \n] $details]
 	}
     }
     OK

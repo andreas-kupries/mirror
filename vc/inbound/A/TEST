@@ -1,9 +1,0 @@
-#!/bin/sh
-
-echo _________________________________________________ $1
-cd $1
-echo GD = $(git rev-parse 2>&1 --git-dir)
-echo IG = $(git rev-parse 2>&1 --is-inside-git-dir)
-echo IW = $(git rev-parse 2>&1 --is-inside-work-tree)
-echo BR = $(git rev-parse 2>&1 --is-bare-repository)
-echo RE = $(git rev-parse 2>&1 --resolve-git-dir .)

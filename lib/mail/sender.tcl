@@ -81,13 +81,15 @@ proc ::m::mailer::Config {} {
 	-servers  1 host
 	-ports    0 port
     } {
-	set value [m state $mail-setting]
-	if {$listify} { set value [list $value ]
-	lappend mconfig $option
+	set value [m state mail-$setting]
+	if {$listify} { set value [list $value] }
+	lappend mconfig $option $value
     }
 
     lappend mconfig -tlspolicy ::m::mailer::TlsPolicy
     lappend mconfig -header [list From [m state mail-sender] ]
+
+    debug.m/mailer {=> ($mconfig)}
     return $mconfig
 }
 

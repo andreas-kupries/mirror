@@ -58,7 +58,12 @@ debug prefix m/validate/reply {[debug caller] | }
 # # ## ### ##### ######## ############# #####################
 
 proc ::m::validate::reply::release  {p x} { return }
-proc ::m::validate::reply::default  {p}   { return }
+proc ::m::validate::reply::default  {p}   {
+    debug.m/validate/reply {}
+    set d [m reply default]
+    debug.m/validate/reply {=> ($d)}
+    return $d
+}
 proc ::m::validate::reply::complete {p x} {
     debug.m/validate/reply {} 10
     return [complete-enum [dict keys [m reply known]] 0 $x]

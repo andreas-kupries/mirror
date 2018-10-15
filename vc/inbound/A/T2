@@ -1,4 +1,0 @@
-#!/bin/sh
-
-./g-is-repo $1
-echo $1 = $?
