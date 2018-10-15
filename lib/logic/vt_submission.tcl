@@ -3,7 +3,7 @@
 ## Repositories - Validation
 
 # @@ Meta Begin
-# Package m::validate::mset 0 
+# Package m::validate::submission 0 
 # Meta author   {Andreas Kupries}
 # Meta location https://core.tcl.tk/akupries/????
 # Meta platform tcl
@@ -13,7 +13,7 @@
 # Meta require {Tcl 8.5-}
 # @@ Meta End
 
-package provide m::validate::mset 0
+package provide m::validate::submission 0
 
 # # ## ### ##### ######## ############# #####################
 ## Requisites
@@ -21,17 +21,15 @@ package provide m::validate::mset 0
 package require Tcl 8.5
 package require cmdr::validate::common 1.2
 package require try
-package require m::mset
-package require m::repo
-package require m::rolodex
+package require m::submission
 package require m::match
 package require debug
 package require debug::caller
 
 # # ## ### ##### ######## ############# ######################
 
-debug level  m/validate/mset
-debug prefix m/validate/mset {[debug caller] | }
+debug level  m/validate/submission
+debug prefix m/validate/submission {[debug caller] | }
 
 # # ## ### ##### ######## ############# #####################
 ## Definition
@@ -41,10 +39,10 @@ namespace eval ::m {
     namespace ensemble create
 }
 namespace eval ::m::validate {
-    namespace export mset
+    namespace export submission
     namespace ensemble create
 }
-namespace eval ::m::validate::mset {
+namespace eval ::m::validate::submission {
     namespace export default validate complete release
     namespace ensemble create
 
@@ -53,30 +51,28 @@ namespace eval ::m::validate::mset {
 }
 # # ## ### ##### ######## ############# #####################
 
-debug define m/validate/mset
-debug level  m/validate/mset
-debug prefix m/validate/mset {[debug caller] | }
+debug define m/validate/submission
+debug level  m/validate/submission
+debug prefix m/validate/submission {[debug caller] | }
 
 # # ## ### ##### ######## ############# #####################
 
-proc ::m::validate::mset::release  {p x} { return }
-proc ::m::validate::mset::default  {p}   {
-    return [m repo mset [m rolodex top]]
+proc ::m::validate::submission::release  {p x} { return }
+proc ::m::validate::submission::default  {p}   { return }
+proc ::m::validate::submission::complete {p x} {
+    debug.m/validate/submission {} 10
+    return [complete-enum [dict keys [m submission known]] 0 $x]
 }
-proc ::m::validate::mset::complete {p x} {
-    debug.m/validate/mset {} 10
-    return [complete-enum [dict keys [m mset known]] 0 $x]
-}
-proc ::m::validate::mset::validate {p x} {
-    debug.m/validate/mset {}
+proc ::m::validate::submission::validate {p x} {
+    debug.m/validate/submission {}
 
-    set known [m mset known]
+    set known [m submission known]
     set match [m match substring id $known nocase $x]
 
     switch -exact -- $match {
 	ok        { return $id }
-	fail      { fail $p MSET "a mirror set"              $x }
-	ambiguous { fail $p MSET "an unambiguous mirror set" $x }
+	fail      { fail $p SUBMISSION "a submission"              $x }
+	ambiguous { fail $p SUBMISSION "an unambiguous submission" $x }
     }
 }
 

@@ -444,43 +444,78 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	}
     } [m::cmdr::call glue cmd_submissions]
 
+    private submit {
+	description {
+	    Manual submission of url to moderate.
+	}
+	input url       {Url to track}    { validate str }
+	input email     {Submitter, mail} { validate str }
+	input submitter {Submitter, name} { optional ; validate str }
+    } [m::cmdr::call glue cmd_submit]
+    
     private accept {
 	description {
-	    Accept the specified submissions. Each will placed into
-	    their own mirror set. The new repository will be entered
-	    into the table of shorthands, as if `list` had been
-	    invoked. (To any make upcoming merges easier).
-
-	    Note, multiple separate acceptances accumulate.
-
-	    Send mail to the specified email addresses to notify them
+	    Accept the specified submissions.
+	    Executes `add`, with all that entails.
+	    Sends mail to the specified email addresses to notify them
 	    of the acceptance.
 	}
 	input id {
-	    Submissions to accept
-	} { list ; validate cmdr::validate::posint }
+	    Submission to accept
+	} { validate [m::cmdr::vt submission] }
+	option vcs {
+	    Version control system handling the repository.
+	} {
+	    validate [m::cmdr::vt vcs]
+	    generate [m::cmdr::call glue gen_vcs]
+	}
+	state vcs-code {
+	    Version control system handling the repository.
+	    Internal code, derived from the option value (database id).
+	} {
+	    generate [m::cmdr::call glue gen_vcs_code]
+	}
+	state url {
+	    Location of the repository. Derived from the
+	    id
+	} { validate str
+	    generate [m::cmdr::call glue gen_url]
+	}
+	option name {
+	    Name for the mirror set to hold the repository.
+	} {
+	    alias N
+	    validate str
+	    generate [m::cmdr::call glue gen_name]
+	}
     } [m::cmdr::call glue cmd_accept]
 
     private reject {
 	description {
 	    Reject the specified submissions.
-	    Do not send mail by default.
-	    (No need to give my own mail address to spammers)
-
-	    Mail can be forced, for example if the rejection is due to
-	    reasons other than spam.
+	    Do (not) send mail as directed by the cause.
+	    No need to give your mail address to spammers.
+	    Sending mail can be forced
 	}
 	option mail {
 	    Trigger generation and sending of rejection mail
-	} { presence }
-	input cause {
+	} { alias M ; presence }
+	option cause {
 	    Cause of rejection
-	} { validate str }
+	} { alias C ; validate str }
+	# ^ TODO vt reply
 	input id {
-	    Submissions to accept
-	} { list ; validate cmdr::validate::posint }
+	    Submissions to reject
+	} { list ; validate [m::cmdr::vt submission] }
     } [m::cmdr::call glue cmd_reject]
 
+    private rejected {
+	description {
+	    Show the table of rejected submissions, with associated
+	    reasons.
+	}
+    } [m::cmdr::call glue cmd_rejected]
+    
     # # ## ### ##### ######## ############# ######################
     ## Developer support, debugging.
 
@@ -498,6 +533,24 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 		Show the knowledge map used by the repository validator.
 	    }
 	} [m::cmdr::call glue cmd_test_vt_repository]
+
+	private test-vt-mset {
+	    description {
+		Show the knowledge map used by the mirror-set validator.
+	    }
+	} [m::cmdr::call glue cmd_test_vt_mset]
+
+	private test-vt-submission {
+	    description {
+		Show the knowledge map used by the submission validator.
+	    }
+	} [m::cmdr::call glue cmd_test_vt_submission]
+
+	private test-vt-reply {
+	    description {
+		Show the knowledge map used by the reply validator.
+	    }
+	} [m::cmdr::call glue cmd_test_vt_reply]
 
 	private levels {
 	    description {

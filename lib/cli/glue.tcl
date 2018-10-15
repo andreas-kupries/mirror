@@ -1,4 +1,4 @@
-## -*- tcl -*-
+# -*- tcl -*-
 # # ## ### ##### ######## ############# ######################
 
 # @@ Meta Begin
@@ -48,6 +48,18 @@ proc ::m::glue::gen_limit {p} {
     debug.m/glue {}
     package require m::state
     return [m state limit]
+}
+
+proc ::m::glue::gen_url {p} {
+    debug.m/glue {}
+    package require m::submission
+    set details [m submission get [$p config @id]]
+    dict with details {}
+    # -> url
+    #    email
+    #    submitter
+    #    when
+    return $url
 }
 
 proc ::m::glue::gen_name {p} {
@@ -180,48 +192,8 @@ proc ::m::glue::cmd_add {config} {
     package require m::store
 
     m db transaction {
-	set url   [$config @url]
-	set vcs   [$config @vcs]
-	set vcode [$config @vcs-code]
-	set name  [$config @name]
-	set url   [m vcs url-norm $vcode $url]
-	# __Attention__: Cannot move the url normalization into a
-	# when-set clause of the parameter. That generates a
-	# dependency cycle:
-	#
-	#   url <- vcode <- vcs <- url
-
-	puts "Attempting to add"
-	puts "  Repository [color note $url]"
-	puts "  Managed by [color note [m vcs name $vcs]]"
-	puts "New"
-	puts "  Mirror set [color note $name]"
-
-	if {[m repo has $url]} {
-	    m::cmdr::error \
-		"Repository already present" \
-		HAVE_ALREADY REPOSITORY
-	}
-	if {[m mset has $name]} {
-	    m::cmdr::error \
-		"Name already present" \
-		HAVE_ALREADY NAME
-	}
-
-	# TODO MAYBE: stuff how much of this logic into `repo add` ?
-
-	set mset [m mset add $name]
-
-	m rolodex push [m repo add $vcs $mset $url]
-
-	puts "  Setting up the $vcode store ..."
-
-	m store add $vcs $mset $name $url
-
-	m rolodex commit
-	puts "  [color note Done]"
-    }
-
+	Add $config
+    }	
     ShowCurrent
     OK
 }
@@ -625,20 +597,128 @@ proc ::m::glue::cmd_limit {config} {
 
 proc ::m::glue::cmd_submissions {config} {
     debug.m/glue {}
-    puts [info level 0]		;# XXX TODO FILL-IN submissions
-    return
+    package require m::submission
+
+    m db transaction {
+	[table t {{} When Url Email Submitter} {
+	    foreach {id url email submitter when} [m submission list] {
+		set id %$id
+		set when [Date $when]
+
+		$t add $id $when $url $email $submitter
+	    }
+	}] show
+    }
+    OK
+}
+
+proc ::m::glue::cmd_rejected {config} {
+    debug.m/glue {}
+    package require m::submission
+
+    m db transaction {
+	[table t {Url Reason} {
+	    foreach {url reason} [m submission rejected] {
+		$t add $url $reason
+	    }
+	}] show
+    }
+    OK
+}
+
+proc ::m::glue::cmd_submit {config} {
+    debug.m/glue {}
+    package require m::submission
+
+    m db transaction {
+	set url       [$config @url]
+	set email     [$config @email]
+	set submitter [$config @submitter]
+
+	set name [color note $email]
+	if {$submitter ne {}} {
+	    append name " ([color note $submitter])"
+	}
+	puts "Submitted [color note $url]"
+	puts "By        $name"
+	
+	m submission add $url $email $submitter
+    }
+    OK
 }
 
 proc ::m::glue::cmd_accept {config} {
     debug.m/glue {}
-    puts [info level 0]		;# XXX TODO FILL-IN accept
-    return
+    package require m::mset
+    package require m::repo
+    package require m::rolodex
+    package require m::store
+    package require m::submission
+
+    m db transaction {
+	set submission [$config @id]
+	set details    [m submission get $submission]
+	dict with details {}
+	# -> url
+	#    email
+	#    submitter
+	#    when
+	set name [color note $email]
+	if {$submitter ne {}} {
+	    append name " ([color note $submitter])"
+	}
+	    
+	puts "Accepted $url"
+	puts "By       $name"
+	    
+	m submission accept $submission
+	Add $config
+
+	puts "Sending mail ..."
+	# TODO send mail
+    }
+    OK
 }
 
 proc ::m::glue::cmd_reject {config} {
     debug.m/glue {}
-    puts [info level 0]		;# XXX TODO FILL-IN reject
-    return
+    package require m::submission
+    # TODO: reply
+
+    m db transaction {
+	set submissions [$config @id]
+	set mail        [$config @mail]
+	set cause       [$config @cause]
+
+	# TODO: get cause info
+	# TODO: merge mail info
+
+	puts "Cause: $cause"
+
+	foreach submission $submissions {
+	    set details [m submission get $submission]
+	    dict with details {}
+	    # -> url
+	    #    email
+	    #    submitter
+	    #    when
+	    set name [color note $email]
+	    if {$submitter ne {}} {
+		append name " ([color note $submitter])"
+	    }
+	    
+	    puts "  Rejected $url"
+	    puts "  By       $name"
+	    
+	    m submission reject $submission $cause
+
+	    if {$mail} {
+		puts "    Sending mail ..."
+		# TODO send mail
+	    }
+	}
+    }
+    OK
 }
 
 proc ::m::glue::cmd_test_vt_repository {config} {
@@ -655,6 +735,48 @@ proc ::m::glue::cmd_test_vt_repository {config} {
     OK
 }
 
+proc ::m::glue::cmd_test_vt_mset {config} {
+    debug.m/glue {}
+    package require m::mset
+
+    set map [m mset known]
+    [table/d t {
+	foreach k [lsort -dict [dict keys $map]] {
+	    set v [dict get $map $k]
+	    $t add $k $v
+	}
+    }] show
+    OK
+}
+
+proc ::m::glue::cmd_test_vt_reply {config} {
+    debug.m/glue {}
+    package require m::reply
+
+    set map [m reply known]
+    [table/d t {
+	foreach k [lsort -dict [dict keys $map]] {
+	    set v [dict get $map $k]
+	    $t add $k $v
+	}
+    }] show
+    OK
+}
+
+proc ::m::glue::cmd_test_vt_submission {config} {
+    debug.m/glue {}
+    package require m::submission
+
+    set map [m submission known]
+    [table/d t {
+	foreach k [lsort -dict [dict keys $map]] {
+	    set v [dict get $map $k]
+	    $t add $k $v
+	}
+    }] show
+    OK
+}
+
 proc ::m::glue::cmd_debug_levels {config} {
     debug.m/glue {}
     puts [info level 0]		;# XXX TODO FILL-IN debug levels
@@ -662,6 +784,51 @@ proc ::m::glue::cmd_debug_levels {config} {
 }
 
 # # ## ### ##### ######## ############# ######################
+
+proc ::m::glue::Add {config} {
+    debug.m/glue {}
+    set url   [$config @url]
+    set vcs   [$config @vcs]
+    set vcode [$config @vcs-code]
+    set name  [$config @name]
+    set url   [m vcs url-norm $vcode $url]
+    # __Attention__: Cannot move the url normalization into a
+    # when-set clause of the parameter. That generates a
+    # dependency cycle:
+    #
+    #   url <- vcode <- vcs <- url
+
+    puts "Attempting to add"
+    puts "  Repository [color note $url]"
+    puts "  Managed by [color note [m vcs name $vcs]]"
+    puts "New"
+    puts "  Mirror set [color note $name]"
+
+    if {[m repo has $url]} {
+	m::cmdr::error \
+	    "Repository already present" \
+	    HAVE_ALREADY REPOSITORY
+    }
+    if {[m mset has $name]} {
+	m::cmdr::error \
+	    "Name already present" \
+	    HAVE_ALREADY NAME
+    }
+
+    # TODO MAYBE: stuff how much of this logic into `repo add` ?
+
+    set mset [m mset add $name]
+
+    m rolodex push [m repo add $vcs $mset $url]
+
+    puts "  Setting up the $vcode store ..."
+
+    m store add $vcs $mset $name $url
+
+    m rolodex commit
+    puts "  [color note Done]"
+    return
+}
 
 proc ::m::glue::Date {epoch} {
     debug.m/glue {}

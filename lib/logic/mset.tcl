@@ -17,6 +17,7 @@
 
 package require Tcl 8.5
 package require m::db
+package require m::rolodex
 package require debug
 package require debug::caller
 
@@ -64,8 +65,8 @@ proc ::m::mset::known {} {
 	WHERE  R.mset = M.id
     } {
 	dict set mid $rid $id
-	dict set map $url   $id
-	dict set map $mname $id
+	dict set map [string tolower $url]   $id
+	dict set map [string tolower $mname] $id
     }
 
     # See also m::repo::known

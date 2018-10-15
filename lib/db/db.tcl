@@ -203,5 +203,27 @@ proc ::m::db::SETUP-201810111600 {} {
     return
 }
 
+proc ::m::db::SETUP-201810141600 {} {
+    # Add tables for external submissions
+    # - submissions
+    # - rejected submissions (for easy auto-rejection on replication)
+
+    D m::db
+    I+
+    C url       TEXT NOT NULL UNIQUE
+    C email     TEXT NOT NULL
+    C submitter TEXT
+    C sdate     INTEGER NOT NULL
+    T submission
+    X sdate
+
+    I+
+    C url    TEXT NOT NULL UNIQUE
+    C reason TEXT NOT NULL
+    T rejected
+
+    return
+}
+
 # # ## ### ##### ######## ############# #####################
 return

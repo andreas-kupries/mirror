@@ -54,7 +54,7 @@ proc ::m::repo::known {} {
 	,      url
 	FROM   repository
     } {
-	dict set map $url $id
+	dict set map [string tolower $url] $id
     }
 
     # See also m::mset::known

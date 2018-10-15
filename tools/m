@@ -2,6 +2,7 @@
 echo ___________________________________________ "$@"
 export MIRROR_DEBUG
 MIRROR_DEBUG=
+#MIRROR_DEBUG=${MIRROR_DEBUG},m/match
 #MIRROR_DEBUG=${MIRROR_DEBUG},m/rolodex
 #MIRROR_DEBUG=${MIRROR_DEBUG},m/glue
 #MIRROR_DEBUG=${MIRROR_DEBUG},m/repo
