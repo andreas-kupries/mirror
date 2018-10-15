@@ -126,6 +126,28 @@ proc ::m::glue::gen_current_mset {p} {
 
 # # ## ### ##### ######## ############# ######################
 
+proc ::m::glue::cmd_export {config} {
+    debug.m/glue {}
+    package require m::mset
+    package require m::repo
+    
+    foreach {mset mname} [m mset list] {
+	foreach repo [m mset repos $mset] {
+	    set ri [m repo get $repo]
+	    dict with ri {}
+	    # -> url	: repo url
+	    #    vcs	: vcs id
+	    #    vcode	: vcs code
+	    #    mset	: mirror set id
+	    #    name	: mirror set name
+	    #    store  : store id, of backing store for
+
+	    puts [list R $vcode $url]
+	}
+	puts [list M $mname]
+    }
+}
+
 proc ::m::glue::cmd_reply_add {config} {
     debug.m/glue {}
     package require m::db

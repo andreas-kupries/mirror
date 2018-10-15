@@ -353,6 +353,13 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
     } [m::cmdr::call glue cmd_current]
     alias @
 
+    private export {
+	description {
+	    Write the known set of repositories and mirror sets to
+	    stdout, in a form suitable for (re)import.
+	}
+    } [m::cmdr::call glue cmd_export]
+    
     private set-current {
 	description {
 	    Makes the specified repository current.

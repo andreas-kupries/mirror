@@ -29,9 +29,10 @@ namespace eval ::m {
 }
 namespace eval ::m::mset {
     namespace export \
-	add remove rename has \
+	list add remove rename has \
 	name used-vcs has-vcs size \
-	stores take-pending pending known
+	stores take-pending pending known \
+	repos
     namespace ensemble create
 }
 
@@ -90,6 +91,18 @@ proc ::m::mset::known {} {
     }
 
     return $map
+}
+
+proc ::m::mset::list {} {
+    debug.m/mset {}
+    return [m db eval {
+	SELECT M.id   AS mset
+	,      N.name AS mname
+	FROM   mirror_set M
+	,      name       N
+	WHERE  N.id = M.name
+	ORDER BY mname ASC
+    }]
 }
 
 proc ::m::mset::add {name} {
@@ -165,6 +178,15 @@ proc ::m::mset::stores {mset} {
     return [m db eval {
 	SELECT id
 	FROM   store
+	WHERE  mset = :mset
+    }]
+}
+
+proc ::m::mset::repos {mset} {
+    debug.m/mset {}
+    return [m db eval {
+	SELECT id
+	FROM   repository
 	WHERE  mset = :mset
     }]
 }
@@ -255,7 +277,7 @@ proc ::m::mset::take-pending {take} {
 	# Full read. Clear taken, the slow way.  Drop the unwanted
 	# sentinel element from the end of the result.
 	set taken [lreplace [K $taken [unset taken]] end end]
-	m db eval [string map [list %% [join $taken ,]] {
+	m db eval [string map [::list %% [join $taken ,]] {
 	    DELETE
 	    FROM mset_pending
 	    WHERE mset in (%%)
