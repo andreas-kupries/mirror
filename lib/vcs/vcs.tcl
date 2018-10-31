@@ -50,7 +50,8 @@ namespace eval ::m::vcs {
     namespace export \
 	setup cleanup update check split merge \
 	rename id supported list code name \
-	detect url-norm name-from-url version
+	detect url-norm name-from-url version \
+	move
     namespace ensemble create
 
     namespace import ::cmdr::color
@@ -114,6 +115,37 @@ proc ::m::vcs::cleanup {store vcs} {
     # ... and the store directory
     file delete -force -- $path
     return 
+}
+
+proc ::m::vcs::move {newpath} {
+    debug.m/vcs {}
+
+    set oldpath [m state store]
+    
+    m state store $newpath
+    file mkdir $newpath
+    
+    foreach store [glob -directory $oldpath -nocomplain *] {
+	set newstore [file join $newpath [file tail $store]]
+	puts "Moving [color note $store]"
+	puts "    To [color note $newstore]"
+	try {
+	    file rename $store $newstore
+	    lappend moved $store $newstore
+	} on error {e o} {
+	    puts "Move failure: [color bad $e]"
+	    puts "Shifting transfered stores back"
+
+	    foreach {oldstore newstore} $moved {
+		puts "- Restoring [color note $oldstore] ..."
+		file rename $newstore $oldstore
+	    }
+
+	    # Rethrow
+	    return {*}$o $e
+	}
+    }
+    return
 }
 
 proc ::m::vcs::check {vcs storea storeb} {

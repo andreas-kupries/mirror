@@ -30,7 +30,7 @@ namespace eval ::m {
 namespace eval ::m::store {
     namespace export \
 	add remove move rename merge split update has check \
-	id vcs-name updates
+	id vcs-name updates move
     namespace ensemble create
 }
 
@@ -251,6 +251,13 @@ proc ::m::store::updates {} {
 
     return $series    
 }
+
+proc ::m::store::move {newpath} {
+    debug.m/store {}
+    m vcs move $newpath
+    return
+}
+
 # # ## ### ##### ######## ############# ######################
 
 proc ::m::store::Add {vcs mset} {

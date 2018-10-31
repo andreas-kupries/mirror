@@ -290,17 +290,16 @@ proc ::m::glue::cmd_mailconfig {key desc config} {
 
 proc ::m::glue::cmd_store {config} {
     debug.m/glue {}
-    package require m::state
+    package require m::store
 
     m db transaction {
 	if {[$config @path set?]} {
-	    m state store [file normalize [$config @path]]
-	    # TODO: copy/move all backing stores to the new location.
-	    puts [color bad {TODO: Move backing store to new base}]
+	    m store move [file normalize [$config @path]]
 	}
+	set value [m state store]
     }
 
-    puts "Stores at [color note [m state store]]"
+    puts "Stores at [color note $value]"
     OK
 }
 
