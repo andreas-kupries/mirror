@@ -126,6 +126,19 @@ proc ::m::glue::gen_current_mset {p} {
 
 # # ## ### ##### ######## ############# ######################
 
+proc ::m::glue::cmd_import {config} {
+    debug.m/glue {}
+    package require m::mset
+    package require m::repo
+    package require m::rolodex
+    package require m::store
+
+    m db transaction {
+	ImportAct [ImportSkipKnown [ImportVerify [ImportRead]]]
+    }
+    OK
+}
+
 proc ::m::glue::cmd_export {config} {
     debug.m/glue {}
     package require m::mset
@@ -416,12 +429,7 @@ proc ::m::glue::cmd_rename {config} {
 		HAVE_ALREADY NAME
 	}
 
-	m mset rename $mset $newname
-
-	# TODO MAYBE: stuff cascading logic into `mset rename` ?
-	foreach store [m mset stores $mset] {
-	    m store rename $store $newname
-	}
+	Rename $mset $newname
     }
 
     ShowCurrent
@@ -989,6 +997,198 @@ proc ::m::glue::cmd_debug_levels {config} {
 
 # # ## ### ##### ######## ############# ######################
 
+proc ::m::glue::ImportRead {} {
+    debug.m/glue {}
+    return [split [string trim [read stdin]] \n]
+    #         :: list (command)
+    # command :: list ('M' name)
+    #          | list ('R' vcode url)
+}
+
+proc ::m::glue::ImportVerify {commands} {
+    debug.m/glue {}
+    # commands :: list (command)
+    # command  :: list ('M' name)
+    #           | list ('R' vcode url)
+
+    foreach {code name} [m vcs list] {
+	dict set vcs $code .
+	dict set vcs $name .
+    }
+
+    set lno 0
+    set maxl [llength $commands]
+    set lfmt %-[string length $maxl]s
+    set msg {}
+    foreach command $commands {
+	set command [string trim $command]
+	incr lno
+	#puts "[format $lfmt $lno]: $command"
+	lassign $command cmd a b
+	switch -exact -- $cmd {
+	    M {
+		if {[llength $command] != 2} {
+		    lappend msg "Line [format $lfmt $lno]: Bad syntax: $command"
+		}
+	    }
+	    R {
+		if {[llength $command] != 3} {
+		    lappend msg "Line [format $lfmt $lno]: Bad syntax: $command"
+		} elseif {![dict exists $vcs $a]} {
+		    lappend msg "Line [format $lfmt $lno]: Unknown vcs: $command"
+		}
+	    }
+	    default {
+		lappend msg "Line [format $lfmt $lno]: Unknown command: $command"
+	    }
+	}
+    }
+
+    if {[llength $msg]} {
+	m::cmdr::error \n\t[join $msg \n\t] IMPORT BAD
+    }
+
+    # Unchanged.
+    return $commands
+}
+
+proc ::m::glue::ImportSkipKnown {commands} {
+    # commands :: list (command)
+    # command  :: list ('M' name)
+    #           | list ('R' vcode url)
+    debug.m/glue {}
+    set lno 0
+    set new {}
+    set repo {}
+    foreach command $commands {
+	incr lno
+	lassign $command cmd vcs url
+	switch -exact -- $cmd {
+	    R {
+		if {[m repo has $url]} {
+		    puts "Line $lno: [color warning Skip] known repository [color note $url]"
+		    continue
+		}
+	        lappend repo $vcs $url
+	    }
+	    M {
+		if {![llength $repo]} {
+		    puts "Line $lno: [color warning Skip] empty mirror set [color note $vcs]"
+		    set repo {}
+		    continue
+		}
+		lappend command $repo
+		lappend new $command
+		set repo {}
+	    }
+	}
+    }
+
+    # new   :: list (mset)
+    # mset  :: list ('M' name repos)
+    # repos :: list (vcode1 url1 v2 u2 ...)
+    return $new
+}
+
+proc ::m::glue::ImportAct {commands} {
+    # commands :: list (mset)
+    # mset     :: list ('M' name repos)
+    # repos    :: list (vcode1 url1 v2 u2 ...)
+    debug.m/glue {}
+
+    set date [lindex [split [Date [clock seconds]]] 0]
+
+    foreach command $commands {
+	lassign $command _ msetname repos
+	Import1 $date $msetname $repos
+    }
+    return
+}
+
+proc ::m::glue::Import1 {date mname repos} {
+    debug.m/glue {}
+    # repos = list (vcode url ...)
+
+    if {[llength $repos] == 2} {
+	lassign $repos vcode url
+	# The mirror set contains only a single repository.
+	# Create directly in final form (naming). Skip merge.
+	ImportMake1 $vcode $url ${mname}_${date}
+	return
+    }
+
+    # More than a single repository in this set. Merging is needed.
+    # And the untrusted nature of the input means that we cannot be
+    # sure that merging is even allowed.
+
+    # Two phases:
+    # - Create the repositories. Each in its own mirror set, like for `add`.
+    #   Set names are of the form `import_<date>`, plus a serial number.
+    #   Comes with associated store.
+    #
+    # - Go over the repositories again and merge them.  If a
+    #   repository is rejected by the merge keep it separate. Retry
+    #   merging using the rejections. The number of retries is finite
+    #   because each round finalizes at least one mirror set and its
+    #   repositories of the finite supply. At the end of this phase we
+    #   have one or more mirror sets each with maximally merged
+    #   repositories. Each finalized mirror set is renamed to final
+    #   form, based on the incoming mname and date.
+    
+    set serial 0
+    foreach {vcode url} $repos {
+	set data [ImportMake1 $vcode $url import_${date}_[incr serial]]
+	dict set r $url $data
+    }
+
+    while on {
+	set remainder [lassign $repos v u]
+	lassign [dict get $r $u] vcsp msetp storep
+	puts "Merge to $u ..."
+
+	set unmatched {}
+	foreach {vcode url} $remainder {
+	    lassign [dict get $r $url] vcs mset store
+	    try {
+		puts "Merging  $url"
+		Merge $msetp $mset
+	    } trap MISMATCH {} {
+		puts "  Rejected"
+		lappend unmatched $vcode $url
+	    }
+	}
+
+	# Rename primary mset to final form.
+	Rename $msetp [MakeName ${mname}_$date]
+	
+	if {![llength $unmatched]} break
+
+	# Retry to merge the leftovers.  Note, each iteration
+	# finalizes at least one mirror set, ensuring termination of
+	# the loop.
+	set repos $unmatched
+    }
+
+    m rolodex commit
+    return
+}
+
+proc ::m::glue::ImportMake1 {vcode url base} {
+    debug.m/glue {}
+    set vcs     [m vcs id $vcode]
+    set tmpname [MakeName $base]
+    set mset    [m mset add $tmpname]
+    set url     [m vcs url-norm $vcode $url]
+
+    m rolodex push [m repo add $vcs $mset $url]
+
+    puts "  Setting up the $vcode store for $url ..."
+    set store [m store add $vcs $mset $tmpname $url]
+    puts "  [color note Done]"
+
+    return [list $vcs $mset $store]
+}
+
 proc ::m::glue::Add {config} {
     debug.m/glue {}
     set url   [$config @url]
@@ -1150,6 +1350,17 @@ proc ::m::glue::MergeFill {msets} {
 	return [linsert $msets 0 [m repo mset $target]]
     }
     return $msets
+}
+
+proc ::m::glue::Rename {mset newname} {
+    debug.m/glue {}
+    m mset rename $mset $newname
+
+    # TODO MAYBE: stuff cascading logic into `mset rename` ?
+    foreach store [m mset stores $mset] {
+	m store rename $store $newname
+    }
+    return
 }
 
 proc ::m::glue::Merge {target origin} {
