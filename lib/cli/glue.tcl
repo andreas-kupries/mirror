@@ -624,16 +624,17 @@ proc ::m::glue::cmd_updates {config} {
     
     m db transaction {
 	set series [m store updates]
-	[table t {{Mirror Set} VCS Changed Updated Created} {
-	    foreach {mname vcode changed updated created} $series {
+	[table t {{Mirror Set} VCS Size Changed Updated Created} {
+	    foreach {mname vcode changed updated created size} $series {
 		if {$created eq "."} {
-		    $t add - - - - -
+		    $t add - - - - - -
 		    continue
 		}
+		set size    [Size $size]
 		set changed [Date $changed]
 		set updated [Date $updated]
 		set created [Date $created]
-		$t add $mname $vcode $changed $updated $created
+		$t add $mname $vcode $size $changed $updated $created
 	    }
 	}] show
     }
@@ -684,7 +685,7 @@ proc ::m::glue::cmd_list {config} {
 	set limit [$config @limit]
 
 	lassign [m repo get-n $first $limit] next series
-	# series = (mset url rid vcode ...)
+	# series = (mset url rid vcode sizekb ...)
 
 	debug.m/glue {next   ($next)}
 	debug.m/glue {series ($series)}
@@ -692,24 +693,24 @@ proc ::m::glue::cmd_list {config} {
 	m state top $next
 
 	set n 0
-	foreach {_ _ repo _} $series {
+	foreach {_ _ repo _ _} $series {
 	    m rolodex push $repo
 	    incr n
 	}
 
 	# See also ShowCurrent
 	# TODO: extend list with store times ?
-	[table t {Tag Repository Set VCS} {
+	[table t {Tag Repository Set VCS Size} {
 	    set id -1
-	    foreach {mname url repo vcode} $series {
+	    foreach {mname url repo vcode size} $series {
 		incr id
 		set url [color note $url]
-		set ix [m rolodex id $repo]
+		set ix  [m rolodex id $repo]
 		set tag {}
 		if {$ix ne {}} { lappend tag @$ix }
 		if {$id == ($n-2)} { lappend tag @p }
 		if {$id == ($n-1)} { lappend tag @c }
-		$t add $tag $url $mname $vcode
+		$t add $tag $url $mname $vcode [Size $size]
 	    }
 	}] show
     }
@@ -1237,6 +1238,16 @@ proc ::m::glue::Date {epoch} {
     debug.m/glue {}
     if {$epoch eq {}} return
     return [clock format $epoch -format {%Y-%m-%d %H:%M:%S}]
+}
+
+proc ::m::glue::Size {x} {
+    debug.m/glue {}
+                              if {$x < 1024} { return ${x}K }
+    set x [expr {$x/1024.}] ; if {$x < 1024} { return [format %.1f $x]M }
+    set x [expr {$x/1024.}] ; if {$x < 1024} { return [format %.1f $x]G }
+    set x [expr {$x/1024.}] ; if {$x < 1024} { return [format %.1f $x]T }
+    set x [expr {$x/1024.}] ; if {$x < 1024} { return [format %.1f $x]P }
+    set x [expr {$x/1024.}] ;                  return [format %.1f $x]E
 }
 
 proc ::m::glue::ShowCurrent {} {

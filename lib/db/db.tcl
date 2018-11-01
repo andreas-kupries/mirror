@@ -274,5 +274,21 @@ proc ::m::db::SETUP-201810141600 {} {
     return
 }
 
+proc ::m::db::SETUP-201810311600 {} {
+    # Added column `size_kb` for store size to `store`.
+
+    D m::db
+    I+
+    C vcs     INTEGER  NOT NULL  ^version_control_system
+    C mset    INTEGER  NOT NULL  ^mirror_set
+    C size_kb INTEGER  NOT NULL
+    U vcs mset
+    < store  id vcs mset '0'
+
+    package require m::store
+    m::store::InitialSizes
+    return
+}
+
 # # ## ### ##### ######## ############# #####################
 return

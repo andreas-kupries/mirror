@@ -180,13 +180,17 @@ proc ::m::repo::get-n {first n} {
 	,      R.url
 	,      R.id
 	,      V.code
+	,      S.size_kb
 	FROM   repository             R
 	,      mirror_set             M
 	,      name                   N
 	,      version_control_system V
+	,      store                  S
 	WHERE  M.id   = R.mset
 	AND    N.id   = M.name
 	AND    V.id   = R.vcs
+	AND    S.mset = R.mset
+	AND    S.vcs  = R.vcs
 	-- cursor start clause ...
 	AND ((N.name > :mname) OR
 	     ((N.name = :mname) AND
@@ -198,9 +202,9 @@ proc ::m::repo::get-n {first n} {
 
     debug.m/repo {reps = (($replist))}
     
-    # Expect 4lim elements
-    #      = 4(n+1)
-    set have [expr {[llength $replist]/4}]
+    # Expect 5lim elements
+    #      = 5(n+1)
+    set have [expr {[llength $replist]/5}]
     debug.m/repo {have $have of $n requested}
     
     if {$have <= $n} {
@@ -208,10 +212,10 @@ proc ::m::repo::get-n {first n} {
 	set next {}
 	debug.m/repo {short}
     } else {
-	# Full read. Data from the last 4-tuple is next top,
+	# Full read. Data from the last 5-tuple is next top,
 	# and not part of the shown list.
-	set next    [lrange $replist end-3 end-2]
-	set replist [lrange $replist 0 end-4]
+	set next    [lrange $replist end-4 end-3]
+	set replist [lrange $replist 0 end-5]
 	debug.m/repo {cut}
     }
     

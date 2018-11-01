@@ -51,13 +51,23 @@ namespace eval ::m::vcs {
 	setup cleanup update check split merge \
 	rename id supported list code name \
 	detect url-norm name-from-url version \
-	move
+	move size
     namespace ensemble create
 
     namespace import ::cmdr::color
 }
 
 # # ## ### ##### ######## ############# #####################
+
+proc ::m::vcs::size {store} {
+    debug.m/vcs {}
+    # store id -> Using for path.
+    # vcs   id -> Decode to plugin name
+
+    set path [Path $store]
+    set kb   [lindex [m exec get du -sk $path] 0]
+    return $kb
+}
 
 proc ::m::vcs::setup {store vcs name url} {
     debug.m/vcs {}

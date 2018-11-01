@@ -47,6 +47,7 @@ proc ::m::store::add {vcs mset name url} {
     set store [Add $vcs $mset]
 
     m vcs setup $store $vcs $name $url
+    Size $store
     
     return $store
 }
@@ -106,7 +107,6 @@ proc ::m::store::update {store cycle now} {
     
     set counts [m vcs update $store $vcs $remotes]
     lassign $counts before after
-
     if {$after != $before} {
 	m db eval {
 	    UPDATE store_times
@@ -114,6 +114,7 @@ proc ::m::store::update {store cycle now} {
 	    ,   changed = :now
 	    WHERE store = :store
 	}
+	Size $store
     } else {
 	m db eval {
 	    UPDATE store_times
@@ -201,6 +202,7 @@ proc ::m::store::updates {} {
 	,      T.changed AS changed
 	,      T.updated AS updated
 	,      T.created AS created
+	,      S.size_kb AS size
 	FROM store_times            T
 	,    store                  S
 	,    mirror_set             M
@@ -214,9 +216,9 @@ proc ::m::store::updates {} {
 	ORDER BY T.changed DESC
     } {
 	if {($last ne {}) && ($last != $updated)} {
-	    lappend series . . . . .
+	    lappend series . . . . . .
 	}
-	lappend series $mname $vcode $changed $updated $created
+	lappend series $mname $vcode $changed $updated $created $size
 	set last $updated
     }
 
@@ -230,6 +232,7 @@ proc ::m::store::updates {} {
 	,      T.changed AS changed
 	,      T.updated AS updated
 	,      T.created AS created
+	,      S.size_kb AS size
 	FROM store_times            T
 	,    store                  S
 	,    mirror_set             M
@@ -243,9 +246,9 @@ proc ::m::store::updates {} {
 	ORDER BY T.created DESC
     } {
 	if {$first} {
-	    lappend series . . . . .
+	    lappend series . . . . . .
 	}
-	lappend series $mname $vcode {} {} $created
+	lappend series $mname $vcode {} {} $created $size
 	set first 0
     }
 
@@ -259,6 +262,18 @@ proc ::m::store::move {newpath} {
 }
 
 # # ## ### ##### ######## ############# ######################
+
+proc ::m::store::Size {store} {
+    debug.m/store {}
+
+    set kb [m vcs size $store]
+    m db eval {
+	UPDATE store
+	SET    size_kb = :kb
+	WHERE  id      = :store
+    }
+    return
+}
 
 proc ::m::store::Add {vcs mset} {
     debug.m/store {}
@@ -297,6 +312,17 @@ proc ::m::store::MSName {mset} {
 	WHERE  M.id   = :mset
 	AND    M.name = N.id
     }]
+}
+
+proc ::m::store::InitialSizes {} {
+    debug.m/store {}
+    m db eval {
+	SELECT id
+	FROM   store
+    } {
+	Size $id
+    }
+    return
 }
 
 # # ## ### ##### ######## ############# ######################
