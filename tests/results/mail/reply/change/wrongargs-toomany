@@ -1,0 +1,14 @@
+mirror cmdr: wrong#args, too many
+
+mail reply change [OPTIONS] <reply> <text>
+    Change the text for known template
+
+    --color             Force the (non-)use of colors in the output. The default depends on the environment, active when talking to a tty, and otherwise not.
+    --database DATABASE Use an alternate database instead of the default.
+    --no-color          Complementary alias of --color.
+    --verbose           Activate more chatter.
+    -D DATABASE         Alias of --database.
+    -v                  Alias of --verbose.
+
+    reply The reply template to work with.
+    text  The text of the template

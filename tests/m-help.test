@@ -1,0 +1,21 @@
+# -*- tcl -*- tcl.tk//DSL tcltest//EN//2.0 tcl.tk//DSL tcltest//EN//2.0
+## (c) 2018 Andreas Kupries
+# # ## ### ##### ######## ############# #####################
+## global help
+
+kt check Tcl     8.5
+kt check tcltest 2
+
+# # ## ### ##### ######## ############# #####################
+
+kt::source support/invoke.tcl
+
+# # ## ### ##### ######## ############# #####################
+
+test help-1.0 "help, full" -body {
+    mapp help
+} -result [ok help/full]
+
+# # ## ### ##### ######## ############# #####################
+cleanupTests
+return

@@ -1,0 +1,11 @@
++--------+----------------------------------------------------------------+
+| Host   | localhost                                                      |
+| Port   | 25                                                             |
+| User   | undefined                                                      |
+| Pass   |                                                                |
+| TLS    | 0                                                              |
+| Sender | undefined                                                      |
+| Header | This is a semi-automated mail by @cmd@, on behalf of @sender@. |
+| Footer |                                                                |
++--------+----------------------------------------------------------------+
+OK

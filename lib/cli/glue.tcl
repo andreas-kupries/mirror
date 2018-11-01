@@ -173,9 +173,9 @@ proc ::m::glue::cmd_reply_add {config} {
 	set mail  [$config @auto-mail]
 
 	m msg "New reason to reject a submission:"
-	m msg "  Name:      [color note $reply]"
-	m msg "  Text:      [color note $text]"
-	m msg "  auto-Mail: [expr {$mail ? "yes" : "no"}]"
+	m msg "  Name:     [color note $reply]"
+	m msg "  Text:     [color note $text]"
+	m msg "  AutoMail: [expr {$mail ? "yes" : "no"}]"
 	
 	m reply add $reply $mail $text
     }

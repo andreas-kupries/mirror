@@ -1,0 +1,155 @@
+# -*- tcl -*- tcl.tk//DSL tcltest//EN//2.0 tcl.tk//DSL tcltest//EN//2.0
+## (c) 2018 Andreas Kupries
+# # ## ### ##### ######## ############# #####################
+## mail reply (template) management
+
+kt check Tcl     8.5
+kt check tcltest 2
+
+# # ## ### ##### ######## ############# #####################
+
+kt::source support/invoke.tcl
+
+# # ## ### ##### ######## ############# #####################
+
+## [ok] show
+## [ok] add
+## [ok] remove
+## [ok] change
+## [ok] default
+
+# # ## ### ##### ######## ############# #####################
+## show
+
+test mail-reply-show-1.0 "mail reply show - wrong args, too many" -body {
+    mapp mail reply show foo
+} -result [err mail/reply/show/wrongargs-toomany]
+
+test mail-reply-show-2.0 "mail reply show, defaults" -body {
+    mapp mail reply show
+} -result [ok mail/reply/show/defaults]
+
+test mail-reply-show-2.1 "mail reply == reply mail show" -body {
+    mapp mail reply
+} -result [ok mail/reply/show/defaults]
+
+# # ## ### ##### ######## ############# #####################
+## add
+
+test mail-reply-add-1.0 "mail reply add - wrong args, not enough" -body {
+    mapp mail reply add
+} -result [err mail/reply/add/wrongargs-notenough]
+
+test mail-reply-add-1.1 "mail reply add - wrong args, not enough" -body {
+    mapp mail reply add foo
+} -result [err mail/reply/add/wrongargs-notenough]
+
+test mail-reply-add-1.2 "mail reply add - wrong args, too many" -body {
+    mapp mail reply add foo text x
+} -result [err mail/reply/add/wrongargs-toomany]
+
+test mail-reply-add-2.0 "mail reply add, already present" -setup mdbclear -body {
+    mapp mail reply add spam foo
+} -result [err mail/reply/add/already-present]
+
+test mail-reply-add-3.0 "mail reply add ok, output" -setup mdbclear -body {
+    mapp mail reply add trial trial
+} -result [ok mail/reply/add/ok]
+
+test mail-reply-add-3.1 "mail reply add ok, database" -setup mdbclear -body {
+    mapp mail reply add trial trial
+    mapp mail reply show
+} -result [ok mail/reply/add/ok-table]
+
+test mail-reply-add-4.0 "mail reply add ok, automail, output" -setup mdbclear -body {
+    mapp mail reply add -M trial trial
+} -result [ok mail/reply/add/ok-automail]
+
+test mail-reply-add-4.1 "mail reply add ok, automail, database" -setup mdbclear -body {
+    mapp mail reply add -M trial trial
+    mapp mail reply show
+} -result [ok mail/reply/add/ok-automail-table]
+
+# # ## ### ##### ######## ############# #####################
+## remove
+
+test mail-reply-remove-1.0 "mail reply remove - wrong args, not enough" -body {
+    mapp mail reply remove
+} -result [err mail/reply/remove/wrongargs-notenough]
+
+test mail-reply-remove-1.1 "mail reply remove - wrong args, too many" -body {
+    mapp mail reply remove foo x
+} -result [err mail/reply/remove/wrongargs-toomany]
+
+test mail-reply-remove-2.0 "mail reply remove, unknown" -setup mdbclear -body {
+    mapp mail reply remove bogus
+} -result [err mail/reply/remove/unknown]
+
+test mail-reply-remove-2.1 "mail reply remove, default" -setup mdbclear -body {
+    mapp mail reply remove spam
+} -result [err mail/reply/remove/default]
+
+test mail-reply-remove-3.0 "mail reply remove ok, output" -setup mdbclear -body {
+    mapp mail reply remove offtopic
+} -result [ok mail/reply/remove/ok]
+
+test mail-reply-remove-3.1 "mail reply remove ok, database" -setup mdbclear -body {
+    mapp mail reply remove offtopic
+    mapp mail reply show
+} -result [ok mail/reply/remove/ok-table]
+
+# # ## ### ##### ######## ############# #####################
+## change
+
+test mail-reply-change-1.0 "mail reply change - wrong args, not enough" -body {
+    mapp mail reply change
+} -result [err mail/reply/change/wrongargs-notenough]
+
+test mail-reply-change-1.1 "mail reply change - wrong args, not enough" -body {
+    mapp mail reply change foo
+} -result [err mail/reply/change/wrongargs-notenough]
+
+test mail-reply-change-1.2 "mail reply change - wrong args, too many" -body {
+    mapp mail reply change foo text x
+} -result [err mail/reply/change/wrongargs-toomany]
+
+test mail-reply-change-2.0 "mail reply change, unknown" -setup mdbclear -body {
+    mapp mail reply change bogus foo
+} -result [err mail/reply/change/unknown]
+
+test mail-reply-change-3.0 "mail reply change ok, output" -setup mdbclear -body {
+    mapp mail reply change offtopic foo
+} -result [ok mail/reply/change/ok]
+
+test mail-reply-change-3.1 "mail reply change ok, database" -setup mdbclear -body {
+    mapp mail reply change offtopic foo
+    mapp mail reply show
+} -result [ok mail/reply/change/ok-table]
+
+# # ## ### ##### ######## ############# #####################
+## default
+
+test mail-reply-default-1.0 "mail reply default - wrong args, not enough" -body {
+    mapp mail reply default
+} -result [err mail/reply/default/wrongargs-notenough]
+
+test mail-reply-default-1.1 "mail reply default - wrong args, too many" -body {
+    mapp mail reply default foo x
+} -result [err mail/reply/default/wrongargs-toomany]
+
+test mail-reply-default-2.0 "mail reply default, unknown" -setup mdbclear -body {
+    mapp mail reply default bogus
+} -result [err mail/reply/default/unknown]
+
+test mail-reply-default-3.0 "mail reply default ok, output" -setup mdbclear -body {
+    mapp mail reply default offtopic
+} -result [ok mail/reply/default/ok]
+
+test mail-reply-default-3.1 "mail reply default ok, database" -setup mdbclear -body {
+    mapp mail reply default offtopic
+    mapp mail reply show
+} -result [ok mail/reply/default/ok-table]
+
+# # ## ### ##### ######## ############# #####################
+cleanupTests
+return

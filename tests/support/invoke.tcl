@@ -52,40 +52,62 @@ kt local   testing m::glue
 
 # # ## ### ##### ######## ############# #####################
 
-
 proc td {} { tcltest::testsDirectory }
 proc md {} { return [td]/tm }
 
 proc mapp {args} {
-    m::msg::set  ::Collect
-    m::msg::sete ::Collect
-    CollectReset
-    list [m::cmdr::main $args] [CollectGet]
+    rename ::puts    ::puts_orig
+    rename ::capture ::puts
+    capture-reset
+    try {
+        list [m::cmdr::main $args] [capture-get]
+    } finally {
+	rename ::puts	   ::capture
+	rename ::puts_orig ::puts
+    }
 }
 
-proc CollectGet {} {
+proc capture-get {} {
     variable stdout
     return [string trim $stdout]
 }
 
-proc CollectReset {} {
+proc capture-reset {} {
     variable stdout {}
     return
 }
 
-proc Collect {args} {
+proc capture {args} {
     set nonewline 0
     if {[lindex $args 0] eq "-nonewline"} {
 	set nonewline 1
 	set args [lrange $args 1 end]
     }
-    if {[llength $args] != 1} {
-	error "Bad syntax: [info level 0]"
+
+    switch -exact -- [llength $args] {
+	1 {
+	    set chan stdout
+	    set text [lindex $args 0]
+	}
+	2 {
+	    lassign $args chan text
+	}
+	default {
+	    error "Bad syntax: [info level 0]"
+	}
     }
-    variable stdout
-    append   stdout [lindex $args 0]
-    if {$nonewline} return
-    append stdout \n
+
+    if {$chan in {stdout stderr}} {
+	# capture
+	variable stdout
+	append   stdout $text
+	if {$nonewline} return
+	append stdout \n
+	return
+    }
+
+    # punt to original
+    ::puts_orig {*}$args
     return
 }
 
@@ -100,6 +122,11 @@ proc R {state label} {
     } else {
 	list $state {}
     }
+}
+
+proc mdbclear {} {
+    m::db::reset
+    file delete [md]/sqlite3
 }
 
 # # ## ### ##### ######## ############# #####################

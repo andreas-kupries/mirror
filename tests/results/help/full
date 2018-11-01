@@ -1,0 +1,70 @@
+Introspection
+    m-help.test version    Print version and revision of the application
+
+    Command history
+        m-help.test history clear          Clear the saved history
+        m-help.test history limit [<n>]    Limit the size of the history
+        m-help.test history list [<n>]     Show the saved history of commands
+
+Advanced
+    Debugging
+        m-help.test debug levels                List all the debug levels known to the system, which we can enable to gain a (partial) narrative of the application-internal actions
+        m-help.test debug test-vt-mset          Show the knowledge map used by the mirror-set validator
+        m-help.test debug test-vt-reply         Show the knowledge map used by the reply validator
+        m-help.test debug test-vt-repo          Show the knowledge map used by the repository validator
+        m-help.test debug test-vt-submission    Show the knowledge map used by the submission validator
+
+Miscellaneous
+    m-help.test => <repository>                       Makes the specified repository current
+    m-help.test @                                     Shows the rolodex
+    m-help.test accept <id>                           Accept the specified submissions
+    m-help.test add <url>                             Add repository
+    m-help.test current                               Shows the rolodex
+    m-help.test debug                                 Various commands to help debugging the system itself and its configuration
+    m-help.test decline <id>...                       Reject the specified submissions
+    m-help.test declined                              Show the table of rejected submissions, with associated reasons
+    m-help.test export                                Write the known set of repositories and mirror sets to stdout, in a form suitable for (re)import
+    m-help.test go <repository>                       Makes the specified repository current
+    m-help.test history                               Manage the command history
+    m-help.test import                                Read a set of repositories and mirror sets from stdin, and add them here
+    m-help.test limit [<limit>]                       Query/change default limit for repository listing
+    m-help.test list                                  Show (partial) list of the known repositories
+    m-help.test mail                                  Access to the mail configuration
+    m-help.test mail footer [<value>]                 Set or query footer text after generated content
+    m-help.test mail header [<value>]                 Set or query header text before generated content
+    m-help.test mail host [<value>]                   Set or query name of mail relay host
+    m-help.test mail pass [<value>]                   Set or query credentials for the mail account
+    m-help.test mail port [<value>]                   Set or query port for SMTP on the mail relay host
+    m-help.test mail reply                            Manage the templates used in mail replies
+    m-help.test mail reply add <reply> <text>         Add a new reply template
+    m-help.test mail reply change <reply> <text>      Change the text for known template
+    m-help.test mail reply default <reply>            Make reply the default
+    m-help.test mail reply remove <reply>             Remove a known template
+    m-help.test mail reply show                       Show the known reply templates
+    m-help.test mail sender [<value>]                 Set or query nominal sender of all mail
+    m-help.test mail show                             Show the entire mail configuration
+    m-help.test mail tls [<value>]                    Set or query TLS use to secure SMTP
+    m-help.test mail user [<value>]                   Set or query account on the mail relay host
+    m-help.test merge [<mirror-sets>...]              Merges the specified mirror sets into a single mirror set
+    m-help.test pending                               Show list of currently pending mirror sets
+    m-help.test reject <id>...                        Reject the specified submissions
+    m-help.test rejected                              Show the table of rejected submissions, with associated reasons
+    m-help.test remove [<repository>]                 Removes specified repository, or current
+    m-help.test rename [<mirror-set>] <name>          Change the name of the specified mirror set, or the mirror set indicated by the current repository
+    m-help.test reset                                 Reset list state to first entry
+    m-help.test rewind                                Like list, going backward through the set of repositories
+    m-help.test set-current <repository>              Makes the specified repository current
+    m-help.test split [<repository>]                  Split the specified or current repository from its mirror set
+    m-help.test store [<path>]                        Query/change store path
+    m-help.test submissions                           List the submissions waiting for moderation
+    m-help.test submit <url> <email> [<submitter>]    Manual submission of url to moderate
+    m-help.test swap                                  Swap current and previous repository
+    m-help.test take [<take>]                         Query/change the number of mirror sets processed per update cycle
+    m-help.test update [<mirror-sets>...]             Runs an update cycle on the specified mirror sets
+    m-help.test updates                               Show compressed history of past updates
+    m-help.test vcs                                   List supported version control systems
+
+Global Options
+    --help    Show the help of the application or of the current command, and stop.
+    -?        Alias of --help.
+    -h        Alias of --help.

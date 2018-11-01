@@ -1,0 +1,9 @@
+Supported VCS
++--------+--------+-*-+
+| Code   | Name   | Version *|
++--------+--------+-*-+
+| fossil | Fossil | * |
+| git    | Git    | * |
+| github | GitHub | * |
++--------+--------+-*-+
+OK

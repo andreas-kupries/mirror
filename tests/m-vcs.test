@@ -1,0 +1,25 @@
+# -*- tcl -*- tcl.tk//DSL tcltest//EN//2.0 tcl.tk//DSL tcltest//EN//2.0
+## (c) 2018 Andreas Kupries
+# # ## ### ##### ######## ############# #####################
+## vcs table - supported systems (by the app, outside of host support)
+
+kt check Tcl     8.5
+kt check tcltest 2
+
+# # ## ### ##### ######## ############# #####################
+
+kt::source support/invoke.tcl
+
+# # ## ### ##### ######## ############# #####################
+
+test vcs-1.0 {vcs - wrong args, too many} -body {
+    mapp vcs foo
+} -result [err vcs/wrongargs-toomany]
+
+test vcs-2.0 {vcs, defaults} -body {
+    mapp vcs
+} -match glob -result [ok vcs/defaults]
+
+# # ## ### ##### ######## ############# #####################
+cleanupTests
+return

@@ -1,0 +1,16 @@
+mirror cmdr: wrong#args, not enough
+
+mail reply add [OPTIONS] <reply> <text>
+    Add a new reply template. By default the template will not cause mail to be sent.
+
+    --auto-mail         Automatically send mail when this reply is used.
+    --color             Force the (non-)use of colors in the output. The default depends on the environment, active when talking to a tty, and otherwise not.
+    --database DATABASE Use an alternate database instead of the default.
+    --no-color          Complementary alias of --color.
+    --verbose           Activate more chatter.
+    -D DATABASE         Alias of --database.
+    -M                  Alias of --auto-mail.
+    -v                  Alias of --verbose.
+
+    reply The name for a not-yet-known reply template.
+    text  The text of the template

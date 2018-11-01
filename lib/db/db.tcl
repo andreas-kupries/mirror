@@ -49,7 +49,7 @@ proc ::m::db {args} {
     debug.m/db {Setup}
     # On first use replace this initializer placeholder with the
     # actual database command.
-    rename     ::m::db {}
+    rename     ::m::db ::m::db_setup
     sqlite3    ::m::db [db::location get]
 
     # Initialize it.
@@ -64,6 +64,13 @@ proc ::m::db {args} {
     
     # Re-execute the call using the proper definition.
     uplevel 1 [list ::m::db {*}$args]
+}
+
+proc ::m::db::reset {} {
+    debug.m/db {}
+    rename ::m::db {}
+    rename ::m::db_setup ::m::db
+    return
 }
 
 # # ## ### ##### ######## ############# #####################

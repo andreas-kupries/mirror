@@ -1,0 +1,25 @@
+# -*- tcl -*- tcl.tk//DSL tcltest//EN//2.0 tcl.tk//DSL tcltest//EN//2.0
+## (c) 2018 Andreas Kupries
+# # ## ### ##### ######## ############# #####################
+## mail configuration commands - show configuration
+
+kt check Tcl     8.5
+kt check tcltest 2
+
+# # ## ### ##### ######## ############# #####################
+
+kt::source support/invoke.tcl
+
+# # ## ### ##### ######## ############# #####################
+
+test mail-show-1.0 "mail show - wrong args, too many" -body {
+    mapp mail show foo
+} -result [err mail/show/wrongargs-toomany]
+
+test mail-show-2.0 "mail show, defaults" -body {
+    mapp mail show
+} -result [ok mail/show/defaults]
+
+# # ## ### ##### ######## ############# #####################
+cleanupTests
+return
