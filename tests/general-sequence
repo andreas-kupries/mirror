@@ -54,24 +54,7 @@ O m @
 
 # Configuration query and manipulation
 
-O m take
-O m limit
-O m store
 O m vcs
-O m take 10
-O m limit 30
-O m store FOO
-O m take
-O m limit
-O m store
-O m take 5
-O m limit 20
-O m store ~/.mirror/store
-
-F m take   0 ;# fail validation
-F m limit  0 ;# fail ditto
-F m take  -1 ;# fail bad option
-F m limit -1 ;# fail bad option
 
 # Here the database is empty again and all configuration values are
 # back to their defaults.

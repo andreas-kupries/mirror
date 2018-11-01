@@ -2,6 +2,7 @@
 # # ## ### ##### ######## ############# #####################
 ## Test support - Application simulator
 
+kt require support linenoise::facade ;# m::cmdr references, cannot local cannot use modules
 kt require support cmdr::history
 kt require support cmdr::color
 
@@ -88,7 +89,23 @@ proc Collect {args} {
     return
 }
 
+proc err {label} { R 1 $label }
+proc ok  {label} { R 0 $label }
+proc ok* {text}  { list 0 $text }
+
+proc R {state label} {
+    set path [td]/results/${label}
+    if {[file exists $path]} {
+	list $state [tcltest::viewFile $path]
+    } else {
+	list $state {}
+    }
+}
+
 # # ## ### ##### ######## ############# #####################
+## Initialization of the pseudo-application to redirect all its state
+## files and any input/output into locations related to the testsuite.
+## Keep away from any installation files.
 
 file delete -force -- [md]
 file mkdir            [md]

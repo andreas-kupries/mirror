@@ -14,22 +14,11 @@ kt::source support/invoke.tcl
 
 test version-1.0 {version - wrong args, too many} -body {
     mapp version foo
-} -result {1 {mirror cmdr: wrong#args, too many
-
-version [OPTIONS]
-    Print version and revision of the application.
-
-    --color             Force the (non-)use of colors in the output. The default depends on the environment, active when talking to a tty, and otherwise not.
-    --database DATABASE Use an alternate database instead of the default.
-    --no-color          Complementary alias of --color.
-    --verbose           Activate more chatter.
-    -D DATABASE         Alias of --database.
-    -v                  Alias of --verbose.}}
+} -result [err version/wrongargs-toomany]
 
 test version-1.1 {version result} -body {
     mapp version
-} -result {0 {mirror 0}}
-
+} -result [ok* {mirror 0}]
 
 # # ## ### ##### ######## ############# #####################
 cleanupTests

@@ -1,0 +1,48 @@
+# -*- tcl -*- tcl.tk//DSL tcltest//EN//2.0 tcl.tk//DSL tcltest//EN//2.0
+## (c) 2018 Andreas Kupries
+# # ## ### ##### ######## ############# #####################
+## configuration commands
+
+kt check Tcl     8.5
+kt check tcltest 2
+
+# # ## ### ##### ######## ############# #####################
+
+kt::source support/invoke.tcl
+
+# # ## ### ##### ######## ############# #####################
+
+lappend cases  limit 30           {0 -1}
+lappend cases  store [md]/store-b {}
+lappend cases  take  10           {0 -1}
+
+foreach {
+    command
+    goodvalue
+    badvalues
+} $cases {
+    test ${command}-1.0 "${command} - wrong args, too many" -body {
+	mapp ${command} $goodvalue foo
+    } -result [err ${command}/wrongargs-toomany]
+
+    test ${command}-2.0 "${command} query, default" -body {
+	mapp ${command}
+    } -result [ok ${command}/default]
+
+    test ${command}-2.1 "${command} change, ok, $goodvalue" -body {
+	mapp ${command} $goodvalue
+    } -result [ok ${command}/ok]
+
+    foreach bad $badvalues {
+	incr k
+	test ${command}-2.2.$k "${command} change, bad, $bad" -body {
+	    mapp ${command} $bad
+	} -result [err ${command}/bad-$bad]
+    }
+}
+
+unset cases
+
+# # ## ### ##### ######## ############# #####################
+cleanupTests
+return
