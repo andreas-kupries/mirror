@@ -147,5 +147,12 @@ m::state store       [md]/store
 
 set ::argv0 mirror
 
+# Intercept process exit for state cleanup
+rename ::exit ::exit_orig
+proc   ::exit {args} {
+    file delete -force -- [md]
+    ::exit_orig {*}$args
+}
+
 # # ## ### ##### ######## ############# #####################
 return
