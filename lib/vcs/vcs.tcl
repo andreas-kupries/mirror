@@ -26,6 +26,7 @@ package require cmdr::color
 package require m::db
 package require m::state
 package require m::exec
+package require m::msg
 package require m::vcs::fossil
 package require m::vcs::git
 package require m::vcs::github
@@ -137,17 +138,17 @@ proc ::m::vcs::move {newpath} {
     
     foreach store [glob -directory $oldpath -nocomplain *] {
 	set newstore [file join $newpath [file tail $store]]
-	puts "Moving [color note $store]"
-	puts "    To [color note $newstore]"
+	m msg "Moving [color note $store]"
+	m msg "    To [color note $newstore]"
 	try {
 	    file rename $store $newstore
 	    lappend moved $store $newstore
 	} on error {e o} {
-	    puts "Move failure: [color bad $e]"
-	    puts "Shifting transfered stores back"
+	    m msg "Move failure: [color bad $e]"
+	    m msg "Shifting transfered stores back"
 
 	    foreach {oldstore newstore} $moved {
-		puts "- Restoring [color note $oldstore] ..."
+		m msg "- Restoring [color note $oldstore] ..."
 		file rename $newstore $oldstore
 	    }
 

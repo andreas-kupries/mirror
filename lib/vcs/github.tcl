@@ -39,6 +39,7 @@ package require cmdr::color
 package require fileutil
 package require struct::set
 package require m::exec
+package require m::msg
 package require m::vcs::git
 package require debug
 package require debug::caller
@@ -76,7 +77,7 @@ proc ::m::vcs::github::detect {url} {
     if {[catch {
 	m exec silent git hub help
     }]} {
-	puts "[color note "git hub"] [color warning "not available"]"
+	m msg "[color note "git hub"] [color warning "not available"]"
 	# Fall through
 	return
     }

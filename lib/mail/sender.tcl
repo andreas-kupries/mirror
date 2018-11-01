@@ -22,6 +22,7 @@ package require smtp
 package require mime
 package require debug
 package require debug::caller
+package require m::msg
 
 # # ## ### ##### ######## ############# ######################
 
@@ -52,19 +53,18 @@ proc ::m::mailer::to {receiver corpus} {
 
     set token [mime::initialize -string $corpus]
 
-    puts -nonewline "    To: [color name $receiver] ... "
-    flush stdout
+    m msg* "    To: [color name $receiver] ... "
 
     try {
 	set res [smtp::sendmessage $token -header [list To $receiver] {*}[Config]]
 	foreach item $res {
-	    puts "    ERR $item"
+	    m msg "    ERR $item"
 	}
     } finally {
     }
     
     mime::finalize $token
-    puts [color good OK]
+    m msg [color good OK]
     return
 }
 
@@ -95,7 +95,7 @@ proc ::m::mailer::Config {} {
 
 proc ::m::mailer::TlsPolicy {args} {
     debug.m/mailer {}
-    puts $args
+    m msg $args
     return secure
 }
 

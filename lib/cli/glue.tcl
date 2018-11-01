@@ -20,6 +20,7 @@ package require cmdr::color
 package require cmdr::table 0.1 ;# API: headers, borders
 package require debug
 package require debug::caller
+package require m::msg
 
 # # ## ### ##### ######## ############# ######################
 
@@ -155,9 +156,9 @@ proc ::m::glue::cmd_export {config} {
 	    #    name	: mirror set name
 	    #    store  : store id, of backing store for
 
-	    puts [list R $vcode $url]
+	    m msg [list R $vcode $url]
 	}
-	puts [list M $mname]
+	m msg [list M $mname]
     }
 }
 
@@ -171,10 +172,10 @@ proc ::m::glue::cmd_reply_add {config} {
 	set text  [$config @text]
 	set mail  [$config @auto-mail]
 
-	puts "New reason to reject a submission:"
-	puts "  Name:      [color note $reply]"
-	puts "  Text:      [color note $text]"
-	puts "  auto-Mail: [expr {$mail ? "yes" : "no"}]"
+	m msg "New reason to reject a submission:"
+	m msg "  Name:      [color note $reply]"
+	m msg "  Text:      [color note $text]"
+	m msg "  auto-Mail: [expr {$mail ? "yes" : "no"}]"
 	
 	m reply add $reply $mail $text
     }
@@ -190,7 +191,7 @@ proc ::m::glue::cmd_reply_remove {config} {
 	set reply [$config @reply]
 	set name  [$config @reply string]
 
-	puts "Remove [color note $name] as reason for rejecting a submission."
+	m msg "Remove [color note $name] as reason for rejecting a submission."
 	if {[m reply default? $reply]} {
 	    m::cmdr::error \
 		"Cannot remove default reason" \
@@ -212,8 +213,8 @@ proc ::m::glue::cmd_reply_change {config} {
 	set name  [$config @reply string]
 	set text  [$config @text]
 
-	puts "Change reason [color note $name] to reject a submission:"
-	puts "  New text: [color note $text]"
+	m msg "Change reason [color note $name] to reject a submission:"
+	m msg "  New text: [color note $text]"
 	
 	m reply change $reply $text
     }
@@ -228,7 +229,7 @@ proc ::m::glue::cmd_reply_default {config} {
     m db transaction {
 	set reply [$config @reply]
 	set name [$config @reply string]
-	puts "Set [color note $name] as default reason to reject a submission."
+	m msg "Set [color note $name] as default reason to reject a submission."
 
 	m reply default! $reply
     }
@@ -284,7 +285,7 @@ proc ::m::glue::cmd_mailconfig {key desc config} {
 	set value [m state $key]
     }
 
-    puts "The $desc: [color note $value]"
+    m msg "The $desc: [color note $value]"
     OK
 }
 
@@ -299,7 +300,7 @@ proc ::m::glue::cmd_store {config} {
 	set value [m state store]
     }
 
-    puts "Stores at [color note $value]"
+    m msg "Stores at [color note $value]"
     OK
 }
 
@@ -316,7 +317,7 @@ proc ::m::glue::cmd_take {config} {
     }
 
     set g [expr {$n == 1 ? "mirror set" : "mirror sets"}]
-    puts "Per update, take [color note $n] $g"
+    m msg "Per update, take [color note $n] $g"
     OK
 }
 
@@ -324,7 +325,7 @@ proc ::m::glue::cmd_vcs {config} {
     debug.m/glue {}
     package require m::vcs
 
-    puts [color note {Supported VCS}]
+    m msg [color note {Supported VCS}]
 
     m db transaction {
 	[table t {Code Name Version} {
@@ -369,7 +370,7 @@ proc ::m::glue::cmd_remove {config} {
 
     m db transaction {
 	set repo [$config @repository]
-	puts "Removing [color note [m repo name $repo]] ..."
+	m msg "Removing [color note [m repo name $repo]] ..."
 
 	set rinfo [m repo get $repo]
 	dict with rinfo {}
@@ -388,13 +389,13 @@ proc ::m::glue::cmd_remove {config} {
 	# Remove store for the repo's vcs if no repositories for that
 	# vcs remain in the mirror set.
 	if {![m mset has-vcs $mset $vcs]} {
-	    puts "- Removing $vcode store ..."
+	    m msg "- Removing $vcode store ..."
 	    m store remove $store
 	}
 
 	# Remove mirror set if no repositories remain at all.
 	if {![m mset size $mset]} {
-	    puts "- Removing mirror set [color note $name] ..."
+	    m msg "- Removing mirror set [color note $name] ..."
 	    m mset remove $mset
 	}
 
@@ -416,7 +417,7 @@ proc ::m::glue::cmd_rename {config} {
 	set newname [$config @name]       ; debug.m/glue {new name: $newname}
 	set oldname [m mset name $mset]
 	
-	puts "Renaming [color note $oldname] ..."
+	m msg "Renaming [color note $oldname] ..."
 	if {$newname eq $oldname} {
 	    m::cmdr::error \
 		"The new name is the same as the current name." \
@@ -457,10 +458,10 @@ proc ::m::glue::cmd_merge {config} {
 	}
 
 	set secondaries [lassign $msets primary]
-	puts "Target:  [color note [m mset name $primary]]"
+	m msg "Target:  [color note [m mset name $primary]]"
 
 	foreach secondary $secondaries {
-	    puts "Merging: [color note [m mset name $secondary]]"
+	    m msg "Merging: [color note [m mset name $secondary]]"
 	    Merge $primary $secondary
 	}
     }
@@ -488,11 +489,11 @@ proc ::m::glue::cmd_split {config} {
 	#    name	: mirror set name
 	#    store      : store id, of backing store for the repo
 
-	puts "Attempting to separate"
-	puts "  Repository [color note $url]"
-	puts "  Managed by [color note [m vcs name $vcs]]"
-	puts "From"
-	puts "  Mirror set [color note $name]"
+	m msg "Attempting to separate"
+	m msg "  Repository [color note $url]"
+	m msg "  Managed by [color note [m vcs name $vcs]]"
+	m msg "From"
+	m msg "  Mirror set [color note $name]"
 
 	if {[m mset size $mset] < 2} {
 	    m::cmdr::error \
@@ -503,8 +504,8 @@ proc ::m::glue::cmd_split {config} {
 	set newname [MakeName $name]
 	set msetnew [m mset add $newname]
 
-	puts "New"
-	puts "  Mirror set [color note $newname]"
+	m msg "New"
+	m msg "  Mirror set [color note $newname]"
 
 	m repo move/1 $repo $msetnew
 
@@ -513,14 +514,14 @@ proc ::m::glue::cmd_split {config} {
 	    # original mirror set. We can simply move its store over
 	    # to the new holder to be ok.
 
-	    puts "  Move store ..."
+	    m msg "  Move store ..."
 
 	    m store move $store $msetnew
 	} else {
 	    # The originating mset still has users for the store used
 	    # by the moved repo. Need a new store for the moved repo.
 
-	    puts "  Split store ..."
+	    m msg "  Split store ..."
 
 	    m store split $store $msetnew
 	}
@@ -579,7 +580,7 @@ proc ::m::glue::cmd_update {config} {
 
 	foreach mset $msets {
 	    set mname [m mset name $mset]
-	    puts "Updating Mirror Set [color note $mname] ..."
+	    m msg "Updating Mirror Set [color note $mname] ..."
 
 	    set stores [m mset stores $mset]
 	    debug.m/glue {stores = ($stores)}
@@ -587,13 +588,13 @@ proc ::m::glue::cmd_update {config} {
 	    foreach store $stores {
 		set vname [m store vcs-name $store]
 		if {$verbose} {
-		    puts "  [color note $vname] store ... "
+		    m msg "  [color note $vname] store ... "
 		} else {
-		    puts -nonewline "  $vname store ... "
-		    flush stdout
+		    m msg* "  $vname store ... "
 		}
 
-		# TODO MAYBE: List the remotes we are pulling from ? => VCS layer, notification callback ...
+		# TODO MAYBE: List the remotes we are pulling from ?
+		# => VCS layer, notification callback ...
 
 		set counts [m store update $store $nowcycle [clock seconds]]
 		lassign $counts before after
@@ -605,11 +606,11 @@ proc ::m::glue::cmd_update {config} {
 			set mark note
 			set delta +$delta
 		    }
-		    puts "[color note Changed] $before $after ([color $mark $delta])"
+		    m msg "[color note Changed] $before $after ([color $mark $delta])"
 		} elseif {$verbose} {
-		    puts [color note "No changes"]
+		    m msg [color note "No changes"]
 		} else {
-		    puts "No changes"
+		    m msg "No changes"
 		}
 	    }
 	}
@@ -724,7 +725,7 @@ proc ::m::glue::cmd_reset {config} {
 
     m state top {}
 
-    puts "List paging reset to start from the top/bottom"
+    m msg "List paging reset to start from the top/bottom"
     OK
 }
 
@@ -751,7 +752,7 @@ proc ::m::glue::cmd_limit {config} {
     }
     
     set e [expr {$n == 1 ? "entry" : "entries"}]
-    puts "Per list/rewind, show up to [color note $n] $e"
+    m msg "Per list/rewind, show up to [color note $n] $e"
     OK
 }
 
@@ -799,8 +800,8 @@ proc ::m::glue::cmd_submit {config} {
 	if {$submitter ne {}} {
 	    append name " ([color note $submitter])"
 	}
-	puts "Submitted [color note $url]"
-	puts "By        $name"
+	m msg "Submitted [color note $url]"
+	m msg "By        $name"
 
 	# TODO ...
 	# Most checking done by the web form
@@ -840,8 +841,8 @@ proc ::m::glue::cmd_accept {config} {
 	    append name " ([color note $submitter])"
 	}
 	    
-	puts "Accepted $url"
-	puts "By       $name"
+	m msg "Accepted $url"
+	m msg "By       $name"
 
 	dict set details when [Date $when]
 	if {![info exists $submitter] || ($submitter eq {})} {
@@ -854,7 +855,7 @@ proc ::m::glue::cmd_accept {config} {
 	# TODO: Ordering ... mail failure has to undo the store
 	# creation, and other non-database effects of `Add`.
 	
-	puts "Sending acceptance mail to $email ..."
+	m msg "Sending acceptance mail to $email ..."
 
 	lappend mail "Mirror. Accepted submission of @url@"
 	lappend mail "Hello @submitter@"
@@ -893,7 +894,7 @@ proc ::m::glue::cmd_reject {config} {
 	    set mail [$config @mail]
 	}
 
-	puts "Cause: $text"
+	m msg "Cause: $text"
 
 	foreach submission $submissions {
 	    set details [m submission get $submission]
@@ -907,13 +908,13 @@ proc ::m::glue::cmd_reject {config} {
 		append name " ([color note $submitter])"
 	    }
 	    
-	    puts "  Rejected $url"
-	    puts "  By       $name"
+	    m msg "  Rejected $url"
+	    m msg "  By       $name"
 	    
 	    m submission reject $submission $text
 
 	    if {!$mail} continue
-	    puts "    Sending rejection notice to $email ..."
+	    m msg "    Sending rejection notice to $email ..."
 
 	    lappend mail "Mirror. Declined submission of @url@"
 	    lappend mail "Hello @submitter@"
@@ -1023,7 +1024,9 @@ proc ::m::glue::ImportVerify {commands} {
     foreach command $commands {
 	set command [string trim $command]
 	incr lno
-	#puts "[format $lfmt $lno]: $command"
+	debug.m/glue {[format $lfmt $lno]: $command}
+
+
 	lassign $command cmd a b
 	switch -exact -- $cmd {
 	    M {
@@ -1066,14 +1069,14 @@ proc ::m::glue::ImportSkipKnown {commands} {
 	switch -exact -- $cmd {
 	    R {
 		if {[m repo has $url]} {
-		    puts "Line $lno: [color warning Skip] known repository [color note $url]"
+		    m msg "Line $lno: [color warning Skip] known repository [color note $url]"
 		    continue
 		}
 	        lappend repo $vcs $url
 	    }
 	    M {
 		if {![llength $repo]} {
-		    puts "Line $lno: [color warning Skip] empty mirror set [color note $vcs]"
+		    m msg "Line $lno: [color warning Skip] empty mirror set [color note $vcs]"
 		    set repo {}
 		    continue
 		}
@@ -1144,16 +1147,16 @@ proc ::m::glue::Import1 {date mname repos} {
     while on {
 	set remainder [lassign $repos v u]
 	lassign [dict get $r $u] vcsp msetp storep
-	puts "Merge to $u ..."
+	m msg "Merge to $u ..."
 
 	set unmatched {}
 	foreach {vcode url} $remainder {
 	    lassign [dict get $r $url] vcs mset store
 	    try {
-		puts "Merging  $url"
+		m msg "Merging  $url"
 		Merge $msetp $mset
 	    } trap MISMATCH {} {
-		puts "  Rejected"
+		m msg "  Rejected"
 		lappend unmatched $vcode $url
 	    }
 	}
@@ -1182,9 +1185,9 @@ proc ::m::glue::ImportMake1 {vcode url base} {
 
     m rolodex push [m repo add $vcs $mset $url]
 
-    puts "  Setting up the $vcode store for $url ..."
+    m msg "  Setting up the $vcode store for $url ..."
     set store [m store add $vcs $mset $tmpname $url]
-    puts "  [color note Done]"
+    m msg "  [color note Done]"
 
     return [list $vcs $mset $store]
 }
@@ -1202,11 +1205,11 @@ proc ::m::glue::Add {config} {
     #
     #   url <- vcode <- vcs <- url
 
-    puts "Attempting to add"
-    puts "  Repository [color note $url]"
-    puts "  Managed by [color note [m vcs name $vcs]]"
-    puts "New"
-    puts "  Mirror set [color note $name]"
+    m msg "Attempting to add"
+    m msg "  Repository [color note $url]"
+    m msg "  Managed by [color note [m vcs name $vcs]]"
+    m msg "New"
+    m msg "  Mirror set [color note $name]"
 
     if {[m repo has $url]} {
 	m::cmdr::error \
@@ -1225,12 +1228,12 @@ proc ::m::glue::Add {config} {
 
     m rolodex push [m repo add $vcs $mset $url]
 
-    puts "  Setting up the $vcode store ..."
+    m msg "  Setting up the $vcode store ..."
 
     m store add $vcs $mset $name $url
 
     m rolodex commit
-    puts "  [color note Done]"
+    m msg "  [color note Done]"
     return
 }
 
@@ -1288,7 +1291,7 @@ proc ::m::glue::ShowCurrent {} {
 
 proc ::m::glue::OK {} {
     debug.m/glue {}
-    puts [color good OK]
+    m msg [color good OK]
     return -code return
 }
 

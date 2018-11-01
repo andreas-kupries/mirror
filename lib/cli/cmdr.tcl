@@ -40,6 +40,8 @@ package require debug
 package require debug::caller
 package require lambda
 
+package require m::msg
+
 cmdr color define heading =bold ;# Table header color.
 cmdr table show ::cmdr pager
 
@@ -75,7 +77,7 @@ proc ::m::cmdr::main {argv} {
       trap {CMDR PARAMETER UNDEFINED} {e o} - \
       trap {CMDR DO UNKNOWN} {e o} {
 	debug.m/cmdr {trap - cmdline user error}
-	puts stderr "$::argv0 cmdr: [cmdr color error $e]"
+	m emsg "$::argv0 cmdr: [cmdr color error $e]"
 	return 1
 
     } trap {CMDR QUIT} {e o} {
@@ -85,14 +87,14 @@ proc ::m::cmdr::main {argv} {
 
     } trap {M::CMDR} {e o} {
 	debug.m/cmdr {trap - other user error}
-	puts stderr "$::argv0 general: [cmdr color error $e]"
+	m emsg "$::argv0 general: [cmdr color error $e]"
 	return 1
 	
     } on error {e o} {
 	debug.m/cmdr {trap - general, internal error}
 	debug.m/cmdr {[debug pdict $o]}
 	# TODO: nicer formatting of internal errors.
-	puts stderr [cmdr color error $::errorInfo]
+	m emsg [cmdr color error $::errorInfo]
 	return 1
     }
 
@@ -235,7 +237,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	    Print version and revision of the application.
 	}
     } [lambda config {
-	puts "[file tail $::argv0] [package present m::cmdr]"
+	m msg "[file tail $::argv0] [package present m::cmdr]"
     }]
 
     private store {

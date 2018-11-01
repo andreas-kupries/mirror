@@ -168,8 +168,8 @@ proc db::setup::>+ {args} {
 }
 
 proc db::setup::R {sql} {
+    debug.db/setup {}
     variable thedbcmd
-    #puts ((($sql))) ; flush stdout   
     return [uplevel 2 [list {*}$thedbcmd eval $sql]]
 }
 

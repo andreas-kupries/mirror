@@ -21,6 +21,7 @@ package provide m::exec 0
 package require Tcl 8.5
 package require debug
 package require debug::caller
+package require m::msg
 
 # # ## ### ##### ######## ############# ######################
 
@@ -57,7 +58,7 @@ proc ::m::exec::go {args} {
     debug.m/exec {}
     variable verbose
     if {$verbose} {
-	puts "> $args"
+	m msg "> $args"
 	exec 2>@ stderr >@ stdout {*}$args
     } else {
 	exec 2>  [NULL] >  [NULL] {*}$args
@@ -69,7 +70,7 @@ proc ::m::exec::get {args} {
     debug.m/exec {}
     variable verbose
     if {$verbose} {
-	puts "> $args"
+	m msg "> $args"
 	return [exec 2>@ stderr {*}$args]
     } else {
 	return [exec 2>  [NULL] {*}$args]
@@ -80,7 +81,7 @@ proc ::m::exec::silent {args} {
     debug.m/exec {}
     variable verbose
     if {$verbose} {
-	puts "> $args"
+	m msg "> $args"
     }
     exec 2> [NULL] > [NULL] {*}$args
     return
