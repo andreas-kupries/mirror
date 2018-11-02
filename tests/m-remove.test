@@ -1,0 +1,53 @@
+# -*- tcl -*- tcl.tk//DSL tcltest//EN//2.0 tcl.tk//DSL tcltest//EN//2.0
+## (c) 2018 Andreas Kupries
+# # ## ### ##### ######## ############# #####################
+## remove - Removing repositories
+## Note: State cleanup on test file exit is used to remove anything added here.
+
+# TODO: look into using the local fossil for self as `server`.
+
+kt check Tcl     8.5
+kt check tcltest 2
+
+# # ## ### ##### ######## ############# #####################
+
+kt::source support/invoke.tcl
+
+# # ## ### ##### ######## ############# #####################
+
+test remove-1.0 {remove - no repository} -body {
+    mapp remove
+} -result [err remove/undefined] -match glob
+
+test remove-1.1 {remove - wrong args, too many} -body {
+    mapp remove url x
+} -result [err remove/wrongargs-toomany] -match glob
+
+# # ## ### ##### ######## ############# #####################
+## remove
+
+lappend a2ex [ok remove/ok]
+lappend a2ex [ok remove/ok-list]
+lappend a2ex [ok remove/ok-pending]
+lappend a2ex [ok remove/ok-updates]
+lappend a2ex [ok remove/ok-current]
+lappend a2ex [ok remove/ok-export]
+lappend a2ex [ok remove/ok-store]
+
+test remove-2.0 {remove} -setup {
+    mdb-reset
+    mapp add [a-core]
+} -body {
+    lappend r [mapp remove [a-core]]
+    lappend r [mapp list]
+    lappend r [mapp pending]
+    lappend r [mapp updates]
+    lappend r [mapp current]
+    lappend r [mapp export]
+    lappend r [store-scan]
+    set r
+} -cleanup {unset r a2ex} -match glob -result $a2ex
+
+# # ## ### ##### ######## ############# #####################
+cleanupTests
+return

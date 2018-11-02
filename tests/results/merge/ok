@@ -1,0 +1,7 @@
+Target:  COR
+Merging: CHI
+Merging: GIT
+@0    <BCO>* COR fossil
+@1 @p <BCH>* COR fossil
+@2 @c <BGH>* COR git
+OK

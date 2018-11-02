@@ -1,0 +1,23 @@
+# -*- tcl -*- tcl.tk//DSL tcltest//EN//2.0 tcl.tk//DSL tcltest//EN//2.0
+## (c) 2018 Andreas Kupries
+# # ## ### ##### ######## ############# #####################
+## current - Show rolodex
+## Note: Most of this is tested in the context of other commands (add,
+## remove, merge, split)
+
+kt check Tcl     8.5
+kt check tcltest 2
+
+# # ## ### ##### ######## ############# #####################
+
+kt::source support/invoke.tcl
+
+# # ## ### ##### ######## ############# #####################
+
+test current-1.0 {current - wrong args, too many} -body {
+    mapp current x
+} -result [err current/wrongargs-toomany] -match glob
+
+# # ## ### ##### ######## ############# #####################
+cleanupTests
+return

@@ -295,7 +295,7 @@ proc ::m::glue::cmd_store {config} {
 
     m db transaction {
 	if {[$config @path set?]} {
-	    m store move [file normalize [$config @path]]
+	    m store move-location [file normalize [$config @path]]
 	}
 	set value [m state store]
     }

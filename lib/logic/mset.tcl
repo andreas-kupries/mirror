@@ -59,11 +59,13 @@ proc ::m::mset::known {} {
     m db eval {
 	SELECT M.id   AS id
 	,      R.id   AS rid
-	,      M.name AS mname
+	,      N.name AS mname
 	,      R.url  AS url
 	FROM   repository R
 	,      mirror_set M
+	,      name       N
 	WHERE  R.mset = M.id
+	AND    M.name = N.id
     } {
 	dict set mid $rid $id
 	dict set map [string tolower $url]   $id

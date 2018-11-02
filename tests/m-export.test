@@ -1,0 +1,23 @@
+# -*- tcl -*- tcl.tk//DSL tcltest//EN//2.0 tcl.tk//DSL tcltest//EN//2.0
+## (c) 2018 Andreas Kupries
+# # ## ### ##### ######## ############# #####################
+## export - Data export
+## Note: Most of this is tested in the context of other commands (add,
+## remove, merge, split)
+
+kt check Tcl     8.5
+kt check tcltest 2
+
+# # ## ### ##### ######## ############# #####################
+
+kt::source support/invoke.tcl
+
+# # ## ### ##### ######## ############# #####################
+
+test export-1.0 {export - wrong args, too many} -body {
+    mapp export x
+} -result [err export/wrongargs-toomany] -match glob
+
+# # ## ### ##### ######## ############# #####################
+cleanupTests
+return

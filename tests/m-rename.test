@@ -1,0 +1,55 @@
+# -*- tcl -*- tcl.tk//DSL tcltest//EN//2.0 tcl.tk//DSL tcltest//EN//2.0
+## (c) 2018 Andreas Kupries
+# # ## ### ##### ######## ############# #####################
+## rename - Removing mirror sets
+## Note: State cleanup on test file exit is used to rename anything added here.
+
+# TODO: look into using the local fossil for self as `server`.
+
+kt check Tcl     8.5
+kt check tcltest 2
+
+# # ## ### ##### ######## ############# #####################
+
+kt::source support/invoke.tcl
+
+# # ## ### ##### ######## ############# #####################
+
+test rename-1.0 {rename - wrong#args, not enough} -body {
+    mapp rename
+} -result [err rename/wrongargs-notenough] -match glob
+
+test rename-1.1 {rename - no mirror set} -body {
+    mapp rename new-name
+} -result [err rename/undefined] -match glob
+
+test rename-1.2 {rename - wrong args, too many} -body {
+    mapp rename mset newname x
+} -result [err rename/wrongargs-toomany] -match glob
+
+# # ## ### ##### ######## ############# #####################
+## rename
+
+lappend a2ex [ok rename/ok]
+lappend a2ex [ok rename/ok-list]
+lappend a2ex [ok rename/ok-pending]
+lappend a2ex [ok rename/ok-updates]
+lappend a2ex [ok rename/ok-current]
+lappend a2ex [ok rename/ok-export]
+
+test rename-2.0 {rename} -setup {
+    mdb-reset
+    mapp add --name FOX [a-core]
+} -body {
+    lappend r [mapp rename FOX CAT]
+    lappend r [mapp list]
+    lappend r [mapp pending]
+    lappend r [mapp updates]
+    lappend r [mapp current]
+    lappend r [mapp export]
+    set r
+} -cleanup {unset r a2ex} -match glob -result $a2ex
+
+# # ## ### ##### ######## ############# #####################
+cleanupTests
+return

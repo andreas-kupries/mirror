@@ -1,0 +1,11 @@
+Attempting to separate
+  Repository <BCH>
+  Managed by Fossil
+From
+  Mirror set COR
+New
+  Mirror set COR#1
+  Split store ...
+@0 @p <BCO> *COR   fossil
+@1 @c <BCH> *COR#1 fossil
+OK

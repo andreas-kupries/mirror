@@ -1,0 +1,23 @@
+# -*- tcl -*- tcl.tk//DSL tcltest//EN//2.0 tcl.tk//DSL tcltest//EN//2.0
+## (c) 2018 Andreas Kupries
+# # ## ### ##### ######## ############# #####################
+## import - Data import
+
+kt check Tcl     8.5
+kt check tcltest 2
+
+# # ## ### ##### ######## ############# #####################
+
+kt::source support/invoke.tcl
+
+# # ## ### ##### ######## ############# #####################
+
+test import-1.0 {import - wrong args, too many} -body {
+    mapp import x
+} -result [err import/wrongargs-toomany] -match glob
+
+# TODO: Test a full blown import ...
+
+# # ## ### ##### ######## ############# #####################
+cleanupTests
+return
