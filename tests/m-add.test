@@ -1,0 +1,57 @@
+# -*- tcl -*- tcl.tk//DSL tcltest//EN//2.0 tcl.tk//DSL tcltest//EN//2.0
+## (c) 2018 Andreas Kupries
+# # ## ### ##### ######## ############# #####################
+## add - Adding repositories
+## Note: State cleanup on test file exit is used to remove anything added here.
+
+# TODO: look into using the local fossil for self as `server`.
+
+kt check Tcl     8.5
+kt check tcltest 2
+
+# # ## ### ##### ######## ############# #####################
+
+kt::source support/invoke.tcl
+
+# # ## ### ##### ######## ############# #####################
+
+test add-1.0 {add - wrong args, not enough} -body {
+    mapp add
+} -result [err add/wrongargs-notenough]
+
+test add-1.1 {add - wrong args, too many} -body {
+    mapp add url x
+} -result [err add/wrongargs-toomany]
+
+# # ## ### ##### ######## ############# #####################
+## add, automatic --name, --vcs, plain
+
+lappend a2ex [ok add/ok]
+lappend a2ex [ok add/ok-list]
+lappend a2ex [ok add/ok-pending]
+lappend a2ex [ok add/ok-updates]
+lappend a2ex [ok add/ok-current]
+lappend a2ex [ok add/ok-export]
+lappend a2ex [ok add/ok-store]
+
+test add-2.0 {add - automatics, self, output} -setup mdb-reset -body {
+    lappend r [mapp add https://core.tcl.tk/akupries/mirror/index]
+    lappend r [mapp list]
+    lappend r [mapp pending]
+    lappend r [mapp updates]
+    lappend r [mapp current]
+    lappend r [mapp export]
+    lappend r [store-scan]
+    set r
+} -cleanup {unset r a2ex} -match glob -result $a2ex
+
+# # ## ### ##### ######## ############# #####################
+## add, automatic --name, --vcs, verbose
+
+test add-2.1 {add - automatics, self, verbose output} -setup mdb-reset -body {
+    mapp add --verbose https://core.tcl.tk/akupries/mirror/index
+} -match glob -result [ok add/ok-verbose]
+
+# # ## ### ##### ######## ############# #####################
+cleanupTests
+return

@@ -1,0 +1,17 @@
+mirror cmdr: wrong#args, not enough
+
+add [OPTIONS] <url>
+    Add repository. The new repository is placed into its own mirror set. Command tries to auto-detect vcs type if not specified. Command derives a name from the url if not
+    specified. New repository becomes current.
+
+    --color             Force the (non-)use of colors in the output. The default depends on the environment, active when talking to a tty, and otherwise not.
+    --database DATABASE Use an alternate database instead of the default.
+    --name NAME         Name for the mirror set to hold the repository.
+    --no-color          Complementary alias of --color.
+    --vcs VCS           Version control system handling the repository.
+    --verbose           Activate more chatter.
+    -D DATABASE         Alias of --database.
+    -N NAME             Alias of --name.
+    -v                  Alias of --verbose.
+
+    url Location of the repository to add.

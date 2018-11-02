@@ -1,0 +1,15 @@
+Attempting to add
+  Repository https://core.tcl.tk/akupries/mirror
+  Managed by Fossil
+New
+  Mirror set mirror
+  Setting up the fossil store ...
+> fossil clone https://core.tcl.tk/akupries/mirror <MD>/store/1/source.fossil
+> fossil remote-url off -R <MD>/store/1/source.fossil
+> fossil info -R <MD>/store/1/source.fossil
+> fossil pull https://core.tcl.tk/akupries/mirror --once -R <MD>/store/1/source.fossil
+> fossil info -R <MD>/store/1/source.fossil
+> du -sk <MD>/store/1
+  Done
+@0 @c https://core.tcl.tk/akupries/mirror mirror fossil
+OK

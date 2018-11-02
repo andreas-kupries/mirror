@@ -5,6 +5,7 @@
 kt require support linenoise::facade ;# m::cmdr references, cannot local cannot use modules
 kt require support cmdr::history
 kt require support cmdr::color
+kt require support fileutil
 
 # level 0
 kt local   testing db::setup
@@ -118,39 +119,54 @@ proc ok* {text}  { list 0 $text }
 proc R {state label} {
     set path [td]/results/${label}
     if {[file exists $path]} {
-	list $state [tcltest::viewFile $path]
+	lappend map <MD> [md]
+	list $state [string map $map [tcltest::viewFile $path]]
     } else {
 	list $state {}
     }
 }
 
-proc mdbclear {} {
-    m::db::reset
-    file delete [md]/sqlite3
+proc store-scan {} {
+    lappend map <MD> [md]
+    list 0 [string map $map [join [lsort -dict [fileutil::find [md]/store]] \n]]
 }
 
 # # ## ### ##### ######## ############# #####################
+
 ## Initialization of the pseudo-application to redirect all its state
 ## files and any input/output into locations related to the testsuite.
-## Keep away from any installation files.
+## Keep away from any installation files. Also cleanup of said state.
 
-file delete -force -- [md]
-file mkdir            [md]
+proc mdb-initialize {} {
+    file delete -force -- [md]
+    file mkdir            [md]
 
-cmdr color activate 0
+    cmdr color activate 0
 
-cmdr history initial-limit 0
-cmdr history save-to [md]/history
+    cmdr history initial-limit 0
+    cmdr history save-to [md]/history
 
-m::db::location::set [md]/sqlite3
-m::state store       [md]/store
+    m::db::location::set [md]/sqlite3
+    m::state store       [md]/store
 
-set ::argv0 mirror
+    set ::argv0 mirror
+}
+
+proc mdb-finalize {} {
+    file delete -force -- [md]
+}
+
+proc mdb-reset {} {
+    m::db::reset
+    mdb-initialize
+}
+
+mdb-initialize
 
 # Intercept process exit for state cleanup
 rename ::exit ::exit_orig
 proc   ::exit {args} {
-    file delete -force -- [md]
+    mdb-finalize
     ::exit_orig {*}$args
 }
 

@@ -280,7 +280,7 @@ proc ::m::store::Add {vcs mset} {
     m db eval {
 	INSERT
 	INTO   store
-	VALUES ( NULL, :vcs, :mset )
+	VALUES ( NULL, :vcs, :mset, 0 )
     }
 
     set store [m db last_insert_rowid]
