@@ -119,17 +119,32 @@ proc ok* {text}  { list 0 $text }
 proc R {state label} {
     set path [td]/results/${label}
     if {[file exists $path]} {
-	lappend map <MD> [md]
-	list $state [string map $map [tcltest::viewFile $path]]
+	list $state [map [tcltest::viewFile $path]]
     } else {
 	list $state {}
     }
 }
 
 proc store-scan {} {
-    lappend map <MD> [md]
-    list 0 [string map $map [join [lsort -dict [fileutil::find [md]/store]] \n]]
+    list 0 [map [join [lsort -dict [fileutil::find [md]/store]] \n]]
 }
+
+proc map {x} {
+    lappend map <MD>  [md]
+    lappend map <ACO> [a-core]
+    lappend map <BCO> [b-core]
+    lappend map <BCH> [b-chisel]
+    lappend map <BGH> [b-github]
+    string map $map $x
+}
+
+# # ## ### ##### ######## ############# #####################
+
+proc a-core   {} { set _ https://core.tcl.tk/akupries/mirror }
+
+proc b-core   {} { set _ https://core.tcl.tk/akupries/atom }
+proc b-chisel {} { set _ https://chiselapp.com/user/andreas_kupries/repository/atom }
+proc b-github {} { set _ https://github.com/andreas-kupries/atom }
 
 # # ## ### ##### ######## ############# #####################
 

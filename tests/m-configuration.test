@@ -23,7 +23,7 @@ foreach {
 } $cases {
     test ${command}-1.0 "${command} - wrong args, too many" -body {
 	mapp ${command} $goodvalue foo
-    } -result [err ${command}/wrongargs-toomany]
+    } -result [err ${command}/wrongargs-toomany] -match glob
 
     test ${command}-2.0 "${command} query, default" -body {
 	mapp ${command}

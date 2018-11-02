@@ -195,7 +195,7 @@ proc ::m::vcs::github::Forks {path} {
 
     # Pull the origin to query about forks
     set origin [OriginLoad $path]
-
+    
     set forks {}
     foreach fork [m::vcs::git::Get hub forks --raw $origin] {
 	set url https://github.com/$fork
@@ -227,7 +227,7 @@ proc ::m::vcs::github::OriginSave {path origin} {
 
 proc ::m::vcs::github::OriginLoad {path} {
     debug.m/vcs/github {}
-    return [fileutil::cat $path/origin]
+    return [string trim [fileutil::cat $path/origin]]
 }
 
 proc ::m::vcs::github::ForksSave {path forks} {

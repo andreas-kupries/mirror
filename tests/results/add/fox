@@ -2,8 +2,8 @@ Attempting to add
   Repository <ACO>
   Managed by Fossil
 New
-  Mirror set mirror
+  Mirror set FOX
   Setting up the fossil store ...
   Done
-@0 @c <ACO> mirror fossil
+@0 @c <ACO> FOX fossil
 OK
