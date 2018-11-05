@@ -488,6 +488,9 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	    validate [m::cmdr::vt vcs]
 	    generate [m::cmdr::call glue gen_vcs]
 	}
+	option nomail {
+	    Disable generation and sending of acceptance mail.
+	} { presence }
 	state vcs-code {
 	    Version control system handling the repository.
 	    Internal code, derived from the option value (database id).

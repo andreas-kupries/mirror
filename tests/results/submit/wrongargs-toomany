@@ -1,0 +1,3 @@
+mirror cmdr: wrong#args, too many
+
+submit ?OPTIONS? <url> <email> ?<submitter>?*

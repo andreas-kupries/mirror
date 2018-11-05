@@ -14,7 +14,7 @@ kt::source support/invoke.tcl
 
 test vcs-1.0 {vcs - wrong args, too many} -body {
     mapp vcs foo
-} -result [err vcs/wrongargs-toomany]
+} -result [err vcs/wrongargs-toomany] -match glob
 
 test vcs-2.0 {vcs, defaults} -body {
     mapp vcs

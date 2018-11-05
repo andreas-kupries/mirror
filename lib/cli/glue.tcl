@@ -829,6 +829,7 @@ proc ::m::glue::cmd_accept {config} {
     package require m::mailer
 
     m db transaction {
+	set nomail     [$config @nomail]
 	set submission [$config @id]
 	set details    [m submission get $submission]
 	dict with details {}
@@ -854,21 +855,22 @@ proc ::m::glue::cmd_accept {config} {
 
 	# TODO: Ordering ... mail failure has to undo the store
 	# creation, and other non-database effects of `Add`.
-	
-	m msg "Sending acceptance mail to $email ..."
+	if {!$nomail} {
+	    m msg "Sending acceptance mail to $email ..."
 
-	lappend mail "Mirror. Accepted submission of @url@"
-	lappend mail "Hello @submitter@"
-	lappend mail
-	lappend mail "Thank you for your submission of @url@ to us, as of @when@."
-	lappend mail ""
-	lappend mail "Your submission has been accepted. The repository should appear on our web-pages soon."
-	lappend mail ""
-	lappend mail "Sincerely"
-	lappend mail "  @sender@"
+	    lappend mail "Mirror. Accepted submission of @url@"
+	    lappend mail "Hello @submitter@"
+	    lappend mail
+	    lappend mail "Thank you for your submission of @url@ to us, as of @when@."
+	    lappend mail ""
+	    lappend mail "Your submission has been accepted. The repository should appear on our web-pages soon."
+	    lappend mail ""
+	    lappend mail "Sincerely"
+	    lappend mail "  @sender@"
 
-	m mailer to $email \
-	    [m mail generator reply [join $mail \n] $details]
+	    m mailer to $email \
+		[m mail generator reply [join $mail \n] $details]
+	}
     }
     OK
 }

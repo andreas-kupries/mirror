@@ -93,19 +93,11 @@ test add-2.2 {add - named, self, output} -setup mdb-reset -body {
 
 lappend a2ex [ok add/zeta]
 lappend a2ex [ok add/zeta-list]
-#lappend a2ex [ok add/zeta-pending]
-#lappend a2ex [ok add/zeta-updates]
-#lappend a2ex [ok add/zeta-current]
-#lappend a2ex [ok add/zeta-export]
 lappend a2ex [ok add/zeta-store]
 
 test add-2.2 {add - named, self, output} -setup mdb-reset -body {
     lappend r [mapp add --vcs git --name ZETA [b-github]]
     lappend r [mapp list]
-    #lappend r [mapp pending]
-    #lappend r [mapp updates]
-    #lappend r [mapp current]
-    #lappend r [mapp export]
     lappend r [store-scan]
     set r
 } -cleanup {unset r a2ex} -match glob -result $a2ex
