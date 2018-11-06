@@ -26,7 +26,7 @@ Miscellaneous
     m-help.test export                                Write the known set of repositories and mirror sets to stdout, in a form suitable for (re)import
     m-help.test go <repository>                       Makes the specified repository current
     m-help.test history                               Manage the command history
-    m-help.test import                                Read a set of repositories and mirror sets from stdin, and add them here
+    m-help.test import [<spec>]                       Read a set of repositories and mirror sets from the specified file, or stdin, and add them here
     m-help.test limit [<limit>]                       Query/change default limit for repository listing
     m-help.test list                                  Show (partial) list of the known repositories
     m-help.test mail                                  Access to the mail configuration

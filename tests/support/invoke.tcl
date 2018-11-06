@@ -116,12 +116,16 @@ proc err {label} { R 1 $label }
 proc ok  {label} { R 0 $label }
 proc ok* {text}  { list 0 $text }
 
-proc R {state label} {
-    set path [td]/results/${label}
+proc R {state label} { list $state [V $label] }
+
+proc P {label} { return [td]/results/${label} } 
+
+proc V {label} {
+    set path [P $label]
     if {[file exists $path]} {
-	list $state [map [tcltest::viewFile $path]]
+	return [map [tcltest::viewFile $path]]
     } else {
-	list $state {}
+	return {}
     }
 }
 

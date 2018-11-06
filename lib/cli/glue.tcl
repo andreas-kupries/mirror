@@ -135,7 +135,8 @@ proc ::m::glue::cmd_import {config} {
     package require m::store
 
     m db transaction {
-	ImportAct [ImportSkipKnown [ImportVerify [ImportRead]]]
+	m msg "Processing ..."
+	ImportAct [ImportSkipKnown [ImportVerify [ImportRead [$config @spec]]]]
     }
     OK
 }
@@ -1000,9 +1001,9 @@ proc ::m::glue::cmd_debug_levels {config} {
 
 # # ## ### ##### ######## ############# ######################
 
-proc ::m::glue::ImportRead {} {
+proc ::m::glue::ImportRead {chan} {
     debug.m/glue {}
-    return [split [string trim [read stdin]] \n]
+    return [split [string trim [read $chan]] \n]
     #         :: list (command)
     # command :: list ('M' name)
     #          | list ('R' vcode url)
