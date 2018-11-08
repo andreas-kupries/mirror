@@ -37,8 +37,91 @@ namespace eval ::m {
 }
 
 namespace eval ::m::exec {
-    namespace export verbose go get silent
+    namespace export verbose go get silent capture
     namespace ensemble create
+}
+
+namespace eval ::m::exec::capture {
+    namespace export to on off clear get path active
+    namespace ensemble create
+}
+
+# # ## ### ##### ######## ############# #####################
+## Capture management
+
+proc ::m::exec::capture::to {stdout stderr {enable 1}} {
+    debug.m/exec {}
+    # Set clear capture destinations, and start (default).
+    variable out $stdout
+    variable err $stderr
+    clear
+    variable active  $enable
+    return
+}
+
+proc ::m::exec::capture::off {} {
+    debug.m/exec {}
+    # Stop capture.
+    variable active 0
+    return
+}
+
+proc ::m::exec::capture::on {} {
+    # Start capture. Error if no destinations specified
+    debug.m/exec {}
+    variable out
+    variable err
+    if {($err eq "") || ($out eq "")} {
+	return -code error \
+	    -errorcode {M EXEC CAPTURE NO DESTINATION} \
+	    "Unable to start capture without destination"
+    }
+    variable active 1
+    return
+}
+
+proc ::m::exec::capture::clear {} {
+    # Clear the capture buffers
+    debug.m/exec {}
+    C out
+    C err
+    return
+}
+
+proc ::m::exec::capture::get {var} {
+    # Get captured content
+    debug.m/exec {}
+    set path [path $var]
+    if {$path eq {}} return
+    set c [open $path r]
+    set d [read $c]
+    close $c
+    return $d
+}
+
+proc ::m::exec::capture::path {var} {
+    # Get path of capture buffer
+    debug.m/exec {}
+    variable $var
+    upvar  0 $var path
+    return $path
+}
+
+proc ::m::exec::capture::active {} {
+    # Query state of capture system
+    debug.m/exec {}
+    variable active
+    return  $active
+}
+
+proc ::m::exec::capture::C {var} {
+    debug.m/exec {}
+    variable $var
+    upvar 0 $var path
+    if {$path eq {}} return
+    # open for writing, truncates.
+    close [open $path w]
+    return
 }
 
 # # ## ### ##### ######## ############# #####################
@@ -99,8 +182,17 @@ if {$tcl_platform(platform) eq "windows"} {
     }
 }
 
+# # ## ### ##### ######## ############# #####################
+## State
+
 namespace eval ::m::exec {
     variable verbose off
+}
+
+namespace eval ::m::exec::capture {
+    variable active  0
+    variable out {}
+    variable err {}
 }
 
 # # ## ### ##### ######## ############# #####################
