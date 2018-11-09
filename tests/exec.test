@@ -1,0 +1,262 @@
+# -*- tcl -*- tcl.tk//DSL tcltest//EN//2.0 tcl.tk//DSL tcltest//EN//2.0
+## (c) 2018 Andreas Kupries
+# # ## ### ##### ######## ############# #####################
+## version
+
+kt check Tcl     8.5
+kt check tcltest 2
+
+kt require support fileutil ;# writeFile
+kt local   testing m::exec
+
+# # ## ### ##### ######## ############# #####################
+#
+## [ok] capture::active
+## [ok] capture::clear
+## [ok] capture::get
+## [ok] capture::off
+## [ok] capture::on
+## [ok] capture::path
+## [ok] capture::to
+#
+## [..] get
+## [..] go
+## [..] silent
+## [..] verbose
+#
+# Mock `::exec`, or use general tools: cat, echo, ls, cal to generate
+# predictable output.
+#
+
+# # ## ### ##### ######## ############# #####################
+
+test capture-active-1.0 {capture::active - wrong args, too many} -body {
+    m::exec::capture::active X
+} -returnCodes error -result {wrong # args: should be "m::exec::capture::active"}
+
+test capture-active-1.1 {capture::active, default result} -body {
+    m::exec::capture::active
+} -result 0
+
+test capture-active2.0 {capture::active, non-default result} -setup {
+    m::exec::capture::to log err
+} -body {
+    m::exec::capture::active
+} -cleanup {
+    m::exec::capture::to {} {} 0
+    file delete log err
+} -result 1
+
+# # ## ### ##### ######## ############# #####################
+
+test capture-clear-1.0 {capture::clear - wrong args, too many} -body {
+    m::exec::capture::clear X
+} -returnCodes error -result {wrong # args: should be "m::exec::capture::clear"}
+
+test capture-clear-2.0 {capture::clear - zero size result, zero size input} -setup {
+    m::exec::capture::to log err
+} -body {
+    m::exec::capture::clear
+    list [file size log] [file size err]
+} -cleanup {
+    m::exec::capture::to {} {} 0
+    file delete log err
+} -result {0 0}
+
+test capture-clear-2.1 {capture::clear - zero size result, non-zero size input} -setup {
+    m::exec::capture::to log err
+    fileutil::writeFile log foo
+    fileutil::writeFile err foo
+} -body {
+    m::exec::capture::clear
+    list [file size log] [file size err]
+} -cleanup {
+    m::exec::capture::to {} {} 0
+    file delete log err
+} -result {0 0}
+
+# # ## ### ##### ######## ############# #####################
+
+test capture-get-1.0 {capture::get - wrong args, not enough} -body {
+    m::exec::capture::get
+} -returnCodes error -result {wrong # args: should be "m::exec::capture::get key"}
+
+test capture-get-1.1 {capture::get - wrong args, too many} -body {
+    m::exec::capture::get out X
+} -returnCodes error -result {wrong # args: should be "m::exec::capture::get key"}
+
+test capture-get-1.2 {capture::get - bad key} -body {
+    m::exec::capture::get bogus
+} -returnCodes error -result {Bad channel key bogus}
+
+foreach key {
+    out
+    err
+} {
+    incr k
+    
+    test capture-get-2.0.$k {capture::get, undefined, nothing} -setup {
+    } -body {
+	m::exec::capture::get $key
+    } -result {}
+
+    test capture-get-2.1.$k {capture::get, something} -setup {
+	m::exec::capture::to log err
+	fileutil::writeFile log out
+	fileutil::writeFile err err
+    } -body {
+	m::exec::capture::get $key
+    } -cleanup {
+	m::exec::capture::to {} {} 0
+	file delete log err
+    } -result $key
+}
+unset k key
+
+# # ## ### ##### ######## ############# #####################
+
+test capture-off-1.0 {capture::off - wrong args, too many} -body {
+    m::exec::capture::off RESET X
+} -returnCodes error -result {wrong # args: should be "m::exec::capture::off ?reset?"}
+
+test capture-off-1.1 {capture::off - flag not boolean} -body {
+    m::exec::capture::off RESET
+} -returnCodes error -result {Expected boolean, got "RESET"}
+
+test capture-off-2.0 {capture::off - nop} -body {
+    m::exec::capture::off
+    m::exec::capture::active
+} -result 0
+
+test capture-off-2.1 {capture::off - disable, keep paths} -setup {
+    m::exec::capture::to log err
+} -body {
+    m::exec::capture::off
+    list \
+	[m::exec::capture::active] \
+	[file tail [m::exec::capture::path out]] \
+	[file tail [m::exec::capture::path err]]
+} -cleanup {
+    m::exec::capture::to {} {} 0
+    file delete log err
+} -result {0 log err}
+
+test capture-off-2.3 {capture::off - disable, clear paths} -setup {
+    m::exec::capture::to log err
+} -body {
+    m::exec::capture::off 1
+    list \
+	[m::exec::capture::active] \
+	[m::exec::capture::path out] \
+	[m::exec::capture::path err]
+} -cleanup {
+    m::exec::capture::to {} {} 0
+    file delete log err
+} -result {0 {} {}}
+
+# # ## ### ##### ######## ############# #####################
+
+test capture-on-1.0 {capture::on - wrong args, too many} -body {
+    m::exec::capture::on X
+} -returnCodes error -result {wrong # args: should be "m::exec::capture::on"}
+
+test capture-on-1.1 {capture::on - undefined destinations, error} -body {
+    m::exec::capture::on
+    m::exec::capture::active
+} -returnCodes error -result {Unable to start capture without destination}
+
+test capture-on-2.0 {capture::on} -setup {
+    m::exec::capture::to log err 0
+} -body {
+    m::exec::capture::on
+    m::exec::capture::active
+} -cleanup {
+    m::exec::capture::to {} {} 0
+    file delete log err
+} -result 1
+
+# # ## ### ##### ######## ############# #####################
+
+test capture-path-1.0 {capture::path - wrong args, not enough} -body {
+    m::exec::capture::path
+} -returnCodes error -result {wrong # args: should be "m::exec::capture::path key"}
+
+test capture-path-1.1 {capture::path - wrong args, too many} -body {
+    m::exec::capture::path out X
+} -returnCodes error -result {wrong # args: should be "m::exec::capture::path key"}
+
+test capture-path-1.2 {capture::path - bad key} -body {
+    m::exec::capture::path bogus
+} -returnCodes error -result {Bad channel key bogus}
+
+foreach key {
+    out
+    err
+} {
+    incr k
+    
+    test capture-path-2.0.$k {capture::path, undefined, nothing} -setup {
+    } -body {
+	m::exec::capture::path $key
+    } -result {}
+
+    test capture-path-2.1.$k {capture::path, something} -setup {
+	m::exec::capture::to out err
+    } -body {
+	file tail [m::exec::capture::path $key]
+    } -cleanup {
+	m::exec::capture::to {} {} 0
+	file delete out err
+    } -result $key
+}
+unset k key
+
+# # ## ### ##### ######## ############# #####################
+
+test capture-to-1.0 {capture::to - wrong args, not enough} -body {
+    m::exec::capture::to
+} -returnCodes error -result {wrong # args: should be "m::exec::capture::to stdout stderr ?enable?"}
+
+test capture-to-1.1 {capture::to - wrong args, not enough} -body {
+    m::exec::capture::to O
+} -returnCodes error -result {wrong # args: should be "m::exec::capture::to stdout stderr ?enable?"}
+
+test capture-to-1.2 {capture::to - wrong args, too many} -body {
+    m::exec::capture::to O E START X
+} -returnCodes error -result {wrong # args: should be "m::exec::capture::to stdout stderr ?enable?"}
+
+test capture-to-1.3 {capture::to - flag not boolean} -body {
+    m::exec::capture::to O E START
+} -returnCodes error -result {Expected boolean, got "START"}
+
+test capture-to-2.0 {capture::to - clear, keep inactive} -body {
+    fileutil::writeFile log foo
+    fileutil::writeFile err foo
+    m::exec::capture::to log err 0
+    list \
+	[m::exec::capture::active] \
+	[file tail [m::exec::capture::path out]] \
+	[file tail [m::exec::capture::path err]] \
+	[file size log] [file size err]
+} -cleanup {
+    m::exec::capture::to {} {} 0
+    file delete log err
+} -result {0 log err 0 0}
+
+test capture-to-2.1 {capture::to - clear, and start} -body {
+    fileutil::writeFile log foo
+    fileutil::writeFile err foo
+    m::exec::capture::to log err
+    list \
+	[m::exec::capture::active] \
+	[file tail [m::exec::capture::path out]] \
+	[file tail [m::exec::capture::path err]] \
+	 [file size log] [file size err]
+} -cleanup {
+    m::exec::capture::to {} {} 0
+    file delete log err
+} -result {1 log err 0 0}
+
+# # ## ### ##### ######## ############# #####################
+cleanupTests
+return
