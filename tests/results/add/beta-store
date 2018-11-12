@@ -1,5 +1,7 @@
 <MD>/store/1
 <MD>/store/1/%name
+<MD>/store/1/%stderr
+<MD>/store/1/%stdout
 <MD>/store/1/%vcs
 <MD>/store/1/forks
 <MD>/store/1/origin

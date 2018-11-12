@@ -1,8 +1,12 @@
 <MD>/store/1
 <MD>/store/1/%name
+<MD>/store/1/%stderr
+<MD>/store/1/%stdout
 <MD>/store/1/%vcs
 <MD>/store/1/source.fossil
 <MD>/store/3
 <MD>/store/3/%name
+<MD>/store/3/%stderr
+<MD>/store/3/%stdout
 <MD>/store/3/%vcs
 <MD>/store/3/source.git*

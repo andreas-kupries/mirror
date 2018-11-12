@@ -95,7 +95,7 @@ lappend a2ex [ok add/zeta]
 lappend a2ex [ok add/zeta-list]
 lappend a2ex [ok add/zeta-store]
 
-test add-2.2 {add - named, self, output} -setup mdb-reset -body {
+test add-2.3 {add - named, self, output} -setup mdb-reset -body {
     lappend r [mapp add --vcs git --name ZETA [b-github]]
     lappend r [mapp list]
     lappend r [store-scan]

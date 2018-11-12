@@ -1,0 +1,466 @@
+# -*- tcl -*- tcl.tk//DSL tcltest//EN//2.0 tcl.tk//DSL tcltest//EN//2.0
+## (c) 2018 Andreas Kupries
+# # ## ### ##### ######## ############# #####################
+## version
+
+kt check Tcl     8.5
+kt check tcltest 2
+
+kt require support fileutil ;# writeFile
+kt local   testing m::exec
+
+kt::source support/capture.tcl
+
+# # ## ### ##### ######## ############# #####################
+#
+## [ok] capture::active
+## [ok] capture::clear
+## [ok] capture::get
+## [ok] capture::off
+## [ok] capture::on
+## [ok] capture::path
+## [ok] capture::to
+#
+## [ok] get
+## [ok] go
+## [ok] silent
+## [ok] verbose
+#
+# Mock `::exec`, or use general tools: cat, echo, ls, cal to generate
+# predictable output.
+#
+
+# # ## ### ##### ######## ############# #####################
+
+test exec-capture-active-1.0 {capture::active - wrong args, too many} -body {
+    m::exec::capture::active X
+} -returnCodes error -result {wrong # args: should be "m::exec::capture::active"}
+
+test exec-capture-active-1.1 {capture::active, default result} -body {
+    m::exec::capture::active
+} -result 0
+
+test exec-capture-active2.0 {capture::active, non-default result} -setup {
+    m::exec::capture::to log err
+} -body {
+    m::exec::capture::active
+} -cleanup {
+    m::exec::capture::to {} {} 0
+    file delete log err
+} -result 1
+
+# # ## ### ##### ######## ############# #####################
+
+test exec-capture-clear-1.0 {capture::clear - wrong args, too many} -body {
+    m::exec::capture::clear X
+} -returnCodes error -result {wrong # args: should be "m::exec::capture::clear"}
+
+test exec-capture-clear-2.0 {capture::clear - zero size result, zero size input} -setup {
+    m::exec::capture::to log err
+} -body {
+    m::exec::capture::clear
+    list [file size log] [file size err]
+} -cleanup {
+    m::exec::capture::to {} {} 0
+    file delete log err
+} -result {0 0}
+
+test exec-capture-clear-2.1 {capture::clear - zero size result, non-zero size input} -setup {
+    m::exec::capture::to log err
+    fileutil::writeFile log foo
+    fileutil::writeFile err foo
+} -body {
+    m::exec::capture::clear
+    list [file size log] [file size err]
+} -cleanup {
+    m::exec::capture::to {} {} 0
+    file delete log err
+} -result {0 0}
+
+# # ## ### ##### ######## ############# #####################
+
+test exec-capture-get-1.0 {capture::get - wrong args, not enough} -body {
+    m::exec::capture::get
+} -returnCodes error -result {wrong # args: should be "m::exec::capture::get key"}
+
+test exec-capture-get-1.1 {capture::get - wrong args, too many} -body {
+    m::exec::capture::get out X
+} -returnCodes error -result {wrong # args: should be "m::exec::capture::get key"}
+
+test exec-capture-get-1.2 {capture::get - bad key} -body {
+    m::exec::capture::get bogus
+} -returnCodes error -result {Bad channel key bogus}
+
+foreach key {
+    out
+    err
+} {
+    incr k
+    
+    test exec-capture-get-2.0.$k {capture::get, undefined, nothing} -setup {
+    } -body {
+	m::exec::capture::get $key
+    } -result {}
+
+    test exec-capture-get-2.1.$k {capture::get, something} -setup {
+	m::exec::capture::to log err
+	fileutil::writeFile log out
+	fileutil::writeFile err err
+    } -body {
+	m::exec::capture::get $key
+    } -cleanup {
+	m::exec::capture::to {} {} 0
+	file delete log err
+    } -result $key
+}
+unset k key
+
+# # ## ### ##### ######## ############# #####################
+
+test exec-capture-off-1.0 {capture::off - wrong args, too many} -body {
+    m::exec::capture::off RESET X
+} -returnCodes error -result {wrong # args: should be "m::exec::capture::off ?reset?"}
+
+test exec-capture-off-1.1 {capture::off - flag not boolean} -body {
+    m::exec::capture::off RESET
+} -returnCodes error -result {Expected boolean, got "RESET"}
+
+test exec-capture-off-2.0 {capture::off - nop} -body {
+    m::exec::capture::off
+    m::exec::capture::active
+} -result 0
+
+test exec-capture-off-2.1 {capture::off - disable, keep paths} -setup {
+    m::exec::capture::to log err
+} -body {
+    m::exec::capture::off
+    list \
+	[m::exec::capture::active] \
+	[file tail [m::exec::capture::path out]] \
+	[file tail [m::exec::capture::path err]]
+} -cleanup {
+    m::exec::capture::to {} {} 0
+    file delete log err
+} -result {0 log err}
+
+test exec-capture-off-2.3 {capture::off - disable, clear paths} -setup {
+    m::exec::capture::to log err
+} -body {
+    m::exec::capture::off 1
+    list \
+	[m::exec::capture::active] \
+	[m::exec::capture::path out] \
+	[m::exec::capture::path err]
+} -cleanup {
+    m::exec::capture::to {} {} 0
+    file delete log err
+} -result {0 {} {}}
+
+# # ## ### ##### ######## ############# #####################
+
+test exec-capture-on-1.0 {capture::on - wrong args, too many} -body {
+    m::exec::capture::on X
+} -returnCodes error -result {wrong # args: should be "m::exec::capture::on"}
+
+test exec-capture-on-1.1 {capture::on - undefined destinations, error} -body {
+    m::exec::capture::on
+    m::exec::capture::active
+} -returnCodes error -result {Unable to start capture without destination}
+
+test exec-capture-on-2.0 {capture::on} -setup {
+    m::exec::capture::to log err 0
+} -body {
+    m::exec::capture::on
+    m::exec::capture::active
+} -cleanup {
+    m::exec::capture::to {} {} 0
+    file delete log err
+} -result 1
+
+# # ## ### ##### ######## ############# #####################
+
+test exec-capture-path-1.0 {capture::path - wrong args, not enough} -body {
+    m::exec::capture::path
+} -returnCodes error -result {wrong # args: should be "m::exec::capture::path key"}
+
+test exec-capture-path-1.1 {capture::path - wrong args, too many} -body {
+    m::exec::capture::path out X
+} -returnCodes error -result {wrong # args: should be "m::exec::capture::path key"}
+
+test exec-capture-path-1.2 {capture::path - bad key} -body {
+    m::exec::capture::path bogus
+} -returnCodes error -result {Bad channel key bogus}
+
+foreach key {
+    out
+    err
+} {
+    incr k
+    
+    test exec-capture-path-2.0.$k {capture::path, undefined, nothing} -setup {
+    } -body {
+	m::exec::capture::path $key
+    } -result {}
+
+    test exec-capture-path-2.1.$k {capture::path, something} -setup {
+	m::exec::capture::to out err
+    } -body {
+	file tail [m::exec::capture::path $key]
+    } -cleanup {
+	m::exec::capture::to {} {} 0
+	file delete out err
+    } -result $key
+}
+unset k key
+
+# # ## ### ##### ######## ############# #####################
+
+test exec-capture-to-1.0 {capture::to - wrong args, not enough} -body {
+    m::exec::capture::to
+} -returnCodes error -result {wrong # args: should be "m::exec::capture::to stdout stderr ?enable?"}
+
+test exec-capture-to-1.1 {capture::to - wrong args, not enough} -body {
+    m::exec::capture::to O
+} -returnCodes error -result {wrong # args: should be "m::exec::capture::to stdout stderr ?enable?"}
+
+test exec-capture-to-1.2 {capture::to - wrong args, too many} -body {
+    m::exec::capture::to O E START X
+} -returnCodes error -result {wrong # args: should be "m::exec::capture::to stdout stderr ?enable?"}
+
+test exec-capture-to-1.3 {capture::to - flag not boolean} -body {
+    m::exec::capture::to O E START
+} -returnCodes error -result {Expected boolean, got "START"}
+
+test exec-capture-to-2.0 {capture::to - clear, keep inactive} -body {
+    fileutil::writeFile log foo
+    fileutil::writeFile err foo
+    m::exec::capture::to log err 0
+    list \
+	[m::exec::capture::active] \
+	[file tail [m::exec::capture::path out]] \
+	[file tail [m::exec::capture::path err]] \
+	[file size log] [file size err]
+} -cleanup {
+    m::exec::capture::to {} {} 0
+    file delete log err
+} -result {0 log err 0 0}
+
+test exec-capture-to-2.1 {capture::to - clear, and start} -body {
+    fileutil::writeFile log foo
+    fileutil::writeFile err foo
+    m::exec::capture::to log err
+    list \
+	[m::exec::capture::active] \
+	[file tail [m::exec::capture::path out]] \
+	[file tail [m::exec::capture::path err]] \
+	 [file size log] [file size err]
+} -cleanup {
+    m::exec::capture::to {} {} 0
+    file delete log err
+} -result {1 log err 0 0}
+
+# # ## ### ##### ######## ############# #####################
+
+proc DO {args} {
+    capture-on
+    lappend r [{*}$args]
+    lappend r [m::exec::capture::get out]
+    lappend r [m::exec::capture::get err]
+    lappend r [capture-get]
+    return $r
+}
+
+proc DONE {} {
+    capture-done
+    m::exec::verbose 0
+    m::exec::capture::to {} {} 0
+    file delete log err
+    return
+}
+
+# # ## ### ##### ######## ############# #####################
+
+test exec-get-1.0 {get - wrong args, not enough} -body {
+    m::exec::get
+} -returnCodes error -result {wrong # args: should be "m::exec::get cmd ..."}
+
+test exec-get-2.0 {get - (a) no verbose, no capture} -setup {
+    m::exec::verbose 0
+    m::exec::capture::off
+} -body {
+    DO m::exec::get support/echo
+} -cleanup DONE -result {echo {} {} {}}
+
+test exec-get-2.1.0 {get - (b/out) no verbose, capture} -setup {
+    m::exec::verbose 0
+    m::exec::capture::to log err
+} -body {
+    DO m::exec::get support/echo
+} -cleanup DONE -result {echo echo {} {}}
+
+test exec-get-2.1.1 {get - (b/err) no verbose, capture} -setup {
+    m::exec::verbose 0
+    m::exec::capture::to log err
+} -body {
+    DO m::exec::get support/echo-stderr
+} -cleanup DONE -result {{} {} echo {}}
+
+test exec-get-2.2 {get - (c) verbose, no capture} -setup {
+    m::exec::verbose 1
+    m::exec::capture::off
+} -body {
+    DO m::exec::get support/echo
+} -cleanup DONE -result {echo {} {} {> support/echo}}
+
+test exec-get-2.3.0 {get - (d/out) verbose, capture} -setup {
+    m::exec::verbose 1
+    m::exec::capture::to log err
+} -body {
+    DO m::exec::get support/echo
+} -cleanup DONE -result {echo echo {} {> support/echo}}
+
+test exec-get-2.3.1 {get - (d/err) verbose, capture} -setup {
+    m::exec::verbose 1
+    m::exec::capture::to log err
+} -body {
+    DO m::exec::get support/echo-stderr
+} -cleanup DONE -result {{} {} echo {> support/echo-stderr
+echo}}
+
+# # ## ### ##### ######## ############# #####################
+
+test exec-go-1.0 {go - wrong args, not enough} -body {
+    m::exec::go
+} -returnCodes error -result {wrong # args: should be "m::exec::go cmd ..."}
+
+test exec-go-2.0 {go - (a) no verbose, no capture} -setup {
+    m::exec::verbose 0
+    m::exec::capture::off
+} -body {
+    DO m::exec::go support/echo
+} -cleanup DONE -result {{} {} {} {}}
+
+test exec-go-2.1.0 {go - (b/out) no verbose, capture} -setup {
+    m::exec::verbose 0
+    m::exec::capture::to log err
+} -body {
+    DO m::exec::go support/echo
+} -cleanup DONE -result {{} echo {} {}}
+
+test exec-go-2.1.1 {go - (b/err) no verbose, capture} -setup {
+    m::exec::verbose 0
+    m::exec::capture::to log err
+} -body {
+    DO m::exec::go support/echo-stderr
+} -cleanup DONE -result {{} {} echo {}}
+
+test exec-go-2.2 {go - (c) verbose, no capture} -setup {
+    m::exec::verbose 1
+    m::exec::capture::off
+} -body {
+    DO m::exec::go support/echo
+} -cleanup DONE -result {{} {} {} {> support/echo}}
+# note, exec directly writing to stdout/err is not captured
+# shows up in testsuite log itself
+
+test exec-go-2.3.0 {go - (d/out) verbose, capture} -setup {
+    m::exec::verbose 1
+    m::exec::capture::to log err
+} -body {
+    DO m::exec::go support/echo
+} -cleanup DONE -result {{} echo {} {> support/echo
+echo}}
+# exec stdout is captured and passed up,
+# becomes visible (written by puts)
+
+test exec-go-2.3.1 {go - (d/err) verbose, capture} -setup {
+    m::exec::verbose 1
+    m::exec::capture::to log err
+} -body {
+    DO m::exec::go support/echo-stderr
+} -cleanup DONE -result {{} {} echo {> support/echo-stderr
+echo}}
+# exec stderr is captured and passed up,
+# becomes visible (written by puts)
+
+# # ## ### ##### ######## ############# #####################
+
+test exec-silent-1.0 {silent - wrong args, not enough} -body {
+    m::exec::silent
+} -returnCodes error -result {wrong # args: should be "m::exec::silent cmd ..."}
+
+test exec-silent-2.0 {silent - (a) no verbose, no capture} -setup {
+    m::exec::verbose 0
+    m::exec::capture::off
+} -body {
+    DO m::exec::silent support/echo
+} -cleanup DONE -result {{} {} {} {}}
+
+test exec-silent-2.1.0 {silent - (b/out) no verbose, capture} -setup {
+    m::exec::verbose 0
+    m::exec::capture::to log err
+} -body {
+    DO m::exec::silent support/echo
+} -cleanup DONE -result {{} echo {} {}}
+
+test exec-silent-2.1.1 {silent - (b/err) no verbose, capture} -setup {
+    m::exec::verbose 0
+    m::exec::capture::to log err
+} -body {
+    DO m::exec::silent support/echo-stderr
+} -cleanup DONE -result {{} {} echo {}}
+
+test exec-silent-2.2 {silent - (c) verbose, no capture} -setup {
+    m::exec::verbose 1
+    m::exec::capture::off
+} -body {
+    DO m::exec::silent support/echo
+} -cleanup DONE -result {{} {} {} {> support/echo}}
+
+test exec-silent-2.3.0 {silent - (d/out) verbose, capture} -setup {
+    m::exec::verbose 1
+    m::exec::capture::to log err
+} -body {
+    DO m::exec::silent support/echo
+} -cleanup DONE -result {{} echo {} {> support/echo}}
+
+test exec-silent-2.3.1 {silent - (d/err) verbose, capture} -setup {
+    m::exec::verbose 1
+    m::exec::capture::to log err
+} -body {
+    DO m::exec::silent support/echo-stderr
+} -cleanup DONE -result {{} {} echo {> support/echo-stderr}}
+
+# # ## ### ##### ######## ############# #####################
+
+test exec-verbose-1.0 {verbose - wrong args, too many} -body {
+    m::exec::verbose VERBOSE X
+} -returnCodes error -result {wrong # args: should be "m::exec::verbose ?newvalue?"}
+
+test exec-verbose-1.1 {verbose - not boolean} -body {
+    m::exec::verbose VERBOSE
+} -returnCodes error -result {Expected boolean, got "VERBOSE"}
+
+test exec-verbose-2.0 {verbose - default} -body {
+    m::exec::verbose
+} -result 0
+
+test exec-verbose-2.1 {verbose - set} -body {
+    m::exec::verbose 1
+} -cleanup {
+    m::exec::verbose 0
+} -result 1
+
+test exec-verbose-2.2 {verbose - set, kept} -setup {
+    m::exec::verbose 1
+} -body {
+    m::exec::verbose
+} -cleanup {
+    m::exec::verbose 0
+} -result 1
+
+# # ## ### ##### ######## ############# #####################
+rename DO   {}
+rename DONE {}
+cleanupTests
+return

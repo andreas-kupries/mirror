@@ -68,7 +68,6 @@ proc ::m::vcs::git::version {iv} {
 proc ::m::vcs::git::setup {path url} {
     debug.m/vcs/git {}
     m exec go git --bare --git-dir [GitOf $path] init
-    update $path [list $url]
     return
 }
 
