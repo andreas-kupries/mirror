@@ -1,4 +1,4 @@
-## -*- tcl -*-
+## -*- tcl -*- (c) 2018
 # # ## ### ##### ######## ############# #####################
 ## Test support - Application simulator
 
@@ -51,65 +51,20 @@ kt local   testing m::validate::repository
 kt local   testing m::cmdr
 kt local   testing m::glue
 
+kt::source support/capture.tcl
+
 # # ## ### ##### ######## ############# #####################
 
 proc td {} { tcltest::testsDirectory }
 proc md {} { return [td]/tm }
 
 proc mapp {args} {
-    rename ::puts    ::puts_orig
-    rename ::capture ::puts
-    capture-reset
+    capture-on
     try {
         list [m::cmdr::main $args] [capture-get]
     } finally {
-	rename ::puts	   ::capture
-	rename ::puts_orig ::puts
+	capture-done
     }
-}
-
-proc capture-get {} {
-    variable stdout
-    return [string trim $stdout]
-}
-
-proc capture-reset {} {
-    variable stdout {}
-    return
-}
-
-proc capture {args} {
-    set nonewline 0
-    if {[lindex $args 0] eq "-nonewline"} {
-	set nonewline 1
-	set args [lrange $args 1 end]
-    }
-
-    switch -exact -- [llength $args] {
-	1 {
-	    set chan stdout
-	    set text [lindex $args 0]
-	}
-	2 {
-	    lassign $args chan text
-	}
-	default {
-	    error "Bad syntax: [info level 0]"
-	}
-    }
-
-    if {$chan in {stdout stderr}} {
-	# capture
-	variable stdout
-	append   stdout $text
-	if {$nonewline} return
-	append stdout \n
-	return
-    }
-
-    # punt to original
-    ::puts_orig {*}$args
-    return
 }
 
 proc err {label} { R 1 $label }

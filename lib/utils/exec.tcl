@@ -160,6 +160,7 @@ proc ::m::exec::verbose {{newvalue {}}} {
     debug.m/exec {}
     variable verbose
     if {[llength [info level 0]] == 2} {
+	capture::B $newvalue
 	set verbose $newvalue
     }
     return $verbose
@@ -167,10 +168,10 @@ proc ::m::exec::verbose {{newvalue {}}} {
 
 # # ## ### ##### ######## ############# #####################
 
-proc ::m::exec::go {args} {
+proc ::m::exec::go {cmd args} {
     debug.m/exec {}
     variable verbose
-    variable capture::active
+    set args [linsert $args 0 $cmd]
 
     # V C |
     # ----+-
@@ -183,7 +184,7 @@ proc ::m::exec::go {args} {
 	# c, d
 	m msg "> $args"
     }
-    if {$active} {
+    if {[capture active]} {
 	# b, d
 	CAP $args $verbose $verbose
 	# d - verbose ^----^
@@ -197,10 +198,10 @@ proc ::m::exec::go {args} {
     return
 }
 
-proc ::m::exec::get {args} {
+proc ::m::exec::get {cmd args} {
     debug.m/exec {}
     variable verbose
-    variable capture::active
+    set args [linsert $args 0 $cmd]
 
     # V C |
     # ----+-
@@ -214,7 +215,7 @@ proc ::m::exec::get {args} {
 	m msg "> $args"
     }
 
-    if {$active} {
+    if {[capture active]} {
 	# b, d
 	lassign [CAP $args 0 $verbose] oc ec
 	# d - verbose -------^
@@ -228,11 +229,11 @@ proc ::m::exec::get {args} {
     }
 }
 
-proc ::m::exec::silent {args} {
+proc ::m::exec::silent {cmd args} {
     debug.m/exec {}
     variable verbose
-    variable capture::active
-
+    set args [linsert $args 0 $cmd]
+    
     # V C |
     # ----+-
     # 0 0 | (a) null
@@ -246,11 +247,11 @@ proc ::m::exec::silent {args} {
 	# c, d
 	m msg "> $args"
     }
-    if {$active} {
+    if {[capture active]} {
 	# b, d
 	set o [capture path out]
 	set e [capture path err]
-	exec 2> $o > $e {*}$args
+	exec 2> $e > $o {*}$args
     } else {
 	# a, c
 	exec 2> [NULL] > [NULL] {*}$args
@@ -265,7 +266,7 @@ proc ::m::exec::CAP {cmd vo ve} {
     set o [capture path out]
     set e [capture path err]
     try {
-	exec 2> $o.now > $e.now {*}$cmd
+	exec 2> $e.now > $o.now {*}$cmd
     } finally {
 	set oc [POST $o.now $o $vo stdout]
 	set ec [POST $e.now $e $ve stderr]
@@ -275,6 +276,7 @@ proc ::m::exec::CAP {cmd vo ve} {
 }
 
 proc ::m::exec::POST {p pe v std} {
+    debug.m/exec {}
     set d [CAT $p]
     APPEND $pe $d
     file delete $p
@@ -283,6 +285,7 @@ proc ::m::exec::POST {p pe v std} {
 }
 
 proc ::m::exec::APPEND {path data} {
+    debug.m/exec {}
     set c [open $path a]
     puts -nonewline $c $data
     close $c
@@ -290,6 +293,7 @@ proc ::m::exec::APPEND {path data} {
 }
 
 proc ::m::exec::CAT {path} {
+    debug.m/exec {}
     set c [open $path r]
     set d [read $c]
     close $c
@@ -297,6 +301,7 @@ proc ::m::exec::CAT {path} {
 }
 
 proc ::m::exec::PASS {c d} {
+    debug.m/exec {}
     puts -nonewline $c $d
     flush $c
     return
@@ -318,13 +323,12 @@ if {$tcl_platform(platform) eq "windows"} {
 ## State
 
 namespace eval ::m::exec {
-    variable verbose off
+    variable verbose 0
 }
-
 namespace eval ::m::exec::capture {
-    variable active  0
-    variable out {}
-    variable err {}
+    variable active 0
+    variable out    {}
+    variable err    {}
 }
 
 # # ## ### ##### ######## ############# #####################
