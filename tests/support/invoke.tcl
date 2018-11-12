@@ -59,11 +59,14 @@ proc td {} { tcltest::testsDirectory }
 proc md {} { return [td]/tm }
 
 proc mapp {args} {
+    #puts XXX\t(([info level 0]))
+    
     capture-on
     try {
         list [m::cmdr::main $args] [capture-get]
     } finally {
 	capture-done
+	#puts XXX\t//
     }
 }
 
@@ -85,7 +88,10 @@ proc V {label} {
 }
 
 proc store-scan {} {
-    list 0 [map [join [lsort -dict [fileutil::find [md]/store]] \n]]
+    #puts SCAN
+    set scan [map [join [lsort -dict [fileutil::find [md]/store]] \n]]
+    #puts //
+    list 0 $scan
 }
 
 proc map {x} {

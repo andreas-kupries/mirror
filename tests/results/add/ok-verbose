@@ -5,9 +5,14 @@ New
   Mirror set mirror
   Setting up the fossil store ...
 > fossil clone <ACO> <MD>/store/1/source.fossil
+Round-trips: *
+Clone done, sent: *
+admin-user: *
 > fossil remote-url off -R <MD>/store/1/source.fossil
 > fossil info -R <MD>/store/1/source.fossil
 > fossil pull <ACO> --once -R <MD>/store/1/source.fossil
+Round-trips: *
+Pull done, sent: *
 > fossil info -R <MD>/store/1/source.fossil
 > du -sk <MD>/store/1
   Done

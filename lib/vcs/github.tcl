@@ -122,7 +122,7 @@ proc ::m::vcs::github::setup {path url} {
 	[join [lrange [file split $url] end-1 end] /]
 
     m vcs git setup $path $url
-    update $path [list $url]
+    return
 }
     
 proc ::m::vcs::github::update {path urls} {

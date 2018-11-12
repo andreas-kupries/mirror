@@ -65,8 +65,6 @@ proc ::m::vcs::fossil::setup {path url} {
     
     Fossil clone $url $repo
     Fossil remote-url off -R $repo
-
-    update $path [list $url]
     return
 }
 
