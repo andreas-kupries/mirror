@@ -38,12 +38,12 @@ namespace eval ::m {
 }
 
 namespace eval ::m::exec {
-    namespace export verbose go get silent capture
+    namespace export verbose cmdverbose go get silent capture
     namespace ensemble create
 }
 
 namespace eval ::m::exec::capture {
-    namespace export to on off clear get path active
+    namespace export to on off clear get path active append
     namespace ensemble create
 }
 
@@ -95,16 +95,29 @@ proc ::m::exec::capture::clear {} {
     return
 }
 
+proc ::m::exec::capture::append {key verbose content} {
+    # Get captured content
+    debug.m/exec {}
+    V $key
+    set path [P $key]
+    if {$path ne {}} {
+	m futil append $path $content
+    }
+    if {$verbose} {
+	# pass to regular std channel
+	puts -nonewline std$key $content
+	flush std$key
+    }
+    return
+}
+
 proc ::m::exec::capture::get {key} {
     # Get captured content
     debug.m/exec {}
     V $key
     set path [P $key]
     if {$path eq {}} return
-    set c [open $path r]
-    set d [read $c]
-    close $c
-    return $d
+    return [m futil cat $path]
 }
 
 proc ::m::exec::capture::path {key} {
@@ -167,11 +180,22 @@ proc ::m::exec::verbose {{newvalue {}}} {
     return $verbose
 }
 
+proc ::m::exec::cmdverbose {{newvalue {}}} {
+    debug.m/exec {}
+    variable cmdverb
+    if {[llength [info level 0]] == 2} {
+	capture::B $newvalue
+	set cmdverb $newvalue
+    }
+    return $cmdverb
+}
+
 # # ## ### ##### ######## ############# #####################
 
 proc ::m::exec::go {cmd args} {
     debug.m/exec {}
     variable verbose
+    variable cmdverb
     set args [linsert $args 0 $cmd]
 
     # V C |
@@ -181,7 +205,7 @@ proc ::m::exec::go {cmd args} {
     # 1 0 | (c) pass to inherited out/err
     # 1 1 | (d) capture, pass to inherited
 
-    if {$verbose} {
+    if {$verbose || $cmdverb} {
 	# c, d
 	m msg "> $args"
     }
@@ -202,6 +226,7 @@ proc ::m::exec::go {cmd args} {
 proc ::m::exec::get {cmd args} {
     debug.m/exec {}
     variable verbose
+    variable cmdverb
     set args [linsert $args 0 $cmd]
 
     # V C |
@@ -211,7 +236,7 @@ proc ::m::exec::get {cmd args} {
     # 1 0 | (c) pass to stderr, return stdout
     # 1 1 | (d) capture, return stdout, pass stderr
     
-    if {$verbose} {
+    if {$verbose || $cmdverb} {
 	# (c)
 	m msg "> $args"
     }
@@ -233,6 +258,7 @@ proc ::m::exec::get {cmd args} {
 proc ::m::exec::silent {cmd args} {
     debug.m/exec {}
     variable verbose
+    variable cmdverb
     set args [linsert $args 0 $cmd]
     
     # V C |
@@ -244,7 +270,7 @@ proc ::m::exec::silent {cmd args} {
     # ----> a == c
     # ----> b == d
     
-    if {$verbose} {
+    if {$verbose || $cmdverb} {
 	# c, d
 	m msg "> $args"
     }
@@ -269,27 +295,19 @@ proc ::m::exec::CAP {cmd vo ve} {
     try {
 	exec 2> $e.now > $o.now {*}$cmd
     } finally {
-	set oc [POST $o.now $o $vo stdout]
-	set ec [POST $e.now $e $ve stderr]
+	set oc [POST $o.now out $vo]
+	set ec [POST $e.now err $ve]
     }
 
     list $oc $ec
 }
 
-proc ::m::exec::POST {p pe v std} {
+proc ::m::exec::POST {p key v} {
     debug.m/exec {}
     set d [m futil cat $p]
-    m futil append $pe $d
+    capture append $key $v $d
     file delete $p
-    if {$v} { PASS $std $d }
     return $d
-}
-
-proc ::m::exec::PASS {c d} {
-    debug.m/exec {}
-    puts -nonewline $c $d
-    flush $c
-    return
 }
 
 if {$tcl_platform(platform) eq "windows"} {
@@ -309,6 +327,7 @@ if {$tcl_platform(platform) eq "windows"} {
 
 namespace eval ::m::exec {
     variable verbose 0
+    variable cmdverb 0
 }
 namespace eval ::m::exec::capture {
     variable active 0

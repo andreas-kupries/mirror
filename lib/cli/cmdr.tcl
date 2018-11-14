@@ -188,7 +188,8 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	    presence
 	    when-set [lambda {p x} {
 		package require m::exec
-		m exec verbose on
+		m exec verbose    on
+		m exec cmdverbose on
 	    }]
 	}
     }

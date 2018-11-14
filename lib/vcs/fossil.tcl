@@ -47,28 +47,20 @@ namespace eval m::vcs::fossil {
 proc ::m::vcs::fossil::log-normalize {path} {
     debug.m/vcs/fossil {}
 
-    # TODO: vc-fetch
-    //
-
     set po $path/%stdout
     set pe $path/%stderr
     
     set o [split [m futil cat $po] \n]
     set e [split [m futil cat $pe] \n]
 
-    lassign [m futil grep {time skew}      $e] skew skew_mismatch
-    lassign [m futil grep {not authorized} $o] auth auth_mismatch
+    # Drop pseudo-errors (time skew) from the error log.
+    lassign [m futil grep {time skew} $e] _ skew_mismatch
+    m futil write $pe [join $skew_mismatch \n]
 
-    m futil write  $pe [join $skew_mismatch \n]
+    # Extend error log with errors reported to the regular log
+    # (authorization issues).
+    lassign [m futil grep {not authorized} $o] auth _
     m futil append $pe [join $auth \n]
-
-    //
-    # Drop pseudo-errors from the error log
-    catch { exec grep -v {time skew} $elog > [pid] 2>/dev/null }
-    file rename -force [pid] $elog
-    # Add errors reported in the log to error log
-    catch { exec grep {not authorized} $log >> $elog }
-
     return
 }
 

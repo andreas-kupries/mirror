@@ -48,49 +48,29 @@ namespace eval m::vcs::git {
 proc ::m::vcs::git::log-normalize {path} {
     debug.m/vcs/git {}
 
-    # TODO: vc-fetch
-
     set po $path/%stdout
     set pe $path/%stderr
     
     set e [split [m futil cat $pe] \n]
 
+    # Move all non-errors written to stderr over into stdout.
     lassign [m futil m-grep {
+	{^[[:space:]]*$}
 	{^From }
 	{tag update}
 	{ -> }
 	{^origin }
 	{^m-vcs-}
-    } $e] plain err
+    } $e] out err
 
-    if {[llength $plain]} { m futil append $po [join $plain \n] }
+    if {[llength $out]} {
+	m futil append $po [join $out \n]
+    }
     if {[llength $err]} {
 	m futil write $pe [join $err \n]
     } else {
 	m futil write $pe ""
     }
-
-    //
-    # Move non-errors from error log over to regular log
-    set elines {}
-    set rlines {}
-    foreach line [split [fileutil::cat $elog] \n] {
-	if {$line eq {}} continue
-	if {[is-git-plain-log $line state]} {
-	    lappend rlines $line
-	} else {
-	    lappend elines $line
-	}
-    }
-    if {[llength $rlines]} {
-	fileutil::appendToFile $log [join $rlines \n]\n
-    }
-    if {[llength $elines]} {
-	fileutil::writeFile $elog [join $elines \n]\n
-    } else {
-	fileutil::writeFile $elog ""
-    }
-
 
     return
 }

@@ -86,12 +86,10 @@ proc ::m::vcs::setup {store vcs name url} {
     fileutil::writeFile $path/%name $name  ;# Mirror set
     fileutil::writeFile $path/%vcs  $vcode ;# Manager
 
-    CAP {
-	# Create vcs-specific special resources, if any
-	$vcode setup  $path $url
-	# Then update for the first time
-	$vcode update $path [::list $url]
-    }
+    # Create vcs-specific special resources, if any
+    CAP $vcode setup  $path $url
+    # Then update for the first time
+    CAP	$vcode update $path [::list $url]
     return
 }
 
@@ -103,9 +101,7 @@ proc ::m::vcs::update {store vcs urls} {
     set path  [Path $store]
     set vcode [code $vcs]
 
-    CAP {
-	return [$vcode update $path $urls]
-    }
+    return [CAP $vcode update $path $urls]
 }
 
 proc ::m::vcs::rename {store name} {
@@ -348,20 +344,38 @@ proc ::m::vcs::id {x} {
 
 # # ## ### ##### ######## ############# #####################
 
-proc ::m::vcs::CAP {script} {
+proc ::m::vcs::CAP {args} {
+    set vcode [lindex $args 0]
+    set path  [lindex $args 2]
     try {
 	try {
 	    m exec capture to $path/%stdout $path/%stderr
 
-	    uplevel 1 $script
+	    # Disables stderr/out verbosity. Needed because of the log
+	    # normalization we do here. All output from the command is
+	    # defered until after that has happend. Note that the cmd
+	    # reporting in m::exec is not disabled by this.
+	    set v [m exec verbose]
+	    m exec verbose off
+
+	    uplevel 1 $args
 	} finally {
 	    m exec capture off
 	    $vcode log-normalize $path
+
+	    if {$v} {
+		puts stdout [m exec capture get out]
+		puts stderr [m exec capture get err]
+
+		# Restore verbosity.
+		m exec verbose on
+	    }
 	}
     } on ok {e o} {
-	# TODO: throw error if stderr capture is not empty.
-    } on error {e o} {
-	# TODO: suppress error if stderr capture is empty.
+	# Throw error if stderr capture is not empty.
+	if {[file size $path/%stderr]} {
+	    return -code error {child process exited with errors}
+	}
     }
 }
 

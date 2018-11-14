@@ -64,7 +64,7 @@ namespace eval m::vcs::github {
     namespace import ::m::vcs::git::log-normalize
     
     namespace export setup cleanup update check split merge \
-	detect version
+	detect version log-normalize
     namespace ensemble create
 
     namespace import ::cmdr::color
