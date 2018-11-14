@@ -11,6 +11,7 @@ kt require support fileutil
 kt local   testing db::setup
 kt local   testing db::track
 kt local   testing m::db::location
+kt local   testing m::futil
 kt local   testing m::mail::asm
 kt local   testing m::match
 kt local   testing m::msg

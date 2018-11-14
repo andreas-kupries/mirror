@@ -19,6 +19,7 @@ package provide m::vcs::fossil 0
 ## Requisites
 
 package require Tcl 8.5
+package require m::futil
 package require m::exec
 package require debug
 package require debug::caller
@@ -37,11 +38,39 @@ namespace eval m::vcs {
 }
 namespace eval m::vcs::fossil {
     namespace export setup cleanup update check split merge \
-	version detect
+	version detect log-normalize
     namespace ensemble create
 }
 
 # # ## ### ##### ######## ############# ######################
+
+proc ::m::vcs::fossil::log-normalize {path} {
+    debug.m/vcs/fossil {}
+
+    # TODO: vc-fetch
+    //
+
+    set po $path/%stdout
+    set pe $path/%stderr
+    
+    set o [split [m futil cat $po] \n]
+    set e [split [m futil cat $pe] \n]
+
+    lassign [m futil grep {time skew}      $e] skew skew_mismatch
+    lassign [m futil grep {not authorized} $o] auth auth_mismatch
+
+    m futil write  $pe [join $skew_mismatch \n]
+    m futil append $pe [join $auth \n]
+
+    //
+    # Drop pseudo-errors from the error log
+    catch { exec grep -v {time skew} $elog > [pid] 2>/dev/null }
+    file rename -force [pid] $elog
+    # Add errors reported in the log to error log
+    catch { exec grep {not authorized} $log >> $elog }
+
+    return
+}
 
 proc ::m::vcs::fossil::detect {url} {
     debug.m/vcs/fossil {}

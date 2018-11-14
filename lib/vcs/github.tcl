@@ -61,6 +61,7 @@ namespace eval m::vcs::github {
     namespace import ::m::vcs::git::check
     namespace import ::m::vcs::git::split
     namespace import ::m::vcs::git::merge
+    namespace import ::m::vcs::git::log-normalize
     
     namespace export setup cleanup update check split merge \
 	detect version

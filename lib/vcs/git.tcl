@@ -20,6 +20,7 @@ package provide m::vcs::git 0
 
 package require Tcl 8.5
 package require struct::set
+package require m::futil
 package require m::exec
 package require debug
 package require debug::caller
@@ -38,11 +39,73 @@ namespace eval m::vcs {
 }
 namespace eval m::vcs::git {
     namespace export setup cleanup update check split merge \
-	version detect
+	version detect log-normalize
     namespace ensemble create
 }
 
 # # ## ### ##### ######## ############# ######################
+
+proc ::m::vcs::git::log-normalize {path} {
+    debug.m/vcs/git {}
+
+    # TODO: vc-fetch
+
+    set po $path/%stdout
+    set pe $path/%stderr
+    
+    set e [split [m futil cat $pe] \n]
+
+    lassign [m futil m-grep {
+	{^From }
+	{tag update}
+	{ -> }
+	{^origin }
+	{^m-vcs-}
+    } $e] plain err
+
+    if {[llength $plain]} { m futil append $po [join $plain \n] }
+    if {[llength $err]} {
+	m futil write $pe [join $err \n]
+    } else {
+	m futil write $pe ""
+    }
+
+    //
+    # Move non-errors from error log over to regular log
+    set elines {}
+    set rlines {}
+    foreach line [split [fileutil::cat $elog] \n] {
+	if {$line eq {}} continue
+	if {[is-git-plain-log $line state]} {
+	    lappend rlines $line
+	} else {
+	    lappend elines $line
+	}
+    }
+    if {[llength $rlines]} {
+	fileutil::appendToFile $log [join $rlines \n]\n
+    }
+    if {[llength $elines]} {
+	fileutil::writeFile $elog [join $elines \n]\n
+    } else {
+	fileutil::writeFile $elog ""
+    }
+
+
+    return
+}
+
+proc is-git-plain-log {line __} {
+    # currently do not need inter-line state (__)
+    if {[string match {From *}       $line]} { return 1 }
+    if {[string match {*tag update*} $line]} { return 1 }
+    if {[string match {* -> *}       $line]} { return 1 }
+    if {[string match {origin *}     $line]} { return 1 }
+    if {[string match {gh_afork_*}   $line]} { return 1 }
+    return 0
+}
+
+
 
 proc ::m::vcs::git::detect {url} {
     debug.m/vcs/git {}

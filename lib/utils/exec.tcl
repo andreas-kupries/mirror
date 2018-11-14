@@ -22,6 +22,7 @@ package require Tcl 8.5
 package require debug
 package require debug::caller
 package require m::msg
+package require m::futil
 
 # # ## ### ##### ######## ############# ######################
 
@@ -277,26 +278,10 @@ proc ::m::exec::CAP {cmd vo ve} {
 
 proc ::m::exec::POST {p pe v std} {
     debug.m/exec {}
-    set d [CAT $p]
-    APPEND $pe $d
+    set d [m futil cat $p]
+    m futil append $pe $d
     file delete $p
     if {$v} { PASS $std $d }
-    return $d
-}
-
-proc ::m::exec::APPEND {path data} {
-    debug.m/exec {}
-    set c [open $path a]
-    puts -nonewline $c $data
-    close $c
-    return
-}
-
-proc ::m::exec::CAT {path} {
-    debug.m/exec {}
-    set c [open $path r]
-    set d [read $c]
-    close $c
     return $d
 }
 
