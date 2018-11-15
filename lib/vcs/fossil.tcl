@@ -47,12 +47,12 @@ namespace eval m::vcs::fossil {
 proc ::m::vcs::fossil::LogNormalize {o e} {
     debug.m/vcs/fossil {}
 
-    # Remove time-skew warnings from the error log.  Add authorization
+    # Remove time-skew warnings from the error log. Add authorization
     # issues reported in the regular log to the error log.
-    lassign [m futil grep {time skew} $e]      _    skew_mismatch
+    lassign [m futil grep {time skew}      $e] _ errors
     lassign [m futil grep {not authorized} $o] auth _
 
-    set     e $skew_mismatch
+    set     e $errors
     lappend e {*}$auth
 
     return [list $o $e]

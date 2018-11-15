@@ -86,7 +86,7 @@ proc ::m::vcs::setup {store vcs name url} {
     fileutil::writeFile $path/%name $name  ;# Mirror set
     fileutil::writeFile $path/%vcs  $vcode ;# Manager
 
-    CAP {
+    CAP $path {
 	# Create vcs-specific special resources, if any
 	$vcode setup  $path $url
 	# Then update for the first time
@@ -103,7 +103,7 @@ proc ::m::vcs::update {store vcs urls} {
     set path  [Path $store]
     set vcode [code $vcs]
 
-    CAP {
+    CAP $path {
 	return [$vcode update $path $urls]
     }
 }
@@ -348,24 +348,18 @@ proc ::m::vcs::id {x} {
 
 # # ## ### ##### ######## ############# #####################
 
-proc ::m::vcs::CAP {script} {
+proc ::m::vcs::CAP {path script} {
+    debug.m/vcs {}
     try {
-	try {
-	    m exec capture to $path/%stdout $path/%stderr
-
-	    uplevel 1 $script
-	} finally {
-	    m exec capture off
-	    $vcode log-normalize $path
-	}
-    } on ok {e o} {
-	# TODO: throw error if stderr capture is not empty.
-    } on error {e o} {
-	# TODO: suppress error if stderr capture is empty.
+	m exec capture to $path/%stdout $path/%stderr
+	uplevel 1 $script
+    } finally {
+	m exec capture off
     }
 }
 
 proc ::m::vcs::Path {dir} {
+    debug.m/vcs {}
     return [file normalize [file join [m state store] $dir]]
 }
 

@@ -213,7 +213,7 @@ proc ::m::exec::get {cmd args} {
     # 0 1 | (b) capture, return stdout
     # 1 0 | (c) pass to stderr, return stdout
     # 1 1 | (d) capture, return stdout, pass stderr
-    
+
     if {$verbose} {
 	# (c)
 	m msg "> $args"
@@ -272,42 +272,37 @@ proc ::m::exec::CAP {cmd vo ve} {
     set e [capture path err]
 
     try {
-	try {
-	    exec 2> $e.now > $o.now {*}$cmd
-	} finally {
-	    set oc [m futil cat $o.now]
-	    set ec [m futil cat $e.now]
+	exec 2> $e.now > $o.now {*}$cmd
+    } finally {
+	set oc [m futil cat $o.now]
+	set ec [m futil cat $e.now]
 
-	    # Run the post command hook, if present
-	    if {[llength $posthook]} {
-		set oc [split $oc \n]
-		set ec [split $ec \n]
-		lassign [uplevel #0 [list {*}$posthook $ec $oc]] oc ec
-		set oc [join $oc \n]
-		set ec [join $ec \n]
-	    }
+	# Run the post command hook, if present
+	if {[llength $posthook]} {
+	    set oc [split $oc \n]
+	    set ec [split $ec \n]
+	    lassign [uplevel #0 [list {*}$posthook $oc $ec]] oc ec
+	    set oc [join $oc \n]
+	    set ec [join $ec \n]
+	}
 	
-	    set oc [POST $oc $o $vo stdout]
-	    set ec [POST $ec $e $ve stderr]
-	}
-    } on ok {e} {
-	if {[file size $e]} {
-	    # Throw if errors reported on stderr, if any.
-	    return -code error {child process exited with errors}
-	}
+	POST $oc $o $vo stdout
+	POST $ec $e $ve stderr
     }
 
     list $oc $ec
 }
 
-proc ::m::exec::POST {d path verbose stdchan} {
+proc ::m::exec::POST {content path verbose stdchan} {
     debug.m/exec {}
-    m futil append $path $d
+    # Extend capture
+    m futil append $path $content
     if {$verbose} {
-	puts -nonewline $stdchan $d
+	# Pass to inherited std channel
+	puts -nonewline $stdchan $content
 	flush $stdchan
     }
-    file delete $p
+    file delete ${path}.now
     return
 }
 
