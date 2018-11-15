@@ -1,0 +1,167 @@
+# -*- tcl -*- tcl.tk//DSL tcltest//EN//2.0 tcl.tk//DSL tcltest//EN//2.0
+## (c) 2018 Andreas Kupries
+# # ## ### ##### ######## ############# #####################
+## m::futil
+
+kt check Tcl     8.5
+kt check tcltest 2
+
+kt require support fileutil ;# writeFile
+kt local   testing m::futil
+
+# # ## ### ##### ######## ############# #####################
+#
+## [ok] cat
+## [ok] write
+## [ok] append
+## [ok] grep
+## [ok] m-grep
+
+# # ## ### ##### ######## ############# #####################
+
+test futil-cat-1.0 {cat - wrong args, not enough} -body {
+    m::futil::cat
+} -returnCodes error -result {wrong # args: should be "m::futil::cat path"}
+
+test futil-cat-1.1 {cat - wrong args, too many} -body {
+    m::futil::cat PATH X
+} -returnCodes error -result {wrong # args: should be "m::futil::cat path"}
+
+test futil-cat-2.0 {cat - read} -body {
+    m::futil::cat support/echo
+} -result {#!/bin/bash
+echo -n echo
+}
+
+# # ## ### ##### ######## ############# #####################
+
+test futil-write-1.0 {write - wrong args, not enough} -body {
+    m::futil::write
+} -returnCodes error -result {wrong # args: should be "m::futil::write path content"}
+
+test futil-write-1.1 {write - wrong args, not enough} -body {
+    m::futil::write PATH
+} -returnCodes error -result {wrong # args: should be "m::futil::write path content"}
+
+test futil-write-1.2 {write - wrong args, too many} -body {
+    m::futil::write PATH CONTENT X
+} -returnCodes error -result {wrong # args: should be "m::futil::write path content"}
+
+test futil-write-2.0 {write nothing} -body {
+    m::futil::write log ""
+    list [file exists log] [file size log] [m::futil::cat log]
+} -cleanup {
+    file delete log
+} -result {1 0 {}}
+
+test futil-write-2.1 {write something} -body {
+    m::futil::write log echo
+    list [file exists log] [file size log] [m::futil::cat log]
+} -cleanup {
+    file delete log
+} -result {1 4 echo}
+
+# # ## ### ##### ######## ############# #####################
+
+test futil-append-1.0 {append - wrong args, not enough} -body {
+    m::futil::append
+} -returnCodes error -result {wrong # args: should be "m::futil::append path content"}
+
+test futil-append-1.1 {append - wrong args, not enough} -body {
+    m::futil::append PATH
+} -returnCodes error -result {wrong # args: should be "m::futil::append path content"}
+
+test futil-append-1.2 {append - wrong args, too many} -body {
+    m::futil::append PATH CONTENT X
+} -returnCodes error -result {wrong # args: should be "m::futil::append path content"}
+
+test futil-append-2.0 {append nothing, from nothing, is write} -body {
+    m::futil::append log ""
+    list [file exists log] [file size log] [m::futil::cat log]
+} -cleanup {
+    file delete log
+} -result {1 0 {}}
+
+test futil-append-2.1 {append something, from nothing, is write} -body {
+    m::futil::append log echo
+    list [file exists log] [file size log] [m::futil::cat log]
+} -cleanup {
+    file delete log
+} -result {1 4 echo}
+
+test futil-append-2.2 {append nothing, from something} -setup {
+    m::futil::write log fox
+} -body {
+    m::futil::append log ""
+    list [file exists log] [file size log] [m::futil::cat log]
+} -cleanup {
+    file delete log
+} -result {1 3 fox}
+
+test futil-append-2.3 {append something, from something} -setup {
+    m::futil::write log fox
+} -body {
+    m::futil::append log echo
+    list [file exists log] [file size log] [m::futil::cat log]
+} -cleanup {
+    file delete log
+} -result {1 7 foxecho}
+
+# # ## ### ##### ######## ############# #####################
+
+test futil-grep-1.0 {grep - wrong args, not enough} -body {
+    m::futil::grep
+} -returnCodes error -result {wrong # args: should be "m::futil::grep pattern lines"}
+
+test futil-grep-1.1 {grep - wrong args, not enough} -body {
+    m::futil::grep PATTERN
+} -returnCodes error -result {wrong # args: should be "m::futil::grep pattern lines"}
+
+test futil-grep-1.2 {grep - wrong args, too many} -body {
+    m::futil::grep PATTERN LINES X
+} -returnCodes error -result {wrong # args: should be "m::futil::grep pattern lines"}
+
+test futil-grep-2.0 {grep} -body {
+    m::futil::grep echo [split [m::futil::cat support/fail] \n]
+} -cleanup {
+    file delete log
+} -result {{{echo -n fail}} {{#!/bin/bash} {exit 1} {}}}
+
+# # ## ### ##### ######## ############# #####################
+
+test futil-m-grep-1.0 {m-grep - wrong args, not enough} -body {
+    m::futil::m-grep
+} -returnCodes error -result {wrong # args: should be "m::futil::m-grep patterns lines"}
+
+test futil-m-grep-1.1 {m-grep - wrong args, not enough} -body {
+    m::futil::m-grep PATTERN
+} -returnCodes error -result {wrong # args: should be "m::futil::m-grep patterns lines"}
+
+test futil-m-grep-1.2 {m-grep - wrong args, too many} -body {
+    m::futil::m-grep PATTERN LINES X
+} -returnCodes error -result {wrong # args: should be "m::futil::m-grep patterns lines"}
+
+test futil-m-grep-2.0 {m-grep, no patterns} -body {
+    m::futil::m-grep {} [split [m::futil::cat support/fail] \n]
+} -cleanup {
+    file delete log
+} -result {{} {{#!/bin/bash} {echo -n fail} {exit 1} {}}}
+
+test futil-m-grep-2.1 {m-grep, single pattern} -body {
+    m::futil::m-grep echo [split [m::futil::cat support/fail] \n]
+} -cleanup {
+    file delete log
+} -result {{{echo -n fail}} {{#!/bin/bash} {exit 1} {}}}
+
+test futil-m-grep-2.2 {m-grep, multi pattern} -body {
+    m::futil::m-grep {
+	echo
+	exit
+    } [split [m::futil::cat support/fail] \n]
+} -cleanup {
+    file delete log
+} -result {{{echo -n fail} {exit 1}} {{#!/bin/bash} {}}}
+
+# # ## ### ##### ######## ############# #####################
+cleanupTests
+return

@@ -45,67 +45,24 @@ namespace eval m::vcs::git {
 
 # # ## ### ##### ######## ############# ######################
 
-proc ::m::vcs::git::log-normalize {path} {
+proc ::m::vcs::git::LogNormalize {o e} {
     debug.m/vcs/git {}
 
-    # TODO: vc-fetch
-
-    set po $path/%stdout
-    set pe $path/%stderr
-    
-    set e [split [m futil cat $pe] \n]
-
+    # Move all non-errors written to stderr over into stdout.
     lassign [m futil m-grep {
+	{^[[:space:]]*$}
 	{^From }
 	{tag update}
 	{ -> }
 	{^origin }
 	{^m-vcs-}
-    } $e] plain err
+    } $e] out err
 
-    if {[llength $plain]} { m futil append $po [join $plain \n] }
-    if {[llength $err]} {
-	m futil write $pe [join $err \n]
-    } else {
-	m futil write $pe ""
-    }
+    if {[llength $out]} { lappend o {*}$out }
+    set e $err
 
-    //
-    # Move non-errors from error log over to regular log
-    set elines {}
-    set rlines {}
-    foreach line [split [fileutil::cat $elog] \n] {
-	if {$line eq {}} continue
-	if {[is-git-plain-log $line state]} {
-	    lappend rlines $line
-	} else {
-	    lappend elines $line
-	}
-    }
-    if {[llength $rlines]} {
-	fileutil::appendToFile $log [join $rlines \n]\n
-    }
-    if {[llength $elines]} {
-	fileutil::writeFile $elog [join $elines \n]\n
-    } else {
-	fileutil::writeFile $elog ""
-    }
-
-
-    return
+    return [list $o $e]
 }
-
-proc is-git-plain-log {line __} {
-    # currently do not need inter-line state (__)
-    if {[string match {From *}       $line]} { return 1 }
-    if {[string match {*tag update*} $line]} { return 1 }
-    if {[string match {* -> *}       $line]} { return 1 }
-    if {[string match {origin *}     $line]} { return 1 }
-    if {[string match {gh_afork_*}   $line]} { return 1 }
-    return 0
-}
-
-
 
 proc ::m::vcs::git::detect {url} {
     debug.m/vcs/git {}
@@ -117,6 +74,7 @@ proc ::m::vcs::git::version {iv} {
     debug.m/vcs/git {}
     upvar 1 $iv issues
     if {[llength [auto_execok git]]} {
+	m exec post-hook ;# clear
 	set v [lindex [m exec get git version] end]
 	if {[package vcompare $v 2.6.1] <= 0} {
 	    lappend issues "$v <= 2.6.1 not sufficient"
@@ -130,6 +88,7 @@ proc ::m::vcs::git::version {iv} {
 
 proc ::m::vcs::git::setup {path url} {
     debug.m/vcs/git {}
+    m exec post-hook ::m::vcs::git::LogNormalize
     m exec go git --bare --git-dir [GitOf $path] init
     return
 }
@@ -215,6 +174,7 @@ proc ::m::vcs::git::Remotes {path} {
 
 proc ::m::vcs::git::Count {path} {
     debug.m/vcs/git {}
+    m exec post-hook ::m::vcs::git::LogNormalize
     return [m exec get git --git-dir [GitOf $path] rev-list --all --count]
 }
 
@@ -243,6 +203,7 @@ proc ::m::vcs::git::GitOf {path} {
 proc ::m::vcs::git::Git {args} {
     debug.m/vcs/git {}
     upvar 1 path path
+    m exec post-hook ::m::vcs::git::LogNormalize
     m exec go git --git-dir [GitOf $path] {*}$args
     return
 }
@@ -250,6 +211,7 @@ proc ::m::vcs::git::Git {args} {
 proc ::m::vcs::git::Get {args} {
     debug.m/vcs/git {}
     upvar 1 path path
+    m exec post-hook ::m::vcs::git::LogNormalize
     return [m exec get git --git-dir [GitOf $path] {*}$args]
 }
 

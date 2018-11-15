@@ -38,7 +38,7 @@ namespace eval ::m {
 }
 
 namespace eval ::m::exec {
-    namespace export verbose go get silent capture
+    namespace export verbose go get silent capture post-hook
     namespace ensemble create
 }
 
@@ -101,10 +101,7 @@ proc ::m::exec::capture::get {key} {
     V $key
     set path [P $key]
     if {$path eq {}} return
-    set c [open $path r]
-    set d [read $c]
-    close $c
-    return $d
+    return [m futil cat $path]
 }
 
 proc ::m::exec::capture::path {key} {
@@ -165,6 +162,12 @@ proc ::m::exec::verbose {{newvalue {}}} {
 	set verbose $newvalue
     }
     return $verbose
+}
+
+proc ::m::exec::post-hook {args} {
+    debug.m/exec {}
+    variable posthook $args
+    return $posthook
 }
 
 # # ## ### ##### ######## ############# #####################
@@ -264,31 +267,47 @@ proc ::m::exec::CAP {cmd vo ve} {
     # Note: Temp files capture just current execution,
     #       Main capture then extended from these.
 
+    variable posthook
     set o [capture path out]
     set e [capture path err]
+
     try {
-	exec 2> $e.now > $o.now {*}$cmd
-    } finally {
-	set oc [POST $o.now $o $vo stdout]
-	set ec [POST $e.now $e $ve stderr]
+	try {
+	    exec 2> $e.now > $o.now {*}$cmd
+	} finally {
+	    set oc [m futil cat $o.now]
+	    set ec [m futil cat $e.now]
+
+	    # Run the post command hook, if present
+	    if {[llength $posthook]} {
+		set oc [split $oc \n]
+		set ec [split $ec \n]
+		lassign [uplevel #0 [list {*}$posthook $ec $oc]] oc ec
+		set oc [join $oc \n]
+		set ec [join $ec \n]
+	    }
+	
+	    set oc [POST $oc $o $vo stdout]
+	    set ec [POST $ec $e $ve stderr]
+	}
+    } on ok {e} {
+	if {[file size $e]} {
+	    # Throw if errors reported on stderr, if any.
+	    return -code error {child process exited with errors}
+	}
     }
 
     list $oc $ec
 }
 
-proc ::m::exec::POST {p pe v std} {
+proc ::m::exec::POST {d path verbose stdchan} {
     debug.m/exec {}
-    set d [m futil cat $p]
-    m futil append $pe $d
+    m futil append $path $d
+    if {$verbose} {
+	puts -nonewline $stdchan $d
+	flush $stdchan
+    }
     file delete $p
-    if {$v} { PASS $std $d }
-    return $d
-}
-
-proc ::m::exec::PASS {c d} {
-    debug.m/exec {}
-    puts -nonewline $c $d
-    flush $c
     return
 }
 
@@ -309,6 +328,7 @@ if {$tcl_platform(platform) eq "windows"} {
 
 namespace eval ::m::exec {
     variable verbose 0
+    variable posthook {}
 }
 namespace eval ::m::exec::capture {
     variable active 0

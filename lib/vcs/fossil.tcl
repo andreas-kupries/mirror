@@ -38,38 +38,24 @@ namespace eval m::vcs {
 }
 namespace eval m::vcs::fossil {
     namespace export setup cleanup update check split merge \
-	version detect log-normalize
+	version detect
     namespace ensemble create
 }
 
 # # ## ### ##### ######## ############# ######################
 
-proc ::m::vcs::fossil::log-normalize {path} {
+proc ::m::vcs::fossil::LogNormalize {o e} {
     debug.m/vcs/fossil {}
 
-    # TODO: vc-fetch
-    //
+    # Remove time-skew warnings from the error log.  Add authorization
+    # issues reported in the regular log to the error log.
+    lassign [m futil grep {time skew} $e]      _    skew_mismatch
+    lassign [m futil grep {not authorized} $o] auth _
 
-    set po $path/%stdout
-    set pe $path/%stderr
-    
-    set o [split [m futil cat $po] \n]
-    set e [split [m futil cat $pe] \n]
+    set     e $skew_mismatch
+    lappend e {*}$auth
 
-    lassign [m futil grep {time skew}      $e] skew skew_mismatch
-    lassign [m futil grep {not authorized} $o] auth auth_mismatch
-
-    m futil write  $pe [join $skew_mismatch \n]
-    m futil append $pe [join $auth \n]
-
-    //
-    # Drop pseudo-errors from the error log
-    catch { exec grep -v {time skew} $elog > [pid] 2>/dev/null }
-    file rename -force [pid] $elog
-    # Add errors reported in the log to error log
-    catch { exec grep {not authorized} $log >> $elog }
-
-    return
+    return [list $o $e]
 }
 
 proc ::m::vcs::fossil::detect {url} {
@@ -80,6 +66,7 @@ proc ::m::vcs::fossil::detect {url} {
 proc ::m::vcs::fossil::version {iv} {
     debug.m/vcs/fossil {}
     if {[llength [auto_execok fossil]]} {
+	m exec post-hook ;# clear
 	return [lindex [m exec get fossil version] 4]
     }
     upvar 1 $iv issues
@@ -136,12 +123,14 @@ proc ::m::vcs::fossil::merge {primary secondary} {
 
 proc ::m::vcs::fossil::Fossil {args} {
     debug.m/vcs/fossil {}
+    m exec post-hook ::m::vcs::fossil::LogNormalize
     m exec go fossil {*}$args
     return
 }
 
 proc ::m::vcs::fossil::FossilGet {args} {
     debug.m/vcs/fossil {}
+    m exec post-hook ::m::vcs::fossil::LogNormalize
     return [m exec get fossil {*}$args]
 }
 
