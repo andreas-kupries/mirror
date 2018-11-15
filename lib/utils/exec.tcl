@@ -22,6 +22,7 @@ package require Tcl 8.5
 package require debug
 package require debug::caller
 package require m::msg
+package require m::futil
 
 # # ## ### ##### ######## ############# ######################
 
@@ -37,7 +38,7 @@ namespace eval ::m {
 }
 
 namespace eval ::m::exec {
-    namespace export verbose go get silent capture
+    namespace export verbose go get silent capture post-hook
     namespace ensemble create
 }
 
@@ -100,10 +101,7 @@ proc ::m::exec::capture::get {key} {
     V $key
     set path [P $key]
     if {$path eq {}} return
-    set c [open $path r]
-    set d [read $c]
-    close $c
-    return $d
+    return [m futil cat $path]
 }
 
 proc ::m::exec::capture::path {key} {
@@ -166,6 +164,12 @@ proc ::m::exec::verbose {{newvalue {}}} {
     return $verbose
 }
 
+proc ::m::exec::post-hook {args} {
+    debug.m/exec {}
+    variable posthook $args
+    return $posthook
+}
+
 # # ## ### ##### ######## ############# #####################
 
 proc ::m::exec::go {cmd args} {
@@ -209,7 +213,7 @@ proc ::m::exec::get {cmd args} {
     # 0 1 | (b) capture, return stdout
     # 1 0 | (c) pass to stderr, return stdout
     # 1 1 | (d) capture, return stdout, pass stderr
-    
+
     if {$verbose} {
 	# (c)
 	m msg "> $args"
@@ -263,47 +267,42 @@ proc ::m::exec::CAP {cmd vo ve} {
     # Note: Temp files capture just current execution,
     #       Main capture then extended from these.
 
+    variable posthook
     set o [capture path out]
     set e [capture path err]
+
     try {
 	exec 2> $e.now > $o.now {*}$cmd
     } finally {
-	set oc [POST $o.now $o $vo stdout]
-	set ec [POST $e.now $e $ve stderr]
+	set oc [m futil cat $o.now]
+	set ec [m futil cat $e.now]
+
+	# Run the post command hook, if present
+	if {[llength $posthook]} {
+	    set oc [split $oc \n]
+	    set ec [split $ec \n]
+	    lassign [uplevel #0 [list {*}$posthook $oc $ec]] oc ec
+	    set oc [join $oc \n]
+	    set ec [join $ec \n]
+	}
+	
+	POST $oc $o $vo stdout
+	POST $ec $e $ve stderr
     }
 
     list $oc $ec
 }
 
-proc ::m::exec::POST {p pe v std} {
+proc ::m::exec::POST {content path verbose stdchan} {
     debug.m/exec {}
-    set d [CAT $p]
-    APPEND $pe $d
-    file delete $p
-    if {$v} { PASS $std $d }
-    return $d
-}
-
-proc ::m::exec::APPEND {path data} {
-    debug.m/exec {}
-    set c [open $path a]
-    puts -nonewline $c $data
-    close $c
-    return
-}
-
-proc ::m::exec::CAT {path} {
-    debug.m/exec {}
-    set c [open $path r]
-    set d [read $c]
-    close $c
-    return $d
-}
-
-proc ::m::exec::PASS {c d} {
-    debug.m/exec {}
-    puts -nonewline $c $d
-    flush $c
+    # Extend capture
+    m futil append $path $content
+    if {$verbose} {
+	# Pass to inherited std channel
+	puts -nonewline $stdchan $content
+	flush $stdchan
+    }
+    file delete ${path}.now
     return
 }
 
@@ -324,6 +323,7 @@ if {$tcl_platform(platform) eq "windows"} {
 
 namespace eval ::m::exec {
     variable verbose 0
+    variable posthook {}
 }
 namespace eval ::m::exec::capture {
     variable active 0

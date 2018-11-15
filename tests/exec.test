@@ -1,7 +1,7 @@
 # -*- tcl -*- tcl.tk//DSL tcltest//EN//2.0 tcl.tk//DSL tcltest//EN//2.0
 ## (c) 2018 Andreas Kupries
 # # ## ### ##### ######## ############# #####################
-## version
+## m::exec
 
 kt check Tcl     8.5
 kt check tcltest 2
@@ -263,7 +263,11 @@ test exec-capture-to-2.1 {capture::to - clear, and start} -body {
 
 proc DO {args} {
     capture-on
-    lappend r [{*}$args]
+    try {
+	lappend r [{*}$args]
+    } on error {e} {
+	lappend r $e
+    }
     lappend r [m::exec::capture::get out]
     lappend r [m::exec::capture::get err]
     lappend r [capture-get]
@@ -327,6 +331,49 @@ test exec-get-2.3.1 {get - (d/err) verbose, capture} -setup {
 } -cleanup DONE -result {{} {} echo {> support/echo-stderr
 echo}}
 
+test exec-get-3.0 {get - fail - (a) no verbose, no capture} -setup {
+    m::exec::verbose 0
+    m::exec::capture::off
+} -body {
+    DO m::exec::get support/fail
+} -cleanup DONE -result {{failchild process exited abnormally} {} {} {}}
+
+test exec-get-3.1.0 {get - fail - (b/out) no verbose, capture} -setup {
+    m::exec::verbose 0
+    m::exec::capture::to log err
+} -body {
+    DO m::exec::get support/fail
+} -cleanup DONE -result {{child process exited abnormally} fail {} {}}
+
+test exec-get-3.1.1 {get - fail - (b/err) no verbose, capture} -setup {
+    m::exec::verbose 0
+    m::exec::capture::to log err
+} -body {
+    DO m::exec::get support/fail-stderr
+} -cleanup DONE -result {{child process exited abnormally} {} fail {}}
+
+test exec-get-3.2 {get - fail - (c) verbose, no capture} -setup {
+    m::exec::verbose 1
+    m::exec::capture::off
+} -body {
+    DO m::exec::get support/fail
+} -cleanup DONE -result {{failchild process exited abnormally} {} {} {> support/fail}}
+
+test exec-get-3.3.0 {get - fail - (d/out) verbose, capture} -setup {
+    m::exec::verbose 1
+    m::exec::capture::to log err
+} -body {
+    DO m::exec::get support/fail
+} -cleanup DONE -result {{child process exited abnormally} fail {} {> support/fail}}
+
+test exec-get-3.3.1 {get - fail - (d/err) verbose, capture} -setup {
+    m::exec::verbose 1
+    m::exec::capture::to log err
+} -body {
+    DO m::exec::get support/fail-stderr
+} -cleanup DONE -result {{child process exited abnormally} {} fail {> support/fail-stderr
+fail}}
+
 # # ## ### ##### ######## ############# #####################
 
 test exec-go-1.0 {go - wrong args, not enough} -body {
@@ -383,6 +430,56 @@ echo}}
 # exec stderr is captured and passed up,
 # becomes visible (written by puts)
 
+test exec-go-3.0 {go - fail - (a) no verbose, no capture} -setup {
+    m::exec::verbose 0
+    m::exec::capture::off
+} -body {
+    DO m::exec::go support/fail
+} -cleanup DONE -result {{child process exited abnormally} {} {} {}}
+
+test exec-go-3.1.0 {go - fail - (b/out) no verbose, capture} -setup {
+    m::exec::verbose 0
+    m::exec::capture::to log err
+} -body {
+    DO m::exec::go support/fail
+} -cleanup DONE -result {{child process exited abnormally} fail {} {}}
+
+test exec-go-3.1.1 {go - fail - (b/err) no verbose, capture} -setup {
+    m::exec::verbose 0
+    m::exec::capture::to log err
+} -body {
+    DO m::exec::go support/fail-stderr
+} -cleanup DONE -result {{child process exited abnormally} {} fail {}}
+
+test exec-go-3.2 {go - fail - (c) verbose, no capture} -setup {
+    m::exec::verbose 1
+    m::exec::capture::off
+} -body {
+    DO m::exec::go support/fail
+} -cleanup DONE -result {{child process exited abnormally} {} {} {> support/fail}}
+# note, exec directly writing to stdout/err is not captured
+# shows up in testsuite log itself
+
+test exec-go-3.3.0 {go - fail - (d/out) verbose, capture} -setup {
+    m::exec::verbose 1
+    m::exec::capture::to log err
+} -body {
+    DO m::exec::go support/fail
+} -cleanup DONE -result {{child process exited abnormally} fail {} {> support/fail
+fail}}
+# exec stdout is captured and passed up,
+# becomes visible (written by puts)
+
+test exec-go-3.3.1 {go - fail - (d/err) verbose, capture} -setup {
+    m::exec::verbose 1
+    m::exec::capture::to log err
+} -body {
+    DO m::exec::go support/fail-stderr
+} -cleanup DONE -result {{child process exited abnormally} {} fail {> support/fail-stderr
+fail}}
+# exec stderr is captured and passed up,
+# becomes visible (written by puts)
+
 # # ## ### ##### ######## ############# #####################
 
 test exec-silent-1.0 {silent - wrong args, not enough} -body {
@@ -430,6 +527,48 @@ test exec-silent-2.3.1 {silent - (d/err) verbose, capture} -setup {
 } -body {
     DO m::exec::silent support/echo-stderr
 } -cleanup DONE -result {{} {} echo {> support/echo-stderr}}
+
+test exec-silent-3.0 {silent - fail - (a) no verbose, no capture} -setup {
+    m::exec::verbose 0
+    m::exec::capture::off
+} -body {
+    DO m::exec::silent support/fail
+} -cleanup DONE -result {{child process exited abnormally} {} {} {}}
+
+test exec-silent-3.1.0 {silent - fail - (b/out) no verbose, capture} -setup {
+    m::exec::verbose 0
+    m::exec::capture::to log err
+} -body {
+    DO m::exec::silent support/fail
+} -cleanup DONE -result {{child process exited abnormally} fail {} {}}
+
+test exec-silent-3.1.1 {silent - fail - (b/err) no verbose, capture} -setup {
+    m::exec::verbose 0
+    m::exec::capture::to log err
+} -body {
+    DO m::exec::silent support/fail-stderr
+} -cleanup DONE -result {{child process exited abnormally} {} fail {}}
+
+test exec-silent-3.2 {silent - fail - (c) verbose, no capture} -setup {
+    m::exec::verbose 1
+    m::exec::capture::off
+} -body {
+    DO m::exec::silent support/fail
+} -cleanup DONE -result {{child process exited abnormally} {} {} {> support/fail}}
+
+test exec-silent-3.3.0 {silent - fail - (d/out) verbose, capture} -setup {
+    m::exec::verbose 1
+    m::exec::capture::to log err
+} -body {
+    DO m::exec::silent support/fail
+} -cleanup DONE -result {{child process exited abnormally} fail {} {> support/fail}}
+
+test exec-silent-3.3.1 {silent - fail - (d/err) verbose, capture} -setup {
+    m::exec::verbose 1
+    m::exec::capture::to log err
+} -body {
+    DO m::exec::silent support/fail-stderr
+} -cleanup DONE -result {{child process exited abnormally} {} fail {> support/fail-stderr}}
 
 # # ## ### ##### ######## ############# #####################
 

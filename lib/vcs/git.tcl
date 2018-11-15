@@ -20,6 +20,7 @@ package provide m::vcs::git 0
 
 package require Tcl 8.5
 package require struct::set
+package require m::futil
 package require m::exec
 package require debug
 package require debug::caller
@@ -38,11 +39,30 @@ namespace eval m::vcs {
 }
 namespace eval m::vcs::git {
     namespace export setup cleanup update check split merge \
-	version detect
+	version detect log-normalize
     namespace ensemble create
 }
 
 # # ## ### ##### ######## ############# ######################
+
+proc ::m::vcs::git::LogNormalize {o e} {
+    debug.m/vcs/git {}
+
+    # Move all non-errors written to stderr over into stdout.
+    lassign [m futil m-grep {
+	{^[[:space:]]*$}
+	{^From }
+	{tag update}
+	{ -> }
+	{^origin }
+	{^m-vcs-}
+    } $e] out err
+
+    if {[llength $out]} { lappend o {*}$out }
+    set e $err
+
+    return [list $o $e]
+}
 
 proc ::m::vcs::git::detect {url} {
     debug.m/vcs/git {}
@@ -54,6 +74,7 @@ proc ::m::vcs::git::version {iv} {
     debug.m/vcs/git {}
     upvar 1 $iv issues
     if {[llength [auto_execok git]]} {
+	m exec post-hook ;# clear
 	set v [lindex [m exec get git version] end]
 	if {[package vcompare $v 2.6.1] <= 0} {
 	    lappend issues "$v <= 2.6.1 not sufficient"
@@ -67,6 +88,7 @@ proc ::m::vcs::git::version {iv} {
 
 proc ::m::vcs::git::setup {path url} {
     debug.m/vcs/git {}
+    m exec post-hook ::m::vcs::git::LogNormalize
     m exec go git --bare --git-dir [GitOf $path] init
     return
 }
@@ -152,6 +174,7 @@ proc ::m::vcs::git::Remotes {path} {
 
 proc ::m::vcs::git::Count {path} {
     debug.m/vcs/git {}
+    m exec post-hook ::m::vcs::git::LogNormalize
     return [m exec get git --git-dir [GitOf $path] rev-list --all --count]
 }
 
@@ -180,6 +203,7 @@ proc ::m::vcs::git::GitOf {path} {
 proc ::m::vcs::git::Git {args} {
     debug.m/vcs/git {}
     upvar 1 path path
+    m exec post-hook ::m::vcs::git::LogNormalize
     m exec go git --git-dir [GitOf $path] {*}$args
     return
 }
@@ -187,6 +211,7 @@ proc ::m::vcs::git::Git {args} {
 proc ::m::vcs::git::Get {args} {
     debug.m/vcs/git {}
     upvar 1 path path
+    m exec post-hook ::m::vcs::git::LogNormalize
     return [m exec get git --git-dir [GitOf $path] {*}$args]
 }
 

@@ -19,6 +19,7 @@ package provide m::vcs::fossil 0
 ## Requisites
 
 package require Tcl 8.5
+package require m::futil
 package require m::exec
 package require debug
 package require debug::caller
@@ -43,6 +44,20 @@ namespace eval m::vcs::fossil {
 
 # # ## ### ##### ######## ############# ######################
 
+proc ::m::vcs::fossil::LogNormalize {o e} {
+    debug.m/vcs/fossil {}
+
+    # Remove time-skew warnings from the error log. Add authorization
+    # issues reported in the regular log to the error log.
+    lassign [m futil grep {time skew}      $e] _ errors
+    lassign [m futil grep {not authorized} $o] auth _
+
+    set     e $errors
+    lappend e {*}$auth
+
+    return [list $o $e]
+}
+
 proc ::m::vcs::fossil::detect {url} {
     debug.m/vcs/fossil {}
     return -code return fossil
@@ -51,6 +66,7 @@ proc ::m::vcs::fossil::detect {url} {
 proc ::m::vcs::fossil::version {iv} {
     debug.m/vcs/fossil {}
     if {[llength [auto_execok fossil]]} {
+	m exec post-hook ;# clear
 	return [lindex [m exec get fossil version] 4]
     }
     upvar 1 $iv issues
@@ -107,12 +123,14 @@ proc ::m::vcs::fossil::merge {primary secondary} {
 
 proc ::m::vcs::fossil::Fossil {args} {
     debug.m/vcs/fossil {}
+    m exec post-hook ::m::vcs::fossil::LogNormalize
     m exec go fossil {*}$args
     return
 }
 
 proc ::m::vcs::fossil::FossilGet {args} {
     debug.m/vcs/fossil {}
+    m exec post-hook ::m::vcs::fossil::LogNormalize
     return [m exec get fossil {*}$args]
 }
 
