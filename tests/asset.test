@@ -11,8 +11,9 @@ kt local testing m::asset
 
 # # ## ### ##### ######## ############# #####################
 #
-## [..] add
-## [..] get
+## [ok] add
+## [ok] get
+## [..] main
 
 # # ## ### ##### ######## ############# #####################
 
@@ -75,6 +76,24 @@ test asset-get-2.1 {get, attached, empty main segment} -setup {
 } -cleanup {
     file delete -force A
 } -result {fox dog lazy brown}
+
+# # ## ### ##### ######## ############# #####################
+
+test asset-main-1.0 {main - wrong args, not enough} -body {
+    m::asset::main
+} -returnCodes error -result {wrong # args: should be "m::asset::main path"}
+
+test asset-main-1.1 {main - wrong args, too many} -body {
+    m::asset::main PATH X
+} -returnCodes error -result {wrong # args: should be "m::asset::main path"}
+
+test asset-main-2.0 {main, get main segment} -setup {
+    m futil write A main
+} -body {
+    m::asset::main A
+} -cleanup {
+    file delete -force A
+} -result main
 
 # # ## ### ##### ######## ############# #####################
 cleanupTests

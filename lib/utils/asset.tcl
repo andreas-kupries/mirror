@@ -34,7 +34,7 @@ namespace eval m {
 }
 
 namespace eval m::asset {
-    namespace export get add
+    namespace export get add main
     namespace ensemble create
 }
 
@@ -47,6 +47,19 @@ proc m::asset::add {path name content} {
     puts -nonewline $c \x1A${name}\x1E${content}
     close $c
     return
+}
+
+proc m::asset::main {path} {
+    debug.m/asset {}
+    # This command reads the main segment of the file at path and
+    # return its contents. It ignores any attached assets.
+
+    set ch [open $path r]
+    # Stop at end of the main file using EOF handling analogous to `source`.
+    fconfigure $ch -eofchar \x1A
+    set contents [read $ch]
+    close $ch
+    return $contents
 }
 
 proc m::asset::get {path} {
