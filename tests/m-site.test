@@ -1,0 +1,59 @@
+# -*- tcl -*- tcl.tk//DSL tcltest//EN//2.0 tcl.tk//DSL tcltest//EN//2.0
+## (c) 2018 Andreas Kupries
+# # ## ### ##### ######## ############# #####################
+## site generation (de)activation
+
+kt check Tcl     8.5
+kt check tcltest 2
+
+# # ## ### ##### ######## ############# #####################
+
+kt::source support/invoke.tcl
+
+# # ## ### ##### ######## ############# #####################
+
+## [ok] off
+## [ok] on
+
+# # ## ### ##### ######## ############# #####################
+## off
+
+test site-off-1.0 "site off - wrong args, too many" -body {
+    mapp site off X
+} -result [err site/off/wrongargs-toomany] -match glob
+
+test site-off-2.0 "site off - ok" -body {
+    mapp site off
+} -result [ok site/off/ok]
+
+# # ## ### ##### ######## ############# #####################
+## on
+
+test site-on-1.0 "site on - wrong args, too many" -body {
+    mapp site on X
+} -result [err site/on/wrongargs-toomany] -match glob
+
+test site-on-2.0 "site on - defaults have missing pieces" -body {
+    mapp site on
+} -result [err site/on/missing-default]
+
+test site-on-2.1 "site on - everything missing" -setup {
+    mapp site title    {}
+    mapp site location {}
+} -body {
+    mapp site on
+} -result [err site/on/missing-all]
+
+test site-on-2.2 "site on - ok" -setup {
+    mapp site title    Mirror
+    mapp site location ~/.mirror/site
+    mapp site manager  fox
+    mapp site mail     example@example.com
+    mapp site url      https://example.com
+} -body {
+    mapp site on
+} -result [ok site/on/ok]
+
+# # ## ### ##### ######## ############# #####################
+cleanupTests
+return

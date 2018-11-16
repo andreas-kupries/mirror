@@ -39,9 +39,23 @@ namespace eval ::m::state {
     namespace ensemble create -map [apply {{} {
 	foreach k {
 	    take store limit top
+
 	    mail-debug
-	    mail-host mail-port mail-user mail-pass
-	    mail-tls mail-sender mail-header mail-footer
+	    mail-footer
+	    mail-header
+	    mail-host
+	    mail-pass
+	    mail-port
+	    mail-sender
+	    mail-tls
+	    mail-user
+
+	    site-active
+	    site-mgr-mail
+	    site-mgr-name
+	    site-store
+	    site-title
+	    site-url
 	} {
 	    dict set map $k [list ::m::state::Process $k]
 	}

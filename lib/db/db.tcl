@@ -297,5 +297,22 @@ proc ::m::db::SETUP-201810311600 {} {
     return
 }
 
+proc ::m::db::SETUP-201811152300 {} {
+    # Added site configuration to the general state table
+    
+    D m::db
+    T^ state
+
+    #                           -- Debugging
+    > 'site-active'   '0'              ;# Site status (active or not)
+    > 'site-store'    '~/.mirror/site' ;# Location where website is generated
+    > 'site-mgr-mail' ''               ;# Mail address of the site manager 
+    > 'site-mgr-name' ''               ;# Name of the site manager
+    > 'site-title'    'Mirror'         ;# Name of the site
+    > 'site-url'      ''               ;# The url the site will be published at
+    
+    return
+}
+
 # # ## ### ##### ######## ############# #####################
 return

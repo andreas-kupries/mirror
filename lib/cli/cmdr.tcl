@@ -549,6 +549,46 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 
     # # ## ### ##### ######## ############# ######################
 
+    officer site {
+	description {
+	    Access to the site configuration
+	}
+
+	private show {
+	    description {
+		Show the entire site configuration
+	    }
+	} [m::cmdr::call glue cmd_siteconfig_show]
+	default
+	
+	foreach {cmd k v d} {
+	    location site-store    rwpath {location of web site}
+	    mail     site-mgr-mail str    {mail address of site manager}
+	    manager  site-mgr-name str    {name of site manager}
+	    title    site-title    str    {title of site itself}
+	    url      site-url      str    {publication url of site}
+	} {
+     	    private $cmd [string map [list V $v K $k D $d] {
+		description { Set or query D }
+		input value { The D } { optional ; validate V }
+	    }] [m::cmdr::call glue cmd_config $k $d]
+	}
+
+	private on {
+	    description {
+		Activate site generation and update
+	    }
+	} [m::cmdr::call glue cmd_site_on]
+
+	private off {
+	    description {
+		Disable site generation and update
+	    }
+	} [m::cmdr::call glue cmd_site_off]
+    }
+
+    # # ## ### ##### ######## ############# ######################
+
     officer mail {
 	description {
 	    Access to the mail configuration
@@ -574,7 +614,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
      	    private $k [string map [list V $v K $k D $d] {
 		description { Set or query D }
 		input value { The D } { optional ; validate V }
-	    }] [m::cmdr::call glue cmd_mailconfig mail-$k $d]
+	    }] [m::cmdr::call glue cmd_config mail-$k $d]
 	}
 
 	officer reply {

@@ -274,9 +274,26 @@ proc ::m::glue::cmd_mailconfig_show {config} {
     OK
 }
 
-proc ::m::glue::cmd_mailconfig {key desc config} {
+proc ::m::glue::cmd_siteconfig_show {config} {
     debug.m/glue {}
     package require m::state
+
+    m db transaction {
+	[table/d t {
+	    $t add State    [Bool [m state site-active]]
+	    $t add Url      [m state site-url]
+	    $t add Title    [m state site-title]
+	    $t add Manager  {}
+	    $t add {- Name} [m state site-mgr-name]
+	    $t add {- Mail} [m state site-mgr-mail]
+	    $t add Location [m state site-store]
+	}] show
+    }
+    OK
+}
+
+proc ::m::glue::cmd_config {key desc config} {
+    debug.m/glue {}
 
     m db transaction {
 	if {[$config @value set?]} {
@@ -288,6 +305,47 @@ proc ::m::glue::cmd_mailconfig {key desc config} {
 
     m msg "The $desc: [color note $value]"
     OK
+}
+
+proc ::m::glue::cmd_site_off {config} {
+    debug.m/glue {}
+    package require m::state
+
+    m db transaction {
+	m state site-active 0
+	m msg "Disabled generation of web site"
+    }
+    OK
+}
+
+proc ::m::glue::cmd_site_on {config} {
+    debug.m/glue {}
+    package require m::state
+
+    m db transaction {
+	set m {}
+	foreach {k label} {
+	    site-store    {No location for generation result}
+	    site-mgr-name {No manager specified}
+	    site-mgr-mail {No manager mail specified}
+	    site-title    {No title specified}
+	    site-url      {No publication url specified}
+	} {
+	    if {[m state $k] ne ""} continue
+	    lappend m "- $label"
+	}
+
+	if {[llength $m]} {
+	    m msg [join $m \n]
+	    m::cmdr::error "Unable to activate site generation" \
+		SITE CONFIG INCOMPLETE
+	}
+
+	m state site-active 1
+	m msg "Activated generation of web site"
+    }
+    cmd_siteconfig_show $config
+    # TODO: Perform initial generation...
 }
 
 proc ::m::glue::cmd_store {config} {
@@ -1238,6 +1296,11 @@ proc ::m::glue::Add {config} {
     m rolodex commit
     m msg "  [color note Done]"
     return
+}
+
+proc ::m::glue::Bool {flag} {
+    debug.m/glue {}
+    return [expr {$flag ? "[color good on]" : "[color bad off]"}]
 }
 
 proc ::m::glue::Date {epoch} {

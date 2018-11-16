@@ -1,0 +1,11 @@
+Activated generation of web site
++----------+---------------------+
+| State    | on                  |
+| Url      | https://example.com |
+| Title    | Mirror              |
+| Manager  |                     |
+| - Name   | fox                 |
+| - Mail   | example@example.com |
+| Location | ~/.mirror/site      |
++----------+---------------------+
+OK

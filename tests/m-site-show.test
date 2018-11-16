@@ -1,0 +1,25 @@
+# -*- tcl -*- tcl.tk//DSL tcltest//EN//2.0 tcl.tk//DSL tcltest//EN//2.0
+## (c) 2018 Andreas Kupries
+# # ## ### ##### ######## ############# #####################
+## site configuration commands - show configuration
+
+kt check Tcl     8.5
+kt check tcltest 2
+
+# # ## ### ##### ######## ############# #####################
+
+kt::source support/invoke.tcl
+
+# # ## ### ##### ######## ############# #####################
+
+test site-show-1.0 "site show - wrong args, too many" -body {
+    mapp site show foo
+} -result [err site/show/wrongargs-toomany] -match glob
+
+test site-show-2.0 "site show, defaults" -body {
+    mapp site show
+} -result [ok site/show/defaults]
+
+# # ## ### ##### ######## ############# #####################
+cleanupTests
+return
