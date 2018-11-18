@@ -1,0 +1,50 @@
+# -*- tcl -*- tcl.tk//DSL tcltest//EN//2.0 tcl.tk//DSL tcltest//EN//2.0
+## (c) 2018 Andreas Kupries
+# # ## ### ##### ######## ############# #####################
+## mail configuration commands
+
+kt check Tcl     8.5
+kt check tcltest 2
+
+# # ## ### ##### ######## ############# #####################
+
+kt::source support/invoke.tcl
+
+# # ## ### ##### ######## ############# #####################
+
+lappend cases location t-site              {}
+lappend cases mail     example@example.com {}
+lappend cases manager  {The fox}           {}
+lappend cases title    {Lazy dog}          {}
+lappend cases url      http://example.com  {}
+
+foreach {
+    command
+    goodvalue
+    badvalues
+} $cases {
+    test site-${command}-1.0 "mail ${command} - wrong args, too many" -body {
+	mapp site ${command} $goodvalue foo
+    } -result [err site/${command}/wrongargs-toomany] -match glob
+
+    test site-${command}-2.0 "mail ${command} query, default" -body {
+	mapp site ${command}
+    } -result [ok site/${command}/default]
+
+    test site-${command}-2.1 "${command} change, ok, $goodvalue" -body {
+	mapp site ${command} $goodvalue
+    } -result [ok site/${command}/ok]
+
+    foreach bad $badvalues {
+	incr k
+	test site-${command}-2.2.$k "${command} change, bad, $bad" -body {
+	    mapp site ${command} $bad
+	} -result [err site/${command}/bad-$bad]
+    }
+}
+
+unset cases
+
+# # ## ### ##### ######## ############# #####################
+cleanupTests
+return

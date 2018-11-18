@@ -61,7 +61,7 @@ proc ::m::db {args} {
 	#puts <<<[info level 0]>>>
 	uplevel 1 [list ::m::dbx {*}$args]
     }]}
-    
+
     # Re-execute the call using the proper definition.
     uplevel 1 [list ::m::db {*}$args]
 }
@@ -74,17 +74,17 @@ proc ::m::db::reset {} {
 }
 
 # # ## ### ##### ######## ############# #####################
-## Migrations - database schema 
+## Migrations - database schema
 
 proc ::m::db::SETUP-201810051600 {} {
     debug.m/db {}
     # Initial setup. Create the basic tables.
-    
+
     D m::db
     ## Content tables
     # - -- --- ----- -------- -------------
     ## Mirror Set Names - Future Hook into a Tcl Package Pedia
-    
+
     I+
     C name  TEXT  NOT NULL  UNIQUE
     T name
@@ -92,14 +92,14 @@ proc ::m::db::SETUP-201810051600 {} {
     # - -- --- ----- -------- -------------
     ## Mirror Set - Group of repositories holding the same logical set
     ##              of files/content.
-    
+
     I+
     C name  INTEGER  NOT NULL ^name UNIQUE
     T mirror_set
 
     # - -- --- ----- -------- -------------
     ## Repository - A set of versioned files to back up
-    
+
     I+
     C url   TEXT     NOT NULL  UNIQUE
     C vcs   INTEGER  NOT NULL  ^version_control_system
@@ -110,7 +110,7 @@ proc ::m::db::SETUP-201810051600 {} {
     # - -- --- ----- -------- -------------
     ## Store - Internal equivalent of a repository. Holder of backups
     ## Note: External path is implied in the row id.
-    
+
     I+
     C vcs   INTEGER  NOT NULL  ^version_control_system
     C mset  INTEGER  NOT NULL  ^mirror_set
@@ -120,7 +120,7 @@ proc ::m::db::SETUP-201810051600 {} {
     # - -- --- ----- -------- -------------
     ## Version Control System - Applications able to manage
     ##                          repositories
-    
+
     I+
     C code  TEXT  NOT NULL  UNIQUE ; # Short semi-internal tag
     C name  TEXT  NOT NULL  UNIQUE ; # Human readable name
@@ -132,7 +132,7 @@ proc ::m::db::SETUP-201810051600 {} {
     ## State tables
     # - -- --- ----- -------- -------------
     ## Client state - Named values
-    
+
     C name   TEXT  NOT NULL  PRIMARY KEY
     C value  TEXT  NOT NULL
     T state
@@ -145,10 +145,10 @@ proc ::m::db::SETUP-201810051600 {} {
     # - -- --- ----- -------- -------------
     ## Mirror Set Pending - List of repositories waiting for an update
     ##                      to process them
-    
+
     C mset  INTEGER  NOT NULL  ^mirror_set  PRIMARY KEY
     T mset_pending
-    
+
     # - -- --- ----- -------- -------------
     ## Store Times - Per store the times of last update and change
     #
@@ -156,12 +156,12 @@ proc ::m::db::SETUP-201810051600 {} {
     #
     # - Invariant: changed <= updated
     #   Because not every update causes a change.
-    
+
     C store    INTEGER  NOT NULL  ^store PRIMARY KEY
     C updated  INTEGER  NOT NULL
     C changed  INTEGER  NOT NULL
     T store_times
-    
+
     # - -- --- ----- -------- -------------
     ## Rolodex - Short hand references to recently seen repositories
 
@@ -199,7 +199,7 @@ proc ::m::db::SETUP-201810111600 {} {
     #
     # Overall
     #		created <= changed <= updated
-    
+
     D m::db
     C store    INTEGER  NOT NULL  ^store PRIMARY KEY
     C created  INTEGER  NOT NULL
@@ -212,9 +212,9 @@ proc ::m::db::SETUP-201810111600 {} {
 
 proc ::m::db::SETUP-201810121600 {} {
     # Added mail configuration to the general state table
-    
+
     set h {This is a semi-automated mail by @cmd@, on behalf of @sender@.}
-    
+
     D m::db
     T^ state
 
@@ -234,7 +234,7 @@ proc ::m::db::SETUP-201810121600 {} {
     > 'mail-footer' ''          ;# Text to place after the generated content
     #                            # Note: Template processing happens after the content
     #                            # is assembled, i.e. affects header and footer.
-    
+
     return
 }
 
@@ -253,7 +253,7 @@ proc ::m::db::SETUP-201810131603 {} {
     set sm "It is spam"
     set om "It is off-topic here"
     set rm "It was intentionally removed before and we will not add it again"
-    
+
     >+ 'spam'     0 1 '$sm' ;# default reason
     >+ 'offtopic' 1 0 '$om'
     >+ 'removed'  1 0 '$rm'
@@ -294,6 +294,33 @@ proc ::m::db::SETUP-201810311600 {} {
 
     package require m::store
     m::store::InitialSizes
+    return
+}
+
+proc ::m::db::SETUP-201811152300 {} {
+    # Added site configuration to the general state table
+
+    D m::db
+    T^ state
+
+    #                           -- Debugging
+    > 'site-active'   '0'              ;# Site status (active or not)
+    > 'site-store'    '~/.mirror/site' ;# Location where website is generated
+    > 'site-mgr-mail' ''               ;# Mail address of the site manager
+    > 'site-mgr-name' ''               ;# Name of the site manager
+    > 'site-title'    'Mirror'         ;# Name of the site
+    > 'site-url'      ''               ;# The url the site will be published at
+
+    return
+}
+
+proc ::m::db::SETUP-201811162301 {} {
+    # Added more site configuration to the general state table
+
+    D m::db
+    T^ state
+    #                           -- Debugging
+    > 'site-logo' '' ;# Path or url to the site logo.
     return
 }
 

@@ -37,7 +37,7 @@ foreach {
 	incr k
 	test ${command}-2.2.$k "${command} change, bad, $bad" -body {
 	    mapp ${command} $bad
-	} -result [err ${command}/bad-$bad]
+	} -result [err ${command}/bad-$bad] -match glob
     }
 }
 

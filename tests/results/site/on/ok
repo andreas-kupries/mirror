@@ -1,0 +1,33 @@
+Activated web site generation
++----------+-*--------------------+
+| State    | on                  *|
+| Url      | https://example.com *|
+| Logo     |                     *|
+| Title    | Mirror              *|
+| Manager  |                     *|
+| - Name   | fox                 *|
+| - Mail   | example@example.com *|
+| Location | <MD>/site *|
++----------+-*--------------------+
+Generating <MD>/site
+= Clearing web, web_out ...
+= SSG setup web ...
+= Customize web ...
+  - static/images/.placeholder
+  - pages/blog
+  - pages/contact.md
+  - pages/index.md
+  + pages/disclaimer.md
+  + website.conf
+  + static/images/ok.svg
+  + static/images/bad.svg
+= Data dependent content ...
+  + pages/contact.md
+  + static/external/spec.txt
+  + pages/index.md
+  + pages/index_name.md
+  + pages/index_size.md
+  + pages/index_vcs.md
+  + pages/index_troubled.md
+= SSG build web ...
+OK

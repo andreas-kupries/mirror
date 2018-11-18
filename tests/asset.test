@@ -1,0 +1,100 @@
+# -*- tcl -*- tcl.tk//DSL tcltest//EN//2.0 tcl.tk//DSL tcltest//EN//2.0
+## (c) 2018 Andreas Kupries
+# # ## ### ##### ######## ############# #####################
+## m::asset
+
+kt check Tcl     8.5
+kt check tcltest 2
+
+kt local support m::futil
+kt local testing m::asset
+
+# # ## ### ##### ######## ############# #####################
+#
+## [ok] add
+## [ok] get
+## [..] main
+
+# # ## ### ##### ######## ############# #####################
+
+test asset-add-1.0 {add - wrong args, not enough} -body {
+    m::asset::add
+} -returnCodes error -result {wrong # args: should be "m::asset::add path name content"}
+
+test asset-add-1.1 {add - wrong args, not enough} -body {
+    m::asset::add PATH
+} -returnCodes error -result {wrong # args: should be "m::asset::add path name content"}
+
+test asset-add-1.2 {add - wrong args, not enough} -body {
+    m::asset::add PATH NAME
+} -returnCodes error -result {wrong # args: should be "m::asset::add path name content"}
+
+test asset-add-1.3 {add - wrong args, too many} -body {
+    m::asset::add PATH NAME CONTENT X
+} -returnCodes error -result {wrong # args: should be "m::asset::add path name content"}
+
+test asset-add-2.0 {add single} -setup {
+    m futil write A foo\n
+} -body {
+    list [m::asset::add A fox dog] [m::asset::get A]
+} -cleanup {
+    file delete -force A
+} -result {{} {fox dog}}
+
+test asset-add-2.1 {add multiple} -setup {
+    m futil write A foo\n
+} -body {
+    list [m::asset::add A fox dog] [m::asset::add A lazy brown] [m::asset::get A]
+} -cleanup {
+    file delete -force A
+} -result {{} {} {fox dog lazy brown}}
+
+# # ## ### ##### ######## ############# #####################
+
+test asset-get-1.0 {get - wrong args, not enough} -body {
+    m::asset::get
+} -returnCodes error -result {wrong # args: should be "m::asset::get path"}
+
+test asset-get-1.1 {get - wrong args, too many} -body {
+    m::asset::get PATH X
+} -returnCodes error -result {wrong # args: should be "m::asset::get path"}
+
+test asset-get-2.0 {get, ignore main segment} -setup {
+    m futil write A main
+} -body {
+    m::asset::get A
+} -cleanup {
+    file delete -force A
+} -result {}
+
+test asset-get-2.1 {get, attached, empty main segment} -setup {
+    # note: empty main segment in A
+    m::asset::add A fox dog
+    m::asset::add A lazy brown
+} -body {
+    m::asset::get A
+} -cleanup {
+    file delete -force A
+} -result {fox dog lazy brown}
+
+# # ## ### ##### ######## ############# #####################
+
+test asset-main-1.0 {main - wrong args, not enough} -body {
+    m::asset::main
+} -returnCodes error -result {wrong # args: should be "m::asset::main path"}
+
+test asset-main-1.1 {main - wrong args, too many} -body {
+    m::asset::main PATH X
+} -returnCodes error -result {wrong # args: should be "m::asset::main path"}
+
+test asset-main-2.0 {main, get main segment} -setup {
+    m futil write A main
+} -body {
+    m::asset::main A
+} -cleanup {
+    file delete -force A
+} -result main
+
+# # ## ### ##### ######## ############# #####################
+cleanupTests
+return

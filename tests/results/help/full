@@ -54,6 +54,17 @@ Miscellaneous
     m-help.test reset                                 Reset list state to first entry
     m-help.test rewind                                Like list, going backward through the set of repositories
     m-help.test set-current <repository>              Makes the specified repository current
+    m-help.test site                                  Access to the site configuration
+    m-help.test site location [<value>]               Set or query location of web site
+    m-help.test site logo [<value>]                   Set or query path or url to site logo image
+    m-help.test site mail [<value>]                   Set or query mail address of site manager
+    m-help.test site make                             Activate site generation and update
+    m-help.test site manager [<value>]                Set or query name of site manager
+    m-help.test site off                              Disable site generation and update
+    m-help.test site on                               Activate site generation and update
+    m-help.test site show                             Show the entire site configuration
+    m-help.test site title [<value>]                  Set or query title of site itself
+    m-help.test site url [<value>]                    Set or query publication url of site
     m-help.test split [<repository>]                  Split the specified or current repository from its mirror set
     m-help.test store [<path>]                        Query/change store path
     m-help.test submissions                           List the submissions waiting for moderation

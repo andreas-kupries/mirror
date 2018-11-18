@@ -49,6 +49,7 @@ kt local   testing m::validate::mset
 kt local   testing m::validate::repository
 
 # level 7
+				kt local   testing m::web::site
 kt local   testing m::cmdr
 kt local   testing m::glue
 
@@ -130,6 +131,7 @@ proc mdb-initialize {} {
 
     m::db::location::set [md]/sqlite3
     m::state store       [md]/store
+    m::state site-store  [md]/site
 
     set ::argv0 mirror
 }

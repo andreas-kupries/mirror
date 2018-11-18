@@ -30,7 +30,8 @@ namespace eval ::m {
 namespace eval ::m::store {
     namespace export \
 	add remove move rename merge split update has check \
-	id vcs-name updates move-location
+	id vcs-name updates by-name by-size by-vcs move-location \
+	get remotes total-size
     namespace ensemble create
 }
 
@@ -48,7 +49,7 @@ proc ::m::store::add {vcs mset name url} {
 
     m vcs setup $store $vcs $name $url
     Size $store
-    
+
     return $store
 }
 
@@ -67,7 +68,7 @@ proc ::m::store::remove {store} {
     }
 
     m vcs cleanup $store $vcs
-    return   
+    return
 }
 
 proc ::m::store::merge {target origin} {
@@ -97,16 +98,8 @@ proc ::m::store::update {store cycle now} {
     # Get all repositories for this store (same VCS, same mirror set),
     # then feed everything to the vcs layer.
 
-    set remotes [m db eval {
-	SELECT R.url
-	FROM repository R
-	,    store      S
-	WHERE S.id   = :store
-	AND   R.vcs  = S.vcs
-	AND   R.mset = S.mset
-    }]
-    
-    set counts [m vcs update $store $vcs $remotes]
+    set remotes [Remotes $store]
+    set counts  [m vcs update $store $vcs $remotes]
     lassign $counts before after
     if {$after != $before} {
 	m db eval {
@@ -173,6 +166,32 @@ proc ::m::store::id {vcs mset} {
     }]
 }
 
+proc ::m::store::get {store} {
+    debug.m/store {}
+    m db eval {
+	SELECT 'size'    , S.size_kb
+	,      'vcs'     , S.vcs
+	,      'vcsname' , V.name
+	,      'updated' , T.updated
+	,      'changed' , T.changed
+	,      'created' , T.created
+	FROM   store                  S
+	,      store_times            T
+	,      version_control_system V
+	WHERE S.id    = :store
+	AND   T.store = S.id
+	AND   V.id    = S.vcs
+    }
+}
+
+proc ::m::store::remotes {store} {
+    debug.m/store {}
+    set vcs [VCS $store]
+    lappend r [Remotes            $store] ;# Database
+    lappend r [m vcs remotes $vcs $store] ;# Plugin supplied
+    return $r
+}
+
 proc ::m::store::vcs-name {store} {
     debug.m/store {}
     return [m db onecolumn {
@@ -181,6 +200,98 @@ proc ::m::store::vcs-name {store} {
 	,      version_control_system V
 	WHERE  S.id  = :store
 	AND    S.vcs = V.id
+    }]
+}
+
+proc ::m::store::total-size {} {
+    debug.m/store {}
+    set sum [m db onecolumn {
+	SELECT SUM (size_kb)
+	FROM store
+    }]
+    if {$sum eq {}} { set sum 0 }
+    return $sum
+}
+
+proc ::m::store::by-name {} {
+    debug.m/store {}
+
+    set series {}
+    set last {}
+    m db eval {
+	SELECT S.id      AS store
+	,      N.name    AS mname
+	,      V.code    AS vcode
+	,      T.changed AS changed
+	,      T.updated AS updated
+	,      T.created AS created
+	,      S.size_kb AS size
+	FROM store_times            T
+	,    store                  S
+	,    mirror_set             M
+	,    version_control_system V
+	,    name                   N
+	WHERE T.store   = S.id
+	AND   S.mset    = M.id
+	AND   S.vcs     = V.id
+	AND   M.name    = N.id
+	ORDER BY mname ASC, vcode ASC, size ASC
+    } {
+	if {($last ne {}) && ($last ne $mname)} {
+	    lappend series . . . . . . .
+	}
+	set show [expr {($last eq $mname) ? "" : "$mname"}]
+	lappend series $store $show $vcode $changed $updated $created $size
+	set last $mname
+    }
+    return $series
+}
+
+proc ::m::store::by-vcs {} {
+    debug.m/store {}
+
+    return [m db eval {
+	SELECT S.id      AS store
+	,      N.name    AS mname
+	,      V.code    AS vcode
+	,      T.changed AS changed
+	,      T.updated AS updated
+	,      T.created AS created
+	,      S.size_kb AS size
+	FROM store_times            T
+	,    store                  S
+	,    mirror_set             M
+	,    version_control_system V
+	,    name                   N
+	WHERE T.store   = S.id
+	AND   S.mset    = M.id
+	AND   S.vcs     = V.id
+	AND   M.name    = N.id
+	ORDER BY vcode ASC, mname ASC, size ASC
+    }]
+}
+
+proc ::m::store::by-size {} {
+    debug.m/store {}
+
+    return [m db eval {
+	SELECT S.id      AS store
+	,      N.name    AS mname
+	,      V.code    AS vcode
+	,      T.changed AS changed
+	,      T.updated AS updated
+	,      T.created AS created
+	,      S.size_kb AS size
+	FROM store_times            T
+	,    store                  S
+	,    mirror_set             M
+	,    version_control_system V
+	,    name                   N
+	WHERE T.store   = S.id
+	AND   S.mset    = M.id
+	AND   S.vcs     = V.id
+	AND   M.name    = N.id
+	ORDER BY size DESC, mname ASC, vcode ASC
     }]
 }
 
@@ -193,12 +304,13 @@ proc ::m::store::updates {} {
     # 2. (created == changed) -> never changed.
 
     set series {}
-    
+
     # Block 1: Changed stores, changed order descending
     # Insert separators when `updated` changes.
     set last {}
     m db eval {
-	SELECT N.name    AS mname
+	SELECT S.id      AS store
+	,      N.name    AS mname
 	,      V.code    AS vcode
 	,      T.changed AS changed
 	,      T.updated AS updated
@@ -217,9 +329,9 @@ proc ::m::store::updates {} {
 	ORDER BY T.changed DESC
     } {
 	if {($last ne {}) && ($last != $updated)} {
-	    lappend series . . . . . .
+	    lappend series . . . . . . .
 	}
-	lappend series $mname $vcode $changed $updated $created $size
+	lappend series $store $mname $vcode $changed $updated $created $size
 	set last $updated
     }
 
@@ -228,7 +340,8 @@ proc ::m::store::updates {} {
     # Block 2: All unchanged stores, creation order descending,
     # i.e. last created top/first.
     m db eval {
-	SELECT N.name    AS mname
+	SELECT S.id      AS store
+	,      N.name    AS mname
 	,      V.code    AS vcode
 	,      T.changed AS changed
 	,      T.updated AS updated
@@ -247,13 +360,13 @@ proc ::m::store::updates {} {
 	ORDER BY T.created DESC
     } {
 	if {$first} {
-	    lappend series . . . . . .
+	    lappend series . . . . . . .
 	}
-	lappend series $mname $vcode {} {} $created $size
+	lappend series $store $mname $vcode {} {} $created $size
 	set first 0
     }
 
-    return $series    
+    return $series
 }
 
 proc ::m::store::move-location {newpath} {
@@ -263,6 +376,18 @@ proc ::m::store::move-location {newpath} {
 }
 
 # # ## ### ##### ######## ############# ######################
+
+proc ::m::store::Remotes {store} {
+    debug.m/store {}
+    return [m db eval {
+	SELECT R.url
+	FROM   repository R
+	,      store      S
+	WHERE S.id   = :store
+	AND   R.vcs  = S.vcs
+	AND   R.mset = S.mset
+    }]
+}
 
 proc ::m::store::Size {store} {
     debug.m/store {}

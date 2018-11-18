@@ -21,7 +21,6 @@ package provide m::futil 0
 package require Tcl 8.5
 package require debug
 package require debug::caller
-package require m::msg
 
 # # ## ### ##### ######## ############# ######################
 

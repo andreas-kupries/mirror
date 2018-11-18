@@ -1,0 +1,6 @@
+#!/bin/bash
+m site url     https://akupries.tclers.tk/r
+m site logo    https://core.tcl-lang.org/akupries/images/logo.jpeg
+m site manager 'Andreas Kupries'
+m site mail    akupries@shaw.ca
+m site on

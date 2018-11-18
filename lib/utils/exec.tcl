@@ -3,7 +3,7 @@
 ## Simplified execution of external commands.
 
 # @@ Meta Begin
-# Package m::exec 0 
+# Package m::exec 0
 # Meta author   {Andreas Kupries}
 # Meta location https://core.tcl.tk/akupries/????
 # Meta platform tcl
@@ -38,7 +38,7 @@ namespace eval ::m {
 }
 
 namespace eval ::m::exec {
-    namespace export verbose go get silent capture post-hook
+    namespace export verbose go get nc-get silent capture post-hook
     namespace ensemble create
 }
 
@@ -233,11 +233,26 @@ proc ::m::exec::get {cmd args} {
     }
 }
 
+proc ::m::exec::nc-get {cmd args} {
+    debug.m/exec {}
+    variable verbose
+    set args [linsert $args 0 $cmd]
+
+    if {$verbose} {
+	# c
+	m msg "> $args"
+	return [exec 2>@ stderr {*}$args]
+    } else {
+	# a
+	return [exec 2>  [NULL] {*}$args]
+    }
+}
+
 proc ::m::exec::silent {cmd args} {
     debug.m/exec {}
     variable verbose
     set args [linsert $args 0 $cmd]
-    
+
     # V C |
     # ----+-
     # 0 0 | (a) null
@@ -246,7 +261,7 @@ proc ::m::exec::silent {cmd args} {
     # 1 1 | (d) capture
     # ----> a == c
     # ----> b == d
-    
+
     if {$verbose} {
 	# c, d
 	m msg "> $args"
@@ -285,7 +300,7 @@ proc ::m::exec::CAP {cmd vo ve} {
 	    set oc [join $oc \n]
 	    set ec [join $ec \n]
 	}
-	
+
 	POST $oc $o $vo stdout
 	POST $ec $e $ve stderr
     }

@@ -1,0 +1,12 @@
+Still active web site generation
++----------+-*--------------------+
+| State    | on                  *|
+| Url      | https://example.com *|
+| Title    | Mirror              *|
+| Manager  |                     *|
+| - Name   | fox                 *|
+| - Mail   | example@example.com *|
+| Location | <MD>/site *|
++----------+-*--------------------+
+Generating <MD>/site
+OK

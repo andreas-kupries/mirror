@@ -36,10 +36,10 @@ package provide m::vcs::github 0
 
 package require Tcl 8.5
 package require cmdr::color
-package require fileutil
 package require struct::set
 package require m::exec
 package require m::msg
+package require m::futil
 package require m::vcs::git
 package require debug
 package require debug::caller
@@ -61,9 +61,10 @@ namespace eval m::vcs::github {
     namespace import ::m::vcs::git::check
     namespace import ::m::vcs::git::split
     namespace import ::m::vcs::git::merge
-    
+    namespace import ::m::vcs::git::export
+
     namespace export setup cleanup update check split merge \
-	detect version
+	detect version remotes export
     namespace ensemble create
 
     namespace import ::cmdr::color
@@ -83,7 +84,7 @@ proc ::m::vcs::github::detect {url} {
     }
     return -code return github
 }
-    
+
 proc ::m::vcs::github::version {iv} {
     debug.m/vcs/github {}
     upvar 1 $iv issues
@@ -114,7 +115,7 @@ proc ::m::vcs::github::setup {path url} {
     debug.m/vcs/github {}
     # url = https://github.com/owner/repo
     # origin = ................^^^^^^^^^^
-    #    
+    #
     # Saving origin information for `git hub fork` to use to always
     # target the proper repository when asking for information about
     # the forks.
@@ -124,15 +125,15 @@ proc ::m::vcs::github::setup {path url} {
     m vcs git setup $path $url
     return
 }
-    
+
 proc ::m::vcs::github::update {path urls} {
     debug.m/vcs/github {}
 
     set forks [Forks $path]
     set old   [ForksLoad $path]
-    
+
     lassign [struct::set intersect3 $old $forks] _ gone new
-    
+
     foreach fork $new {
 	lassign [::split $fork /] org repo
 	set label m-vcs-github-fork-$org
@@ -141,7 +142,7 @@ proc ::m::vcs::github::update {path urls} {
     }
 
     set git [m::vcs::git::GitOf $path]
-    
+
     foreach fork $gone {
 	lassign [::split $fork /] user repo
 	set label m-vcs-github-fork-$user
@@ -158,14 +159,14 @@ proc ::m::vcs::github::update {path urls} {
 	# itself.
 
 	foreach branch [glob -nocomplain -directory $git/refs/remotes/$label *] {
-	    set uuid   [string trim [fileutil::cat $branch]]
+	    set uuid   [string trim [m futil cat $branch]]
 	    set branch [file tail $branch]
 	    set tag    [Tag $git/refs/tags ${user}/${branch}]
-	    
+
 	    m::vcs::git::Git tag $tag $uuid
 	}
-	
-	m::vcs::git::Git remote remove $label 
+
+	m::vcs::git::Git remote remove $label
     }
 
     # Save fork information for future updates. See above for usage
@@ -173,6 +174,15 @@ proc ::m::vcs::github::update {path urls} {
     ForksSave $path $forks
 
     return [m vcs git update $path $urls]
+}
+
+proc ::m::vcs::github::remotes {path} {
+    debug.m/vcs/github {}
+    set urls {}
+    foreach fork [ForksLoad $path] {
+	lappend urls https://github.com/$fork
+    }
+    return [list Forks $urls]
 }
 
 # # ## ### ##### ######## ############# #####################
@@ -195,7 +205,7 @@ proc ::m::vcs::github::Forks {path} {
 
     # Pull the origin to query about forks
     set origin [OriginLoad $path]
-    
+
     set forks {}
     foreach fork [m::vcs::git::Get hub forks --raw $origin] {
 	set url https://github.com/$fork
@@ -205,7 +215,7 @@ proc ::m::vcs::github::Forks {path} {
 	# is still reported here. Checking against the regular web
 	# interface allows us to filter these out.
 	try {
-	    m exec get curl -s -f -I $url
+	    m exec nc-get curl -s -f -I $url
 	    # -I  HEAD only
 	    # -f  Silent fail (ignore fail document)
 	    # -s  Silence other output
@@ -221,25 +231,25 @@ proc ::m::vcs::github::Forks {path} {
 
 proc ::m::vcs::github::OriginSave {path origin} {
     debug.m/vcs/github {}
-    fileutil::writeFile $path/origin $origin
+    m futil write $path/origin $origin
     return
 }
 
 proc ::m::vcs::github::OriginLoad {path} {
     debug.m/vcs/github {}
-    return [string trim [fileutil::cat $path/origin]]
+    return [string trim [m futil cat $path/origin]]
 }
 
 proc ::m::vcs::github::ForksSave {path forks} {
     debug.m/vcs/github {}
-    fileutil::writeFile $path/forks [join $forks \n]
+    m futil write $path/forks [join $forks \n]
     return
 }
 
 proc ::m::vcs::github::ForksLoad {path} {
     debug.m/vcs/github {}
     if {[catch {
-	fileutil::cat $path/forks
+	m futil cat $path/forks
     } forks]} {
 	set forks {}
     } else {

@@ -17,6 +17,7 @@
 
 package require Tcl 8.5
 package require m::db
+package require m::repo
 package require m::rolodex
 package require debug
 package require debug::caller
@@ -32,7 +33,7 @@ namespace eval ::m::mset {
 	list add remove rename has \
 	name used-vcs has-vcs size \
 	stores take-pending pending known \
-	repos
+	repos spec id
     namespace ensemble create
 }
 
@@ -42,6 +43,27 @@ debug level  m/mset
 debug prefix m/mset {[debug caller] | }
 
 # # ## ### ##### ######## ############# ######################
+
+proc ::m::mset::spec {} {
+    debug.m/mset {}
+
+    set lines {}
+    foreach {mset mname} [list] {
+	foreach repo [repos $mset] {
+	    set ri [m repo get $repo]
+	    dict with ri {}
+	    # -> url	: repo url
+	    #    vcs	: vcs id
+	    # -> vcode	: vcs code
+	    #    mset	: mirror set id
+	    #    name	: mirror set name
+	    #    store  : store id, of backing store for
+	    lappend lines [::list R $vcode $url]
+	}
+	lappend lines [::list M $mname]
+    }
+    return [join $lines \n]
+}
 
 proc ::m::mset::known {} {
     debug.m/mset {}
@@ -107,6 +129,17 @@ proc ::m::mset::list {} {
     }]
 }
 
+proc ::m::mset::id {name} {
+    debug.m/mset {}
+    return [m db onecolumn {
+	SELECT M.id
+	FROM   mirror_set M
+	,      name       N
+	WHERE  N.name = :name
+	AND    N.id   = M.name
+    }]
+}
+
 proc ::m::mset::add {name} {
     debug.m/mset {}
 
@@ -121,7 +154,7 @@ proc ::m::mset::add {name} {
     }
 
     set mset [m db last_insert_rowid]
-    
+
     m db eval {
 	INSERT INTO mset_pending VALUES ( :mset )
     }
@@ -134,7 +167,7 @@ proc ::m::mset::remove {mset} {
 
     # TODO FILL mset/remove -- Verify that the mset has no references
     # anymore, from neither repositories nor stores
-    
+
     return [m db eval {
 	DELETE
 	FROM  name
@@ -149,7 +182,7 @@ proc ::m::mset::remove {mset} {
 	DELETE
 	FROM  mset_pending
 	WHERE mset = :mset
-    }]    
+    }]
 }
 
 proc ::m::mset::rename {mset name} {
@@ -257,7 +290,7 @@ proc ::m::mset::take-pending {take} {
     # If the read is not short we know that at least one element is
     # left.
     incr take
-    
+
     set taken [m db eval {
 	SELECT P.mset
 	FROM   mset_pending P
