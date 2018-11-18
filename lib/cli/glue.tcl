@@ -70,11 +70,7 @@ proc ::m::glue::gen_name {p} {
 
     # Derive a name from the url when no such was specified by the
     # user. Add a serial number if that name is already in use.
-    set name [m vcs name-from-url [$p config @vcs-code] [$p config @url]]
-    if {[m mset has $name]} {
-	set name [MakeName $name]
-    }
-    return $name
+    return [MakeName [m vcs name-from-url [$p config @vcs-code] [$p config @url]]]
 }
 
 proc ::m::glue::gen_vcs {p} {
@@ -134,10 +130,16 @@ proc ::m::glue::cmd_import {config} {
     package require m::rolodex
     package require m::store
 
+    set dated [$config @dated]
+
     m db transaction {
 	m msg "Processing ..."
-	ImportAct [ImportSkipKnown [ImportVerify [ImportRead [$config @spec]]]]
+	ImportDo $dated \
+	    [ImportSkipKnown \
+		 [ImportVerify \
+		      [ImportRead [$config @spec]]]]
     }
+    SiteRegen
     OK
 }
 
@@ -145,29 +147,15 @@ proc ::m::glue::cmd_export {config} {
     debug.m/glue {}
     package require m::mset
     package require m::repo
-    
-    foreach {mset mname} [m mset list] {
-	foreach repo [m mset repos $mset] {
-	    set ri [m repo get $repo]
-	    dict with ri {}
-	    # -> url	: repo url
-	    #    vcs	: vcs id
-	    #    vcode	: vcs code
-	    #    mset	: mirror set id
-	    #    name	: mirror set name
-	    #    store  : store id, of backing store for
 
-	    m msg [list R $vcode $url]
-	}
-	m msg [list M $mname]
-    }
+    m msg [m mset spec]
 }
 
 proc ::m::glue::cmd_reply_add {config} {
     debug.m/glue {}
     package require m::db
     package require m::reply
-    
+
     m db transaction {
 	set reply [$config @reply]
 	set text  [$config @text]
@@ -177,9 +165,10 @@ proc ::m::glue::cmd_reply_add {config} {
 	m msg "  Name:     [color note $reply]"
 	m msg "  Text:     [color note $text]"
 	m msg "  AutoMail: [expr {$mail ? "yes" : "no"}]"
-	
+
 	m reply add $reply $mail $text
     }
+    SiteRegen
     OK
 }
 
@@ -187,7 +176,7 @@ proc ::m::glue::cmd_reply_remove {config} {
     debug.m/glue {}
     package require m::db
     package require m::reply
-    
+
     m db transaction {
 	set reply [$config @reply]
 	set name  [$config @reply string]
@@ -201,6 +190,7 @@ proc ::m::glue::cmd_reply_remove {config} {
 
 	m reply remove $reply
     }
+    SiteRegen
     OK
 }
 
@@ -208,7 +198,7 @@ proc ::m::glue::cmd_reply_change {config} {
     debug.m/glue {}
     package require m::db
     package require m::reply
-    
+
     m db transaction {
 	set reply [$config @reply]
 	set name  [$config @reply string]
@@ -216,9 +206,10 @@ proc ::m::glue::cmd_reply_change {config} {
 
 	m msg "Change reason [color note $name] to reject a submission:"
 	m msg "  New text: [color note $text]"
-	
+
 	m reply change $reply $text
     }
+    SiteRegen
     OK
 }
 
@@ -226,7 +217,7 @@ proc ::m::glue::cmd_reply_default {config} {
     debug.m/glue {}
     package require m::db
     package require m::reply
-    
+
     m db transaction {
 	set reply [$config @reply]
 	set name [$config @reply string]
@@ -234,6 +225,7 @@ proc ::m::glue::cmd_reply_default {config} {
 
 	m reply default! $reply
     }
+    SiteRegen
     OK
 }
 
@@ -241,13 +233,13 @@ proc ::m::glue::cmd_reply_show {config} {
     debug.m/glue {}
     package require m::db
     package require m::reply
-    
+
     m db transaction {
 	[table t {{} Name Mail Text} {
 	    foreach {name default mail text} [m reply list] {
 		set mail    [expr {$mail    ? "*" : ""}]
 		set default [expr {$default ? "#" : ""}]
-		
+
 		$t add $default [color note $name] $mail $text
 	    }
 	}] show
@@ -279,41 +271,64 @@ proc ::m::glue::cmd_siteconfig_show {config} {
     package require m::state
 
     m db transaction {
-	[table/d t {
-	    $t add State    [Bool [m state site-active]]
-	    $t add Url      [m state site-url]
-	    $t add Title    [m state site-title]
-	    $t add Manager  {}
-	    $t add {- Name} [m state site-mgr-name]
-	    $t add {- Mail} [m state site-mgr-mail]
-	    $t add Location [m state site-store]
-	}] show
+	SiteConfigShow
     }
     OK
 }
 
-proc ::m::glue::cmd_config {key desc config} {
+proc ::m::glue::cmd_mailconfig {key desc config} {
     debug.m/glue {}
+    package require m::state
 
+    set prefix Current
     m db transaction {
-	if {[$config @value set?]} {
-	    m state $key [$config @value]
-	}
-
 	set value [m state $key]
+
+	if {[$config @value set?]} {
+	    set new [$config @value]
+	    if {$new ne $value} {
+		m state $key $new
+		set prefix New
+		set value $new
+	    }
+	}
     }
 
-    m msg "The $desc: [color note $value]"
+    m msg "$prefix $desc: [color note $value]"
+    OK
+}
+
+proc ::m::glue::cmd_siteconfig {key desc config} {
+    debug.m/glue {}
+    package require m::state
+
+    set prefix Current
+    m db transaction {
+	set value [m state $key]
+
+	if {[$config @value set?]} {
+	    set new [$config @value]
+	    if {$new ne $value} {
+		m state $key $new
+		set prefix New
+		set value $new
+	    }
+	}
+
+        m msg "$prefix $desc: [color note $value]"
+	if {($prefix eq "New") && ($value eq "")} {
+	    SiteEnable 0
+	}
+    }
+    if {$prefix eq "New"} SiteRegen
     OK
 }
 
 proc ::m::glue::cmd_site_off {config} {
     debug.m/glue {}
     package require m::state
-
     m db transaction {
-	m state site-active 0
-	m msg "Disabled generation of web site"
+	SiteEnable 0
     }
     OK
 }
@@ -321,31 +336,17 @@ proc ::m::glue::cmd_site_off {config} {
 proc ::m::glue::cmd_site_on {config} {
     debug.m/glue {}
     package require m::state
+    package require m::web::site
+
+    set mode [expr {[$config @silent] ? "silent" : ""}]
 
     m db transaction {
-	set m {}
-	foreach {k label} {
-	    site-store    {No location for generation result}
-	    site-mgr-name {No manager specified}
-	    site-mgr-mail {No manager mail specified}
-	    site-title    {No title specified}
-	    site-url      {No publication url specified}
-	} {
-	    if {[m state $k] ne ""} continue
-	    lappend m "- $label"
-	}
-
-	if {[llength $m]} {
-	    m msg [join $m \n]
-	    m::cmdr::error "Unable to activate site generation" \
-		SITE CONFIG INCOMPLETE
-	}
-
-	m state site-active 1
-	m msg "Activated generation of web site"
+	SiteEnable 1
+	SiteConfigShow
+	#
+	m web site build $mode
     }
-    cmd_siteconfig_show $config
-    # TODO: Perform initial generation...
+    OK
 }
 
 proc ::m::glue::cmd_store {config} {
@@ -360,6 +361,7 @@ proc ::m::glue::cmd_store {config} {
     }
 
     m msg "Stores at [color note $value]"
+    SiteRegen
     OK
 }
 
@@ -415,8 +417,9 @@ proc ::m::glue::cmd_add {config} {
 
     m db transaction {
 	Add $config
-    }	
+    }
     ShowCurrent
+    SiteRegen
     OK
 }
 
@@ -463,6 +466,7 @@ proc ::m::glue::cmd_remove {config} {
     }
 
     ShowCurrent
+    SiteRegen
     OK
 }
 
@@ -475,7 +479,7 @@ proc ::m::glue::cmd_rename {config} {
 	set mset    [$config @mirror-set] ; debug.m/glue {mset    : $mset}
 	set newname [$config @name]       ; debug.m/glue {new name: $newname}
 	set oldname [m mset name $mset]
-	
+
 	m msg "Renaming [color note $oldname] ..."
 	if {$newname eq $oldname} {
 	    m::cmdr::error \
@@ -492,6 +496,7 @@ proc ::m::glue::cmd_rename {config} {
     }
 
     ShowCurrent
+    SiteRegen
     OK
 }
 
@@ -526,6 +531,7 @@ proc ::m::glue::cmd_merge {config} {
     }
 
     ShowCurrent
+    SiteRegen
     OK
 }
 
@@ -587,6 +593,7 @@ proc ::m::glue::cmd_split {config} {
     }
 
     ShowCurrent
+    SiteRegen
     OK
 }
 
@@ -675,17 +682,19 @@ proc ::m::glue::cmd_update {config} {
 	}
     }
 
+    SiteRegen
     OK
 }
 
 proc ::m::glue::cmd_updates {config} {
     debug.m/glue {}
     package require m::store
-    
+
     m db transaction {
+	# TODO: get status (stderr), show - store id
 	set series [m store updates]
 	[table t {{Mirror Set} VCS Size Changed Updated Created} {
-	    foreach {mname vcode changed updated created size} $series {
+	    foreach {store mname vcode changed updated created size} $series {
 		if {$created eq "."} {
 		    $t add - - - - - -
 		    continue
@@ -705,7 +714,7 @@ proc ::m::glue::cmd_pending {config} {
     debug.m/glue {}
     package require m::mset
     package require m::state
-    
+
     m db transaction {
 	set series [m mset pending]
 	set take   [m state take]
@@ -809,7 +818,7 @@ proc ::m::glue::cmd_limit {config} {
 
 	set n [m state limit]
     }
-    
+
     set e [expr {$n == 1 ? "entry" : "entries"}]
     m msg "Per list/rewind, show up to [color note $n] $e"
     OK
@@ -871,9 +880,10 @@ proc ::m::glue::cmd_submit {config} {
 	# Further:
 	#
 	# - url 200 OK ?
-	
+
 	m submission add $url $email $submitter
     }
+    SiteRegen
     OK
 }
 
@@ -900,7 +910,7 @@ proc ::m::glue::cmd_accept {config} {
 	if {$submitter ne {}} {
 	    append name " ([color note $submitter])"
 	}
-	    
+
 	m msg "Accepted $url"
 	m msg "By       $name"
 
@@ -931,6 +941,7 @@ proc ::m::glue::cmd_accept {config} {
 		[m mail generator reply [join $mail \n] $details]
 	}
     }
+    SiteRegen
     OK
 }
 
@@ -968,10 +979,10 @@ proc ::m::glue::cmd_reject {config} {
 	    if {$submitter ne {}} {
 		append name " ([color note $submitter])"
 	    }
-	    
+
 	    m msg "  Rejected $url"
 	    m msg "  By       $name"
-	    
+
 	    m submission reject $submission $text
 
 	    if {!$mail} continue
@@ -992,6 +1003,7 @@ proc ::m::glue::cmd_reject {config} {
 		[m mail generator reply [join $mail \n] $details]
 	}
     }
+    SiteRegen
     OK
 }
 
@@ -1154,17 +1166,21 @@ proc ::m::glue::ImportSkipKnown {commands} {
     return $new
 }
 
-proc ::m::glue::ImportAct {commands} {
+proc ::m::glue::ImportDo {dated commands} {
     # commands :: list (mset)
     # mset     :: list ('M' name repos)
     # repos    :: list (vcode1 url1 v2 u2 ...)
     debug.m/glue {}
 
-    set date [lindex [split [Date [clock seconds]]] 0]
+    if {$dated} {
+	set date _[lindex [split [Date [clock seconds]]] 0]
+    } else {
+	set date {}
+    }
 
     foreach command $commands {
 	lassign $command _ msetname repos
-	Import1 $date $msetname $repos
+	Import1 $date $msetname$date $repos
     }
     return
 }
@@ -1176,14 +1192,19 @@ proc ::m::glue::Import1 {date mname repos} {
     if {[llength $repos] == 2} {
 	lassign $repos vcode url
 	# The mirror set contains only a single repository.
-	# Create directly in final form (naming). Skip merge.
-	ImportMake1 $vcode $url ${mname}_${date}
-	return
+	# We might be able to skip the merge
+	if {![m mset has $mname]} {
+	    # No mirror set of the given name exists.
+	    # Create directly in final form. Skip merge.
+	    ImportMake1 $vcode $url $mname
+	    return
+	}
     }
 
-    # More than a single repository in this set. Merging is needed.
-    # And the untrusted nature of the input means that we cannot be
-    # sure that merging is even allowed.
+    # More than a single repository in this set, or the destination
+    # mirror set exists. Merging is needed. And the untrusted nature
+    # of the input means that we cannot be sure that merging is even
+    # allowed.
 
     # Two phases:
     # - Create the repositories. Each in its own mirror set, like for `add`.
@@ -1198,11 +1219,20 @@ proc ::m::glue::Import1 {date mname repos} {
     #   have one or more mirror sets each with maximally merged
     #   repositories. Each finalized mirror set is renamed to final
     #   form, based on the incoming mname and date.
-    
+
     set serial 0
     foreach {vcode url} $repos {
-	set data [ImportMake1 $vcode $url import_${date}_[incr serial]]
+	set data [ImportMake1 $vcode $url import${date}_[incr serial]]
 	dict set r $url $data
+    }
+
+    set rename 1
+    if {[m mset has $mname]} {
+	# Targeted mirror set exists. Make it first in the merge list.
+	set mset [m mset id $mname]
+	set repos [linsert $repos 0 dummy_vcode @$mname]
+	dict set r @$mname [list dummy_vcs $mset dummy_store]
+	set rename 0
     }
 
     while on {
@@ -1222,9 +1252,12 @@ proc ::m::glue::Import1 {date mname repos} {
 	    }
 	}
 
-	# Rename primary mset to final form.
-	Rename $msetp [MakeName ${mname}_$date]
-	
+	if {$rename} {
+	    # Rename primary mset to final form.
+	    Rename $msetp [MakeName $mname]
+	    set rename 0
+	}
+
 	if {![llength $unmatched]} break
 
 	# Retry to merge the leftovers.  Note, each iteration
@@ -1298,6 +1331,7 @@ proc ::m::glue::Add {config} {
     return
 }
 
+# TODO: Bool, Date, Size => utility package
 proc ::m::glue::Bool {flag} {
     debug.m/glue {}
     return [expr {$flag ? "[color good on]" : "[color bad off]"}]
@@ -1363,6 +1397,7 @@ proc ::m::glue::OK {} {
 
 proc ::m::glue::MakeName {prefix} {
     debug.m/glue {}
+    if {![m mset has $prefix]} { return $prefix }
     set n 1
     while {[m mset has ${prefix}#$n]} { incr n }
     return "${prefix}#$n"
@@ -1486,6 +1521,66 @@ proc ::m::glue::Merge {target origin} {
     m repo move/mset $origin $target
     m mset remove    $origin
     return
+}
+
+proc ::m::glue::SiteRegen {} {
+    debug.m/glue {}
+    if {![m state site-active]} return
+    package require m::web::site
+    m web site build silent
+    return
+}
+
+proc ::m::glue::SiteConfigShow {} {
+    debug.m/glue {}
+    [table/d t {
+	$t add State    [Bool [m state site-active]]
+	$t add Url      [m state site-url]
+	$t add Logo     [m state site-logo]
+	$t add Title    [m state site-title]
+	$t add Manager  {}
+	$t add {- Name} [m state site-mgr-name]
+	$t add {- Mail} [m state site-mgr-mail]
+	$t add Location [m state site-store]
+    }] show
+    return
+}
+
+proc ::m::glue::SiteEnable {flag} {
+    debug.m/glue {}
+    if {[m state site-active] != $flag} {
+	if {$flag} SiteConfigValidate
+	m state site-active $flag
+	set flag [expr {$flag ? "Activated" : "Disabled"}]
+    } else {
+	set flag [expr {$flag ? "Still active" : "Still disabled"}]
+    }
+    m msg "$flag web site generation"
+    return
+}
+
+proc ::m::glue::SiteConfigValidate {} {
+    debug.m/glue {}
+    set m {}
+    set ok 1
+
+    # site-logo :: Optional.
+
+    foreach {k label} {
+	site-store    {No location for generation result}
+	site-mgr-name {No manager specified}
+	site-mgr-mail {No manager mail specified}
+	site-title    {No title specified}
+	site-url      {No publication url specified}
+    } {
+	if {[m state $k] ne ""} continue
+	lappend m "- $label"
+	set ok 0
+    }
+    if {$ok} return
+    m msg [join $m \n]
+    m::cmdr::error "Unable to activate site generation" \
+	SITE CONFIG INCOMPLETE
 }
 
 # # ## ### ##### ######## ############# ######################

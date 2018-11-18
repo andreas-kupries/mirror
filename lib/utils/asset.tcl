@@ -8,6 +8,17 @@
 ##
 # This code is BSD-licensed.
 
+# @@ Meta Begin
+# Package m::asset 0
+# Meta author   {Andreas Kupries}
+# Meta location https://core.tcl.tk/akupries/????
+# Meta platform tcl
+# Meta summary     Helpers for assets attached to source files
+# Meta description Helpers for assets attached to source files
+# Meta subject     attachments assets
+# Meta require {Tcl 8.5-}
+# @@ Meta End
+
 ## This package uses the fact that Tcl's "source" command uses the ^Z
 ## character as -eofchar by default. This allows us to attach anything
 ## after the code without breaking the interpreter.  Basic interpreter

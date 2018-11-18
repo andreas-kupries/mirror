@@ -34,6 +34,8 @@ test import-2.0 {import - } -setup {
     file delete TMP
 }
 
+# TODO: --dated, pre-existing mirror set
+
 # # ## ### ##### ######## ############# #####################
 cleanupTests
 return

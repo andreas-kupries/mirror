@@ -39,7 +39,7 @@ namespace eval m::vcs {
 }
 namespace eval m::vcs::git {
     namespace export setup cleanup update check split merge \
-	version detect log-normalize
+	version detect remotes export
     namespace ensemble create
 }
 
@@ -98,14 +98,14 @@ proc ::m::vcs::git::cleanup {path} {
     # Nothing special. No op.
     return
 }
-    
+
 proc ::m::vcs::git::update {path urls} {
     debug.m/vcs/git {}
     set remotes [Remotes $path]
     # remotes = (remote-url ...)
-    
+
     lassign [struct::set intersect3 $remotes $urls] _ gone new
-    
+
     # Steps
     # - Remove remotes for urls not managed anymore
     # - Add    remotes for urls newly managed
@@ -142,6 +142,16 @@ proc ::m::vcs::git::merge {primary secondary} {
     debug.m/vcs/git {}
     # Note: The remotes missing in primary are fixed by the next call
     # to `update`.
+    return
+}
+
+proc ::m::vcs::git::remotes {path} {
+    debug.m/vcs/git {}
+    return
+}
+
+proc ::m::vcs::git::export {path} {
+    debug.m/vcs/git {}
     return
 }
 

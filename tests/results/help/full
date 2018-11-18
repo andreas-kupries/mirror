@@ -56,7 +56,9 @@ Miscellaneous
     m-help.test set-current <repository>              Makes the specified repository current
     m-help.test site                                  Access to the site configuration
     m-help.test site location [<value>]               Set or query location of web site
+    m-help.test site logo [<value>]                   Set or query path or url to site logo image
     m-help.test site mail [<value>]                   Set or query mail address of site manager
+    m-help.test site make                             Activate site generation and update
     m-help.test site manager [<value>]                Set or query name of site manager
     m-help.test site off                              Disable site generation and update
     m-help.test site on                               Activate site generation and update

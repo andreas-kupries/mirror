@@ -46,13 +46,23 @@ test site-on-2.1 "site on - everything missing" -setup {
 
 test site-on-2.2 "site on - ok" -setup {
     mapp site title    Mirror
-    mapp site location ~/.mirror/site
+    mapp site location [md]/site
     mapp site manager  fox
     mapp site mail     example@example.com
     mapp site url      https://example.com
 } -body {
     mapp site on
-} -result [ok site/on/ok]
+} -result [ok site/on/ok] -match glob
+
+test site-on-2.3 "site on - silent" -setup {
+    mapp site title    Mirror
+    mapp site location [md]/site
+    mapp site manager  fox
+    mapp site mail     example@example.com
+    mapp site url      https://example.com
+} -body {
+    mapp site on --silent
+} -result [ok site/on/ok-silent] -match glob
 
 # # ## ### ##### ######## ############# #####################
 cleanupTests

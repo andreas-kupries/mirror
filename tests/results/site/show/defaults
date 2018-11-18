@@ -1,10 +1,10 @@
-+----------+----------------+
-| State    | off            |
-| Url      |                |
-| Title    | Mirror         |
-| Manager  |                |
-| - Name   |                |
-| - Mail   |                |
-| Location | ~/.mirror/site |
-+----------+----------------+
++----------+-*-+
+| State    | off *|
+| Url      | *|
+| Title    | Mirror *|
+| Manager  | *|
+| - Name   | *|
+| - Mail   | *|
+| Location | <MD>/site *|
++----------+-*-+
 OK

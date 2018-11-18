@@ -18,7 +18,7 @@ test site-show-1.0 "site show - wrong args, too many" -body {
 
 test site-show-2.0 "site show, defaults" -body {
     mapp site show
-} -result [ok site/show/defaults]
+} -result [ok site/show/defaults] -match glob
 
 # # ## ### ##### ######## ############# #####################
 cleanupTests

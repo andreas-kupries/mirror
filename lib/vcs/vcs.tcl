@@ -27,10 +27,10 @@ package require m::db
 package require m::state
 package require m::exec
 package require m::msg
+package require m::futil
 package require m::vcs::fossil
 package require m::vcs::git
 package require m::vcs::github
-package require fileutil
 package require debug
 package require debug::caller
 
@@ -52,13 +52,23 @@ namespace eval ::m::vcs {
 	setup cleanup update check split merge \
 	rename id supported list code name \
 	detect url-norm name-from-url version \
-	move size
+	move size caps remotes export
     namespace ensemble create
 
     namespace import ::cmdr::color
 }
 
 # # ## ### ##### ######## ############# #####################
+
+proc ::m::vcs::caps {store} {
+    debug.m/vcs {}
+    set path [Path $store]
+
+    # Handle missing files ... TODO: future - stricter
+    try { lappend r [m futil cat $path/%stdout] } on error {} { lappend r {} }
+    try { lappend r [m futil cat $path/%stderr] } on error {} { lappend r {} }
+    return $r
+}
 
 proc ::m::vcs::size {store} {
     debug.m/vcs {}
@@ -83,8 +93,8 @@ proc ::m::vcs::setup {store vcs name url} {
     file delete -force -- $path
     file mkdir            $path
 
-    fileutil::writeFile $path/%name $name  ;# Mirror set
-    fileutil::writeFile $path/%vcs  $vcode ;# Manager
+    m futil write $path/%name $name  ;# Mirror set
+    m futil write $path/%vcs  $vcode ;# Manager
 
     CAP $path {
 	# Create vcs-specific special resources, if any
@@ -113,7 +123,7 @@ proc ::m::vcs::rename {store name} {
     # store id -> Using for path.
     # name     -  new mset name
     set path [Path $store]
-    fileutil::writeFile $path/%name $name
+    m futil write $path/%name $name
     return
 }
 
@@ -200,11 +210,29 @@ proc ::m::vcs::split {vcs origin dst dstname} {
     file copy   -force -- $porigin $pdst
 
     # Inlined rename of origin's new copy
-    fileutil::writeFile $pdst/%name $dstname
+    m futil write $pdst/%name $dstname
     
     # Split/create vcs specific special resources, if any ...
     $vcode split $porigin $pdst
     return
+}
+
+proc ::m::vcs::remotes {vcs store} {
+    debug.m/vcs {}
+    set path  [Path $store]
+    set vcode [code $vcs]
+
+    # Ask plugin for remotes it may have.
+    return [$vcode remotes $path]
+}
+
+proc ::m::vcs::export {vcs store} {
+    debug.m/vcs {}
+    set path  [Path $store]
+    set vcode [code $vcs]
+
+    # Ask plugin for CGI script to access the store.
+    return [$vcode export $path]
 }
 
 # # ## ### ##### ######## ############# #####################

@@ -23,7 +23,7 @@ kt::source support/invoke.tcl
 
 test mail-reply-show-1.0 "mail reply show - wrong args, too many" -body {
     mapp mail reply show foo
-} -result [err mail/reply/show/wrongargs-toomany]
+} -result [err mail/reply/show/wrongargs-toomany] -match glob
 
 test mail-reply-show-2.0 "mail reply show, defaults" -body {
     mapp mail reply show
@@ -38,15 +38,15 @@ test mail-reply-show-2.1 "mail reply == reply mail show" -body {
 
 test mail-reply-add-1.0 "mail reply add - wrong args, not enough" -body {
     mapp mail reply add
-} -result [err mail/reply/add/wrongargs-notenough]
+} -result [err mail/reply/add/wrongargs-notenough] -match glob
 
 test mail-reply-add-1.1 "mail reply add - wrong args, not enough" -body {
     mapp mail reply add foo
-} -result [err mail/reply/add/wrongargs-notenough]
+} -result [err mail/reply/add/wrongargs-notenough] -match glob
 
 test mail-reply-add-1.2 "mail reply add - wrong args, too many" -body {
     mapp mail reply add foo text x
-} -result [err mail/reply/add/wrongargs-toomany]
+} -result [err mail/reply/add/wrongargs-toomany] -match glob
 
 test mail-reply-add-2.0 "mail reply add, already present" -setup mdb-reset -body {
     mapp mail reply add spam foo
@@ -75,11 +75,11 @@ test mail-reply-add-4.1 "mail reply add ok, automail, database" -setup mdb-reset
 
 test mail-reply-remove-1.0 "mail reply remove - wrong args, not enough" -body {
     mapp mail reply remove
-} -result [err mail/reply/remove/wrongargs-notenough]
+} -result [err mail/reply/remove/wrongargs-notenough] -match glob
 
 test mail-reply-remove-1.1 "mail reply remove - wrong args, too many" -body {
     mapp mail reply remove foo x
-} -result [err mail/reply/remove/wrongargs-toomany]
+} -result [err mail/reply/remove/wrongargs-toomany] -match glob
 
 test mail-reply-remove-2.0 "mail reply remove, unknown" -setup mdb-reset -body {
     mapp mail reply remove bogus
@@ -103,15 +103,15 @@ test mail-reply-remove-3.1 "mail reply remove ok, database" -setup mdb-reset -bo
 
 test mail-reply-change-1.0 "mail reply change - wrong args, not enough" -body {
     mapp mail reply change
-} -result [err mail/reply/change/wrongargs-notenough]
+} -result [err mail/reply/change/wrongargs-notenough] -match glob
 
 test mail-reply-change-1.1 "mail reply change - wrong args, not enough" -body {
     mapp mail reply change foo
-} -result [err mail/reply/change/wrongargs-notenough]
+} -result [err mail/reply/change/wrongargs-notenough] -match glob
 
 test mail-reply-change-1.2 "mail reply change - wrong args, too many" -body {
     mapp mail reply change foo text x
-} -result [err mail/reply/change/wrongargs-toomany]
+} -result [err mail/reply/change/wrongargs-toomany] -match glob
 
 test mail-reply-change-2.0 "mail reply change, unknown" -setup mdb-reset -body {
     mapp mail reply change bogus foo
@@ -131,11 +131,11 @@ test mail-reply-change-3.1 "mail reply change ok, database" -setup mdb-reset -bo
 
 test mail-reply-default-1.0 "mail reply default - wrong args, not enough" -body {
     mapp mail reply default
-} -result [err mail/reply/default/wrongargs-notenough]
+} -result [err mail/reply/default/wrongargs-notenough] -match glob
 
 test mail-reply-default-1.1 "mail reply default - wrong args, too many" -body {
     mapp mail reply default foo x
-} -result [err mail/reply/default/wrongargs-toomany]
+} -result [err mail/reply/default/wrongargs-toomany] -match glob
 
 test mail-reply-default-2.0 "mail reply default, unknown" -setup mdb-reset -body {
     mapp mail reply default bogus

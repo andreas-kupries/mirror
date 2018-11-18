@@ -87,7 +87,7 @@ proc ::m::msg::EWrite {args} {
 }
 
 proc ::m::msg::PO {args} {
-    ::puts stdout {*}$args
+    ::puts {*}$args
     flush  stdout
     return
 }

@@ -38,7 +38,7 @@ namespace eval m::vcs {
 }
 namespace eval m::vcs::fossil {
     namespace export setup cleanup update check split merge \
-	version detect
+	version detect remotes export
     namespace ensemble create
 }
 
@@ -51,6 +51,9 @@ proc ::m::vcs::fossil::LogNormalize {o e} {
     # issues reported in the regular log to the error log.
     lassign [m futil grep {time skew}      $e] _ errors
     lassign [m futil grep {not authorized} $o] auth _
+
+    # Drop rebuild progress reporting
+    lassign [m futil grep {% complete} $o] _ o
 
     set     e $errors
     lappend e {*}$auth
@@ -76,9 +79,9 @@ proc ::m::vcs::fossil::version {iv} {
 
 proc ::m::vcs::fossil::setup {path url} {
     debug.m/vcs/fossil {}
-    
+
     set repo [FossilOf $path]
-    
+
     Fossil clone $url $repo
     Fossil remote-url off -R $repo
     return
@@ -116,6 +119,16 @@ proc ::m::vcs::fossil::split {origin dst} {
 proc ::m::vcs::fossil::merge {primary secondary} {
     debug.m/vcs/fossil {}
     return
+}
+
+proc ::m::vcs::fossil::remotes {path} {
+    debug.m/vcs/fossil {}
+    return
+}
+
+proc ::m::vcs::fossil::export {path} {
+    debug.m/vcs/fossil {}
+    return "#!/usr/bin/env fossil\nrepository: [FossilOf $path]\n"
 }
 
 # # ## ### ##### ######## ############# #####################

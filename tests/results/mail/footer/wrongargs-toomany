@@ -1,13 +1,3 @@
 mirror cmdr: wrong#args, too many
 
-mail footer [OPTIONS] [<value>]
-    Set or query footer text after generated content
-
-    --color             Force the (non-)use of colors in the output. The default depends on the environment, active when talking to a tty, and otherwise not.
-    --database DATABASE Use an alternate database instead of the default.
-    --no-color          Complementary alias of --color.
-    --verbose           Activate more chatter.
-    -D DATABASE         Alias of --database.
-    -v                  Alias of --verbose.
-
-    value The footer text after generated content
+mail footer ?OPTIONS? ?<value>?*

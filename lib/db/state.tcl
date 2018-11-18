@@ -51,6 +51,7 @@ namespace eval ::m::state {
 	    mail-user
 
 	    site-active
+	    site-logo
 	    site-mgr-mail
 	    site-mgr-name
 	    site-store

@@ -2,5 +2,6 @@
 
 rm -vrf \
    $HOME/.local/mirror.sqlite \
-   $HOME/.mirror/store
+   $HOME/.mirror/store        \
+   $HOME/.mirror/site
 exit

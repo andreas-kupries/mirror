@@ -14,7 +14,7 @@ kt::source support/invoke.tcl
 
 test mail-show-1.0 "mail show - wrong args, too many" -body {
     mapp mail show foo
-} -result [err mail/show/wrongargs-toomany]
+} -result [err mail/show/wrongargs-toomany] -match glob
 
 test mail-show-2.0 "mail show, defaults" -body {
     mapp mail show
