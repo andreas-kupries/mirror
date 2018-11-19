@@ -351,15 +351,21 @@ proc ::m::glue::cmd_store {config} {
     debug.m/glue {}
     package require m::store
 
+    set prefix Current
     m db transaction {
-	if {[$config @path set?]} {
-	    m store move-location [file normalize [$config @path]]
-	}
 	set value [m state store]
+	if {[$config @path set?]} {
+	    set new [file normalize [$config @path]]
+	    if {$new ne $value} {
+		m store move-location $new
+		set prefix New
+		set value $new
+	    }
+	}
     }
 
-    m msg "Stores at [color note $value]"
-    SiteRegen
+    m msg "$prefix Store at [color note $value]"
+    if {$prefix eq "New"} SiteRegen
     OK
 }
 
@@ -670,6 +676,7 @@ proc ::m::glue::cmd_update {config} {
 			set mark note
 			set delta +$delta
 		    }
+		    # TODO: Bring delta-rev (and delta-size) into the site.
 		    m msg "[color note Changed] $before $after ([color $mark $delta])"
 		} elseif {$verbose} {
 		    m msg [color note "No changes"]
@@ -1181,6 +1188,8 @@ proc ::m::glue::ImportDo {dated commands} {
 	m db transaction {
 	    Import1 $date $msetname$date $repos
 	}
+	# signal commit
+	m msg [color good OK]
     }
     return
 }

@@ -297,6 +297,7 @@ proc ::m::web::site::ST {tv series {mode {}}} {
     append text "|---|---|---|---:|---|---|---|" \n
 
     set mname {}
+    set last {}
     foreach {store mname vcode changed updated created size} $series {
 	if {$created eq "."} {
 	    if {$mode ne "only-err"} {
@@ -363,6 +364,7 @@ proc ::m::web::site::T {label text} {
     append t $label \n\n
     append t "```" \n
     append t $text
+    if {![string match *\n $text]} { append text \n }
     append t "```" \n
     return $t
 }
