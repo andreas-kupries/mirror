@@ -152,45 +152,44 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
     }
 
     # # ## ### ##### ######## ############# ######################
-    ## Common pieces across the various commands.
+    ## Global options
 
-    common *all* {
-	option debug {
-	    Placeholder. Processed before reaching cmdr.
-	} {
-	    undocumented
-	    validate str
-	}
-	option color {
-	    Force the (non-)use of colors in the output. The default
-	    depends on the environment, active when talking to a tty,
-	    and otherwise not.
-	} {
-	    when-set [lambda {p x} {
-		cmdr color activate $x
-	    }]
-	}
+    option debug {
+	Placeholder. Processed before reaching cmdr.
+    } {
+	undocumented
+	validate str
+    }
 
-	option database {
-	    Use an alternate database instead of the default.
-	} {
-	    alias D
-	    validate rwfile
-	    when-set [lambda {p x} {
-		package require m::db::location
-		m::db::location set $x
-	    }]
-	}
+    option color {
+	Force the (non-)use of colors in the output. The default
+	depends on the environment, active when talking to a tty,
+	and otherwise not.
+    } {
+	when-set [lambda {p x} {
+	    cmdr color activate $x
+	}]
+    }
 
-	option verbose {
-	    Activate more chatter.
-	} { alias v
-	    presence
-	    when-set [lambda {p x} {
-		package require m::exec
-		m exec verbose on
-	    }]
-	}
+    option database {
+	Use an alternate database instead of the default.
+    } {
+	alias D
+	validate rwfile
+	when-set [lambda {p x} {
+	    package require m::db::location
+	    m::db::location set $x
+	}]
+    }
+
+    option verbose {
+	Activate more chatter.
+    } { alias v
+	presence
+	when-set [lambda {p x} {
+	    package require m::exec
+	    m exec verbose on
+	}]
     }
 
     common .optional-mirror-set {
