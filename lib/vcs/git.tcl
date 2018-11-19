@@ -76,8 +76,8 @@ proc ::m::vcs::git::version {iv} {
     if {[llength [auto_execok git]]} {
 	m exec post-hook ;# clear
 	set v [lindex [m exec get git version] end]
-	if {[package vcompare $v 2.6.1] <= 0} {
-	    lappend issues "$v <= 2.6.1 not sufficient"
+	if {[package vcompare $v 2.13.7] <= 0} {
+	    lappend issues "$v <= 2.13.7 not sufficient"
 	    return
 	}
 	return $v
