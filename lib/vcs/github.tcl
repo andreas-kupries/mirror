@@ -126,7 +126,7 @@ proc ::m::vcs::github::setup {path url} {
     return
 }
 
-proc ::m::vcs::github::update {path urls} {
+proc ::m::vcs::github::update {path urls first} {
     debug.m/vcs/github {}
 
     set forks [Forks $path]
@@ -173,7 +173,7 @@ proc ::m::vcs::github::update {path urls} {
     # (change detection).
     ForksSave $path $forks
 
-    return [m vcs git update $path $urls]
+    return [m vcs git update $path $urls $first]
 }
 
 proc ::m::vcs::github::remotes {path} {

@@ -92,7 +92,7 @@ proc ::m::vcs::fossil::cleanup {path} {
     return
 }
 
-proc ::m::vcs::fossil::update {path urls} {
+proc ::m::vcs::fossil::update {path urls first} {
     debug.m/vcs/fossil {}
     set repo   [FossilOf $path]
     set before [Count $path]

@@ -76,8 +76,8 @@ proc ::m::vcs::git::version {iv} {
     if {[llength [auto_execok git]]} {
 	m exec post-hook ;# clear
 	set v [lindex [m exec get git version] end]
-	if {[package vcompare $v 2.13.7] <= 0} {
-	    lappend issues "$v <= 2.13.7 not sufficient"
+	if {[package vcompare $v 2.6.1] <= 0} {
+	    lappend issues "$v <= 2.6.1 not sufficient"
 	    return
 	}
 	return $v
@@ -99,7 +99,7 @@ proc ::m::vcs::git::cleanup {path} {
     return
 }
 
-proc ::m::vcs::git::update {path urls} {
+proc ::m::vcs::git::update {path urls first} {
     debug.m/vcs/git {}
     set remotes [Remotes $path]
     # remotes = (remote-url ...)
@@ -118,7 +118,12 @@ proc ::m::vcs::git::update {path urls} {
     foreach url $gone { RemoteRemove $url }
     foreach url $new  { RemoteAdd    $url }
 
-    set before [Count $path]
+    if {$first} {
+	# Cannot count git revs before the initial fetch.
+	set before 0
+    } else {
+	set before [Count $path]
+    }
 
     Git fetch --all --tags
 

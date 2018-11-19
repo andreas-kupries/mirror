@@ -100,7 +100,7 @@ proc ::m::vcs::setup {store vcs name url} {
 	# Create vcs-specific special resources, if any
 	$vcode setup  $path $url
 	# Then update for the first time
-	$vcode update $path [::list $url]
+	$vcode update $path [::list $url] 1
     }
     return
 }
@@ -114,7 +114,7 @@ proc ::m::vcs::update {store vcs urls} {
     set vcode [code $vcs]
 
     CAP $path {
-	return [$vcode update $path $urls]
+	return [$vcode update $path $urls 0]
     }
 }
 
