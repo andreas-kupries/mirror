@@ -132,13 +132,11 @@ proc ::m::glue::cmd_import {config} {
 
     set dated [$config @dated]
 
-    m db transaction {
-	m msg "Processing ..."
-	ImportDo $dated \
-	    [ImportSkipKnown \
-		 [ImportVerify \
-		      [ImportRead [$config @spec]]]]
-    }
+    m msg "Processing ..."
+    ImportDo $dated \
+	[ImportSkipKnown \
+	     [ImportVerify \
+		  [ImportRead [$config @spec]]]]
     SiteRegen
     OK
 }
@@ -1180,7 +1178,9 @@ proc ::m::glue::ImportDo {dated commands} {
 
     foreach command $commands {
 	lassign $command _ msetname repos
-	Import1 $date $msetname$date $repos
+	m db transaction {
+	    Import1 $date $msetname$date $repos
+	}
     }
     return
 }
