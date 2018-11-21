@@ -324,5 +324,21 @@ proc ::m::db::SETUP-201811162301 {} {
     return
 }
 
+proc ::m::db::SETUP-201811202300 {} {
+    # Added flag 'active' to repository.
+    # Default: yes.
+
+    D m::db
+    I+
+    C url    TEXT     NOT NULL  UNIQUE
+    C vcs    INTEGER  NOT NULL  ^version_control_system
+    C mset   INTEGER  NOT NULL  ^mirror_set
+    C active INTEGER  NOT NULL
+    < repository  id url vcs mset '1'
+    X vcs mset
+    
+    return
+}
+
 # # ## ### ##### ######## ############# #####################
 return

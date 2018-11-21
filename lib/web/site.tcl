@@ -62,11 +62,21 @@ proc ::m::web::site::build {{mode verbose}} {
 	Contact
 	Export		;# (See `export`)
 	Stores
-	ListByTime	;# (See `updates output`)
-	ListByName	;# (by name, vcs, size)
-	ListBySize	;# (by size, name, vcs)
-	ListByVCS	;# (by vcs, name, size)
-	ListTroubled	;# (by name, only trouble)
+
+	set bytime   [m store updates]
+	set byname   [m store by-name]
+	set bysize   [m store by-size]
+	set byvcs    [m store by-vcs]
+	set troubled [ErrOnly [NameFill [DropSep $byname]]]
+
+	# TODO: dict of statistics
+	set n [llength $troubled]
+
+	List index.md          $bytime   $n ;# (See `updates`) 
+	List index_name.md     $byname   $n ;# (by name, vcs, size)
+	List index_size.md     $bysize   $n ;# (by size, name, vcs)
+	List index_vcs.md      $byvcs    $n ;# (by vcs, name, size)
+	List index_troubled.md $troubled $n ;# (by name, only trouble)
 
 	# + TODO: submissions pending, submission responses, past rejections
 
@@ -76,6 +86,41 @@ proc ::m::web::site::build {{mode verbose}} {
 }
 
 # # ## ### ##### ######## ############# #####################
+
+proc ::m::web::site::ErrOnly {series} {
+    debug.m/web/site {}
+    set tmp {}
+    foreach row $series {
+	set img [SI [lindex [m vcs caps [dict get $row store]] 1]]
+	if {$img eq {}} continue
+	lappend tmp $row
+    }
+    return $tmp
+}
+
+proc ::m::web::site::NameFill {series} {
+    debug.m/web/site {}
+    set tmp {}
+    set last {}
+    foreach row $series {
+	set name [dict get $row mname]
+	if {$name ne {}} { set name $last }
+	dict set row mname $name
+	set last $name
+	lappend tmp $row
+    }
+    return $tmp
+}
+
+proc ::m::web::site::DropSep {series} {
+    debug.m/web/site {}
+    set tmp {}
+    foreach row $series {
+	if {[dict get $row created] eq "."} continue
+	lappend tmp $row
+    }
+    return $tmp
+}
 
 proc ::m::web::site::Site {mode action script} {
     debug.m/web/site {}
@@ -134,25 +179,37 @@ proc ::m::web::site::Store {mset mname store} {
 
     append text [H $mname]
 
-    append text ||| \n
-    append text |---|---| \n
+    append text |||| \n
+    append text |---|---|---| \n
 
-    R $simg   $vcsname
-    R Size    [m::glue::Size $size]
+    R $simg   {} $vcsname
+    R Size    {} [m::glue::Size $size]
     if {$export ne {}} {
-	R {} $export
+	R {} {} $export
     }
-    R {Last Check}  [m::glue::Date $updated]
-    R {Last Change} [m::glue::Date $changed]
-    R Created       [m::glue::Date $created]
+    R {Last Check}  {} [m::glue::Date $updated]
+    R {Last Change} {} [m::glue::Date $changed]
+    R Created       {} [m::glue::Date $created]
 
+    set active 1
     foreach {label urls} $r {
 	R $label {}
 	foreach url [lsort -dict $urls] {
 	    incr id
-	    R ${id}. [L $url $url]
+	    set u [L $url $url]
+	    set a {}
+	    if {$active} {
+		set a [dict get	[m repo get [m repo id $url]] active]
+		if {$a} {
+		    set a "" ;#[I images/ok.svg "&nbsp;"]
+		} else {
+		    set a [I images/off.svg "-"]
+		}
+	    }
+	    R ${id}. $a $u
 	}
 	unset -nocomplain id
+	incr active -1
     }
     append text \n
 
@@ -173,68 +230,61 @@ proc ::m::web::site::Contact {} {
     return
 }
 
-proc ::m::web::site::ListByTime {} {
+proc ::m::web::site::List {page series ntroubles} {
     debug.m/web/site {}
 
-    # Table of stores, sorted by times (updated, checked, created)
-    set series [m store updates]
-
     append text [H Index]
-    ST text $series
+    
+    set hvcs     [L index_vcs.html      VCS          ]
+    set hsize    [L index_size.html     Size         ]
+    set hname    [L index_name.html     {Mirror Set} ]
+    set hchan    [L index.html          Changed      ]
+    set troubled [L index_troubled.html "Issues: $ntroubles" ]
+
+    append text \n
+    append text "Total size: [m::glue::Size [m store total-size]]" \n
+    append text \n
+    append text $troubled \n
+    append text \n
+
+    append text "||$hname|$hvcs|$hsize|$hchan|Updated|Created|" \n
+    append text "|---|---|---|---:|---|---|---|" \n
+
+    set mname {}
+    set last {}
+    foreach row $series {
+	dict with row {}
+	# store mname vcode changed updated created size active remote
+	
+	if {$created eq "."} {
+	    append text "||||||||" \n
+	    continue
+	}
+
+	set img [SI [lindex [m vcs caps $store] 1]]
+	if {$img eq {}} {
+	    if {!$active} {
+		set img [I images/off.svg "-"]
+	    } elseif {$active < $remote} {
+		set img [I images/yellow.svg "/"]
+	    }
+	}
+	
+	set size    [m::glue::Size $size]
+	set changed [m::glue::Date $changed]
+	set updated [m::glue::Date $updated]
+	set created [m::glue::Date $created]
+       	set vcode   [L store_${store}.html $vcode]
+	if {$mname ne {}} {
+	    set mname [L store_${store}.html $mname]
+	}
+	append text "|$img|$mname|$vcode|$size|$changed|$updated|$created|" \n
+	set last $mname
+    }
+    append text \n\n
+
     append text [F]
-    W pages/index.md $text
-    return
-}
-
-proc ::m::web::site::ListByVCS {} {
-    debug.m/web/site {}
-
-    # Table of stores, sorted by vcs, name, size
-    set series [m store by-vcs]
-
-    append text [H Index]
-    ST text $series
-    append text [F]
-    W pages/index_vcs.md $text
-    return
-}
-
-proc ::m::web::site::ListTroubled {} {
-    debug.m/web/site {}
-
-    # Table of stores, sorted by name, vcs, size
-    set series [m store by-name]
-
-    append text [H Index]
-    ST text $series only-err
-    append text [F]
-    W pages/index_troubled.md $text
-    return
-}
-
-proc ::m::web::site::ListByName {} {
-    debug.m/web/site {}
-
-    # Table of stores, sorted by name, vcs, size
-    set series [m store by-name]
-
-    append text [H Index]
-    ST text $series
-    append text [F]
-    W pages/index_name.md $text
-    return
-}
-
-proc ::m::web::site::ListBySize {} {
-    debug.m/web/site {}
-
-    # Table of stores, sorted by size, name, vcs
-    set series [m store by-size]
-
-    append text [H Index]
-    ST text $series
-    append text [F]
-    W pages/index_size.md $text
+    W pages/$page $text
     return
 }
 
@@ -278,62 +328,11 @@ proc ::m::web::site::Fin {} {
     return
 }
 
-proc ::m::web::site::ST {tv series {mode {}}} {
-    upvar 1 $tv text
-
-    set hvcs     [L index_vcs.html      VCS          ]
-    set hsize    [L index_size.html     Size         ]
-    set hname    [L index_name.html     {Mirror Set} ]
-    set hchan    [L index.html          Changed      ]
-    set troubled [L index_troubled.html Troubled     ]
-
-    append text \n
-    append text "Total size: [m::glue::Size [m store total-size]]" \n
-    append text \n
-    append text $troubled \n
-    append text \n
-
-    append text "||$hname|$hvcs|$hsize|$hchan|Updated|Created|" \n
-    append text "|---|---|---|---:|---|---|---|" \n
-
-    set mname {}
-    set last {}
-    foreach {store mname vcode changed updated created size} $series {
-	if {$created eq "."} {
-	    if {$mode ne "only-err"} {
-		append text "||||||||" \n
-	    }
-	    continue
-	}
-	set img [SI [lindex [m vcs caps $store] 1]]
-
-	# On request skip untroubled stores
-	if {$mode eq "only-err"} {
-	    if {$img eq {}} continue
-	    # Troubled store, fixup name from previous
-	    if {$mname eq {}} { set mname $last }
-	}
-
-	set size    [m::glue::Size $size]
-	set changed [m::glue::Date $changed]
-	set updated [m::glue::Date $updated]
-	set created [m::glue::Date $created]
-       	set vcode   [L store_${store}.html $vcode]
-	if {$mname ne {}} {
-	    set mname [L store_${store}.html $mname]
-	}
-	append text "|$img|$mname|$vcode|$size|$changed|$updated|$created|" \n
-	set last $mname
-    }
-    append text \n\n
-    return
-}
-
 proc ::m::web::site::SI {stderr} {
     if {![string length $stderr]} {
 	return {}
-	#set status images/ok.svg
-	#set stext  OK
+	set status images/ok.svg
+	set stext  OK
     } else {
 	set status images/bad.svg
 	set stext  ATTEND
@@ -517,4 +516,18 @@ comments {
      height='32'
      viewBox='0 0 100 100'>
   <circle cx='50' cy='50' r='40' fill='red'/>
+</svg>
+static/images/off.svg<svg xmlns="http://www.w3.org/2000/svg"
+     xmlns:xlink="http://www.w3.org/1999/xlink"
+     width='32'
+     height='32'
+     viewBox='0 0 100 100'>
+  <circle cx='50' cy='50' r='40' fill='black'/>
+</svg>
+static/images/yellow.svg<svg xmlns="http://www.w3.org/2000/svg"
+     xmlns:xlink="http://www.w3.org/1999/xlink"
+     width='32'
+     height='32'
+     viewBox='0 0 100 100'>
+  <circle cx='50' cy='50' r='40' fill='yellow'/>
 </svg>

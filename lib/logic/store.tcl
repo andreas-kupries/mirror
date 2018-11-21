@@ -13,6 +13,10 @@
 # Meta summary     ?
 # @@ Meta End
 
+# by-size, updates, by-name, by-vcs - representation
+# :: list (dict ...)
+# :: dict (store, mname, vcode, changed, updated, created, size, active -> value)
+
 # # ## ### ##### ######## ############# ######################
 
 package require Tcl 8.5
@@ -226,6 +230,15 @@ proc ::m::store::by-name {} {
 	,      T.updated AS updated
 	,      T.created AS created
 	,      S.size_kb AS size
+	,      (SELECT count (*)
+		FROM  repository R
+		WHERE R.mset = S.mset
+		AND   R.vcs  = S.vcs) AS remote
+	,      (SELECT count (*)
+		FROM  repository R
+		WHERE R.mset = S.mset
+		AND   R.vcs  = S.vcs
+		AND   R.active) AS active
 	FROM store_times            T
 	,    store                  S
 	,    mirror_set             M
@@ -238,11 +251,12 @@ proc ::m::store::by-name {} {
 	ORDER BY mname ASC, vcode ASC, size ASC
     } {
 	if {($last ne {}) && ($last ne $mname)} {
-	    lappend series . . . . . . .
+	    Sep series
 	}
-	set show [expr {($last eq $mname) ? "" : "$mname"}]
-	lappend series $store $show $vcode $changed $updated $created $size
-	set last $mname
+	set saved $mname
+	set mname [expr {($last eq $mname) ? "" : "$mname"}]
+	Srow series ;# upvar column variables
+	set last $saved
     }
     return $series
 }
@@ -250,7 +264,8 @@ proc ::m::store::by-name {} {
 proc ::m::store::by-vcs {} {
     debug.m/store {}
 
-    return [m db eval {
+    set series {}
+    m db eval {
 	SELECT S.id      AS store
 	,      N.name    AS mname
 	,      V.code    AS vcode
@@ -258,6 +273,15 @@ proc ::m::store::by-vcs {} {
 	,      T.updated AS updated
 	,      T.created AS created
 	,      S.size_kb AS size
+	,      (SELECT count (*)
+		FROM  repository R
+		WHERE R.mset = S.mset
+		AND   R.vcs  = S.vcs) AS remote
+	,      (SELECT count (*)
+		FROM  repository R
+		WHERE R.mset = S.mset
+		AND   R.vcs  = S.vcs
+		AND   R.active) AS active
 	FROM store_times            T
 	,    store                  S
 	,    mirror_set             M
@@ -268,13 +292,17 @@ proc ::m::store::by-vcs {} {
 	AND   S.vcs     = V.id
 	AND   M.name    = N.id
 	ORDER BY vcode ASC, mname ASC, size ASC
-    }]
+    } {
+	Srow series
+    }
+    return $series
 }
 
 proc ::m::store::by-size {} {
     debug.m/store {}
 
-    return [m db eval {
+    set series {}
+    m db eval {
 	SELECT S.id      AS store
 	,      N.name    AS mname
 	,      V.code    AS vcode
@@ -282,6 +310,15 @@ proc ::m::store::by-size {} {
 	,      T.updated AS updated
 	,      T.created AS created
 	,      S.size_kb AS size
+	,      (SELECT count (*)
+		FROM  repository R
+		WHERE R.mset = S.mset
+		AND   R.vcs  = S.vcs) AS remote
+	,      (SELECT count (*)
+		FROM  repository R
+		WHERE R.mset = S.mset
+		AND   R.vcs  = S.vcs
+		AND   R.active) AS active
 	FROM store_times            T
 	,    store                  S
 	,    mirror_set             M
@@ -292,7 +329,10 @@ proc ::m::store::by-size {} {
 	AND   S.vcs     = V.id
 	AND   M.name    = N.id
 	ORDER BY size DESC, mname ASC, vcode ASC
-    }]
+    } {
+	Srow series
+    }
+    return $series
 }
 
 proc ::m::store::updates {} {
@@ -316,6 +356,15 @@ proc ::m::store::updates {} {
 	,      T.updated AS updated
 	,      T.created AS created
 	,      S.size_kb AS size
+	,      (SELECT count (*)
+		FROM  repository R
+		WHERE R.mset = S.mset
+		AND   R.vcs  = S.vcs) AS remote
+	,      (SELECT count (*)
+		FROM  repository R
+		WHERE R.mset = S.mset
+		AND   R.vcs  = S.vcs
+		AND   R.active) AS active
 	FROM store_times            T
 	,    store                  S
 	,    mirror_set             M
@@ -329,9 +378,9 @@ proc ::m::store::updates {} {
 	ORDER BY T.changed DESC
     } {
 	if {($last ne {}) && ($last != $updated)} {
-	    lappend series . . . . . . .
+	    Sep series
 	}
-	lappend series $store $mname $vcode $changed $updated $created $size
+	Srow series
 	set last $updated
     }
 
@@ -347,6 +396,15 @@ proc ::m::store::updates {} {
 	,      T.updated AS updated
 	,      T.created AS created
 	,      S.size_kb AS size
+	,      (SELECT count (*)
+		FROM  repository R
+		WHERE R.mset = S.mset
+		AND   R.vcs  = S.vcs) AS remote
+	,      (SELECT count (*)
+		FROM  repository R
+		WHERE R.mset = S.mset
+		AND   R.vcs  = S.vcs
+		AND   R.active) AS active
 	FROM store_times            T
 	,    store                  S
 	,    mirror_set             M
@@ -359,10 +417,10 @@ proc ::m::store::updates {} {
 	AND   T.created = T.changed
 	ORDER BY T.created DESC
     } {
-	if {$first} {
-	    lappend series . . . . . . .
-	}
-	lappend series $store $mname $vcode {} {} $created $size
+	if {$first} { Sep series }
+	set changed {}
+	set updated {}
+	Srow series
 	set first 0
     }
 
@@ -376,6 +434,33 @@ proc ::m::store::move-location {newpath} {
 }
 
 # # ## ### ##### ######## ############# ######################
+
+proc ::m::store::Srow {sv} {
+    upvar 1 $sv series store store mname mname vcode vcode \
+	changed changed updated updated created created \
+	size size active active remote remote
+    lappend series [dict create \
+		store   $store \
+		mname   $mname \
+		vcode   $vcode \
+		changed $changed \
+		updated $updated \
+		created $created \
+		size    $size \
+		remote  $remote \
+		active  $active]
+    return
+}
+
+proc ::m::store::Sep {sv} {
+    upvar 1 $sv series
+    lappend series {
+	store   . mname   . vcode . changed .
+	updated . created . size  . active  .
+	remote  .
+    }
+    return
+}
 
 proc ::m::store::Remotes {store} {
     debug.m/store {}

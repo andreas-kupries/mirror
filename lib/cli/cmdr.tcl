@@ -276,6 +276,20 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	}
     } [m::cmdr::call glue cmd_vcs]
 
+    private disable {
+	description {
+	    Disable the specified repository, or current.
+	}
+	use .optional-repository
+    } [m::cmdr::call glue cmd_enable 0]
+
+    private enable {
+	description {
+	    Enable the specified repository, or current.
+	}
+	use .optional-repository
+    } [m::cmdr::call glue cmd_enable 1]
+
     private remove {
 	description {
 	    Removes specified repository, or current.

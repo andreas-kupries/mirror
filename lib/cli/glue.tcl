@@ -525,6 +525,40 @@ proc ::m::glue::cmd_remove {config} {
     OK
 }
 
+proc ::m::glue::cmd_enable {flag config} {
+    debug.m/glue {[debug caller] | }
+    package require m::mset
+    package require m::repo
+    package require m::rolodex
+    package require m::store
+
+    m db transaction {
+	set repo [$config @repository]
+	m msg "Disabling [color note [m repo name $repo]] ..."
+
+	set rinfo [m repo get $repo]
+	dict with rinfo {}
+	# -> url	: repo url
+	#    vcs	: vcs id
+	#    vcode	: vcs code
+	#    mset	: mirror set id
+	#    name	: mirror set name
+	#    store      : store id, of backing store for the repo
+
+	m repo enable $repo $flag
+
+	# Note: We do not manipulate `mset_pending`. An existing
+	# mirror set is always in `mset_pending`, even if all its
+	# remotes are inactive. The commands to retrieve the pending
+	# msets (all, or taken for update) is where we do the
+	# filtering, i.e. exclusion of those without active remotes.
+    }
+
+    ShowCurrent
+    SiteRegen
+    OK
+}
+
 proc ::m::glue::cmd_rename {config} {
     debug.m/glue {[debug caller] | }
     package require m::mset
@@ -750,7 +784,9 @@ proc ::m::glue::cmd_updates {config} {
 	# TODO: get status (stderr), show - store id
 	set series [m store updates]
 	[table t {{Mirror Set} VCS Size Changed Updated Created} {
-	    foreach {store mname vcode changed updated created size} $series {
+	    foreach row $series {
+		# store mname vcode changed updated created size active remote
+		dict with row {}
 		if {$created eq "."} {
 		    $t add - - - - - -
 		    continue
@@ -796,7 +832,6 @@ proc ::m::glue::cmd_list {config} {
     package require m::state
 
     m db transaction {
-
 	if {[$config @pattern set?]} {
 	    # Search, shows all results. Does not move the cursor.
 	    set pattern [$config @pattern]
@@ -821,29 +856,32 @@ proc ::m::glue::cmd_list {config} {
 	    debug.m/glue {next   ($next)}
 	    m state top $next
 	}
-	# series = (mset url rid vcode sizekb ...)
+	# series = list (dict (mset url rid vcode sizekb active))
 
 	debug.m/glue {series ($series)}
 
 	set n 0
-	foreach {_ _ repo _ _} $series {
-	    m rolodex push $repo
+	foreach row $series {
+	    m rolodex push [dict get $row id]
 	    incr n
 	}
 
 	# See also ShowCurrent
 	# TODO: extend list with store times ?
-	[table t {Tag Repository Set VCS Size} {
-	    set id -1
-	    foreach {mname url repo vcode size} $series {
-		incr id
+	[table t {Tag {} Repository Set VCS Size} {
+	    set idx -1
+	    foreach row $series {
+		dict with row {}
+		# name url id vcode sizekb active
+		incr idx
 		set url [color note $url]
-		set ix  [m rolodex id $repo]
+		set ix  [m rolodex id $id]
 		set tag {}
 		if {$ix ne {}} { lappend tag @$ix }
-		if {$id == ($n-2)} { lappend tag @p }
-		if {$id == ($n-1)} { lappend tag @c }
-		$t add $tag $url $mname $vcode [Size $size]
+		if {$idx == ($n-2)} { lappend tag @p }
+		if {$idx == ($n-1)} { lappend tag @c }
+		set a [expr {$active ? "A" : "-"}]
+		$t add $tag $a $url $name $vcode [Size $sizekb]
 	    }
 	}] show
     }
@@ -1338,6 +1376,13 @@ proc ::m::glue::Import1 {date mname repos} {
 	    try {
 		ImportMake1 $vcode $url $mname
 	    } trap {M VCS CHILD} {e o} {
+		# Revert creation of mset and repository
+		set repo [m rolodex top]
+		set mset [m repo mset $repo]
+		m repo remove  $repo
+		m rolodex drop $repo
+		m mset remove  $mset
+		
 		m msg "[color bad {Unable to import}] [color note $mname]: $e"
 		# No rethrow, the error in the child is not an error
 		# for the whole command. Continue importing the remainder.
@@ -1369,9 +1414,17 @@ proc ::m::glue::Import1 {date mname repos} {
     set r {}
     foreach {vcode url} $repos {
 	try {
-	    set data [ImportMake1 $vcode $url import${date}_[incr serial]]
+	    set tmpname import${date}_[incr serial]
+	    set data    [ImportMake1 $vcode $url $tmpname]
 	    dict set r $url $data
 	} trap {M VCS CHILD} {e o} {
+	    # Revert creation of mset and repository
+	    set repo [m rolodex top]
+	    set mset [m repo mset $repo]
+	    m repo remove  $repo
+	    m rolodex drop $repo
+	    m mset remove  $mset
+
 	    m msg "[color bad {Unable to use}] [color note $url]: $e\n"
 	    # No rethrow, the error in the child is not an error
 	    # for the whole command. Continue importing the remainder.

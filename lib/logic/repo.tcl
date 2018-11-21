@@ -13,6 +13,11 @@
 # Meta summary     ?
 # @@ Meta End
 
+# search, get-n - representation
+#
+# :: list (dict ...)
+# :: dict ( name, url, id, vcode, sizekb, active -> value )
+
 # # ## ### ##### ######## ############# ######################
 
 package require Tcl 8.5
@@ -29,8 +34,8 @@ namespace eval ::m {
 }
 namespace eval ::m::repo {
     namespace export \
-	add remove move/mset move/1 has get name \
-	known get-n mset search
+	add remove enable move/mset move/1 has get name \
+	known get-n mset search id
     namespace ensemble create
 }
 
@@ -101,13 +106,22 @@ proc ::m::repo::has {url} {
     }]
 }
 
+proc ::m::repo::id {url} {
+    debug.m/repo {}
+    return [m db onecolumn {
+	SELECT id
+	FROM   repository
+	WHERE  url = :url
+    }]
+}
+
 proc ::m::repo::add {vcs mset url} {
     debug.m/repo {}
 
     m db eval {
 	INSERT
 	INTO   repository
-	VALUES ( NULL, :url, :vcs, :mset )
+	VALUES ( NULL, :url, :vcs, :mset, 1 )
     }
 
     return [m db last_insert_rowid]
@@ -133,14 +147,16 @@ proc ::m::repo::get {repo} {
     # - mirror set (id, and name)
     # - vcs        (id, and code)
     # - store      (id)
+    # - active
     
     set details [m db eval {
-	SELECT 'url'  , R.url
-	,      'vcs'  , R.vcs
-	,      'vcode', V.code
-	,      'mset' , R.mset
-	,      'name' , N.name
-	,      'store', S.id
+	SELECT 'url'    , R.url
+	,      'active' , R.active
+	,      'vcs'    , R.vcs
+	,      'vcode'  , V.code
+	,      'mset'   , R.mset
+	,      'name'   , N.name
+	,      'store'  , S.id
 	FROM   repository             R
 	,      mirror_set             M
 	,      name                   N
@@ -169,6 +185,7 @@ proc ::m::repo::search {substring} {
 	,      R.id      AS rid
 	,      V.code    AS vcode
 	,      S.size_kb AS sizekb
+	,      R.active  AS active
 	FROM   repository             R
 	,      mirror_set             M
 	,      name                   N
@@ -186,7 +203,13 @@ proc ::m::repo::search {substring} {
 	    ([string first $sub [string tolower $name]] < 0) &&
 	    ([string first $sub [string tolower $url ]] < 0)
 	} continue
-	lappend series $name $url $rid $vcode $sizekb
+	lappend series [dict create \
+		name   $name \
+		url    $url \
+		id     $rid \
+		vcode  $vcode \
+	        sizekb $sizekb \
+		active $active]
     }
     return $series
 }
@@ -208,12 +231,14 @@ proc ::m::repo::get-n {first n} {
     lassign $first mname uname
 
     set lim [expr {$n + 1}]
-    set replist [m db eval {
-	SELECT N.name
-	,      R.url
-	,      R.id
-	,      V.code
-	,      S.size_kb
+    set replist {}
+    m db eval {
+	SELECT N.name    AS name
+	,      R.url     AS url
+	,      R.id      AS rid
+	,      V.code    AS vcode
+	,      S.size_kb AS sizekb
+	,      R.active  AS active
 	FROM   repository             R
 	,      mirror_set             M
 	,      name                   N
@@ -231,13 +256,19 @@ proc ::m::repo::get-n {first n} {
 	ORDER BY N.name ASC
 	,        R.url  ASC
 	LIMIT :lim
-    }]
+    } {
+	lappend replist [dict create \
+		name   $name \
+		url    $url \
+		id     $rid \
+		vcode  $vcode \
+		sizekb $sizekb \
+		active $active]
+    }
 
     debug.m/repo {reps = (($replist))}
     
-    # Expect 5lim elements
-    #      = 5(n+1)
-    set have [expr {[llength $replist]/5}]
+    set have [llength $replist]
     debug.m/repo {have $have of $n requested}
     
     if {$have <= $n} {
@@ -245,10 +276,11 @@ proc ::m::repo::get-n {first n} {
 	set next {}
 	debug.m/repo {short}
     } else {
-	# Full read. Data from the last 5-tuple is next top,
+	# Full read. Data from the last element is next top,
 	# and not part of the shown list.
-	set next    [lrange $replist end-4 end-3]
-	set replist [lrange $replist 0 end-5]
+	set next [lindex $replist end]
+	set next [list [dict get $next name] [dict get $next url]]
+	set replist [lrange $replist 0 end-1]
 	debug.m/repo {cut}
     }
     
@@ -262,6 +294,15 @@ proc ::m::repo::remove {repo} {
 	DELETE
 	FROM  repository
 	WHERE id = :repo
+    }]
+}
+
+proc ::m::repo::enable {repo {flag 1}} {
+    debug.m/repo {}
+    return [m db eval {
+	UPDATE repository
+	SET    active = :flag
+	WHERE  id = :repo
     }]
 }
 

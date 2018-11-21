@@ -271,12 +271,14 @@ proc ::m::mset::pending {} {
 	SELECT N.name
 	,      (SELECT count (*)
 		FROM  repository R
-		WHERE R.mset = P.mset)
+		WHERE R.mset = P.mset
+		AND   R.active) AS arc
 	FROM   mset_pending P
 	,      mirror_set   M
 	,      name         N
 	WHERE P.mset = M.id
 	AND   N.id   = M.name
+	AND   arc > 0
 	ORDER BY P.ROWID
     }]
 }
@@ -294,6 +296,10 @@ proc ::m::mset::take-pending {take} {
     set taken [m db eval {
 	SELECT P.mset
 	FROM   mset_pending P
+	WHERE (SELECT count (*)
+	       FROM  repository R
+	       WHERE R.mset = P.mset
+	       AND   R.active) > 0
 	LIMIT :take
     }]
     if {[llength $taken] < $take} {

@@ -152,6 +152,7 @@ proc db::setup::< {table args} {
     lappend sql "DROP TABLE $table"
     lappend sql "ALTER TABLE new_${table} RENAME TO $table"
     R [join $sql ";\n"]
+    variable thetable $table
     return
 }
 

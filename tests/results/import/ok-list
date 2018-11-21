@@ -1,8 +1,8 @@
-+-*-+-*-+-*-+-*-+-*-+
-| Tag *| Repository *| Set *| VCS *| Size *|
-+-*-+-*-+-*-+-*-+-*-+
-| @0    | <BCH> *| COR *| fossil *| * |
-| @1 @p | <BCO> *| COR *| fossil *| * |
-| @2 @c | <BGH> *| COR *| git *| * |
-+-*-+-*-+-*-+-*-+-*-+
++-*-+-*-+-*-+-*-+-*-+-*-+
+| Tag *| * | Repository *| Set *| VCS *| Size *|
++-*-+-*-+-*-+-*-+-*-+-*-+
+| @0    | A | <BCH> *| COR *| fossil *| * |
+| @1 @p | A | <BCO> *| COR *| fossil *| * |
+| @2 @c | A | <BGH> *| COR *| git *| * |
++-*-+-*-+-*-+-*-+-*-+-*-+
 OK

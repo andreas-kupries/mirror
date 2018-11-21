@@ -23,6 +23,8 @@ Miscellaneous
     m-help.test debug                                 Various commands to help debugging the system itself and its configuration
     m-help.test decline <id>...                       Reject the specified submissions
     m-help.test declined                              Show the table of rejected submissions, with associated reasons
+    m-help.test disable [<repository>]                Disable the specified repository, or current
+    m-help.test enable [<repository>]                 Enable the specified repository, or current
     m-help.test export                                Write the known set of repositories and mirror sets to stdout, in a form suitable for (re)import
     m-help.test go <repository>                       Makes the specified repository current
     m-help.test history                               Manage the command history

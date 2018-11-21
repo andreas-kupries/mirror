@@ -21,6 +21,8 @@ Generating <MD>/site
   + website.conf
   + static/images/ok.svg
   + static/images/bad.svg
+  + static/images/off.svg
+  + static/images/yellow.svg
 = Data dependent content ...
   + pages/contact.md
   + static/external/spec.txt
