@@ -28,7 +28,7 @@ Miscellaneous
     m-help.test history                               Manage the command history
     m-help.test import [<spec>]                       Read a set of repositories and mirror sets from the specified file, or stdin, and add them here
     m-help.test limit [<limit>]                       Query/change default limit for repository listing
-    m-help.test list                                  Show (partial) list of the known repositories
+    m-help.test list [<pattern>]                      Show (partial) list of the known repositories
     m-help.test mail                                  Access to the mail configuration
     m-help.test mail footer [<value>]                 Set or query footer text after generated content
     m-help.test mail header [<value>]                 Set or query header text before generated content
@@ -54,6 +54,7 @@ Miscellaneous
     m-help.test reset                                 Reset list state to first entry
     m-help.test rewind                                Like list, going backward through the set of repositories
     m-help.test set-current <repository>              Makes the specified repository current
+    m-help.test show                                  Show the configuration
     m-help.test site                                  Access to the site configuration
     m-help.test site location [<value>]               Set or query location of web site
     m-help.test site logo [<value>]                   Set or query path or url to site logo image
@@ -76,6 +77,12 @@ Miscellaneous
     m-help.test vcs                                   List supported version control systems
 
 Global Options
-    --help    Show the help of the application or of the current command, and stop.
-    -?        Alias of --help.
-    -h        Alias of --help.
+    --color                Force the (non-)use of colors in the output. The default depends on the environment, active when talking to a tty, and otherwise not.
+    --database DATABASE    Use an alternate database instead of the default.
+    --help                 Show the help of the application or of the current command, and stop.
+    --no-color             Complementary alias of --color.
+    --verbose              Activate more chatter.
+    -?                     Alias of --help.
+    -D DATABASE            Alias of --database.
+    -h                     Alias of --help.
+    -v                     Alias of --verbose.

@@ -1,3 +1,3 @@
 mirror cmdr: wrong#args, too many
 
-take ?OPTIONS? ?<take>?*
+take ?<take>?*

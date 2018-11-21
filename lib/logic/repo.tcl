@@ -30,7 +30,7 @@ namespace eval ::m {
 namespace eval ::m::repo {
     namespace export \
 	add remove move/mset move/1 has get name \
-	known get-n mset
+	known get-n mset search
     namespace ensemble create
 }
 
@@ -157,6 +157,39 @@ proc ::m::repo::get {repo} {
     return $details
 }
 
+
+proc ::m::repo::search {substring} {
+    debug.m/repo {}
+
+    set sub [string tolower $substring]
+    set series {}
+    m db eval {
+	SELECT N.name    AS name
+	,      R.url     AS url
+	,      R.id      AS rid
+	,      V.code    AS vcode
+	,      S.size_kb AS sizekb
+	FROM   repository             R
+	,      mirror_set             M
+	,      name                   N
+	,      version_control_system V
+	,      store                  S
+	WHERE  M.id   = R.mset
+	AND    N.id   = M.name
+	AND    V.id   = R.vcs
+	AND    S.mset = R.mset
+	AND    S.vcs  = R.vcs
+	ORDER BY N.name ASC
+	,        R.url  ASC
+    } {
+	if {
+	    ([string first $sub [string tolower $name]] < 0) &&
+	    ([string first $sub [string tolower $url ]] < 0)
+	} continue
+	lappend series $name $url $rid $vcode $sizekb
+    }
+    return $series
+}
 
 proc ::m::repo::get-n {first n} {
     debug.m/repo {}

@@ -216,6 +216,7 @@ proc ::m::vcs::github::Forks {path} {
 	# interface allows us to filter these out.
 	try {
 	    m exec nc-get curl -s -f -I $url
+	    # -L  Follow temporary and permanent redirections
 	    # -I  HEAD only
 	    # -f  Silent fail (ignore fail document)
 	    # -s  Silence other output

@@ -1,3 +1,4 @@
 mirror cmdr: wrong#args, too many
 
-pending ?OPTIONS?*
+pending
+*

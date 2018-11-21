@@ -85,7 +85,8 @@ proc ::m::cmdr::main {argv} {
 	# But not an error, nor even a warning.
 	# This is a regular exit.
 
-    } trap {M::CMDR} {e o} {
+    } trap {M VCS CHILD} {e o} - \
+      trap {M::CMDR} {e o} {
 	debug.m/cmdr {trap - other user error}
 	m emsg "$::argv0 general: [cmdr color error $e]"
 	return 1
@@ -239,6 +240,15 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	m msg "[file tail $::argv0] [package present m::cmdr]"
     }]
 
+    private show {
+	description {
+	    Show the configuration
+	}
+	option all {
+	    Show site and mail configuration as well
+	} { presence }
+    } [m::cmdr::call glue cmd_show]
+    
     private store {
 	description {
 	    Query/change store path. Change implies copying all
@@ -294,7 +304,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	}
 	input url {
 	    Location of the repository to add.
-	} { validate str }
+	} { validate [m::cmdr::vt url] }
 	option name {
 	    Name for the mirror set to hold the repository.
 	} {
@@ -440,6 +450,14 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	    validate cmdr::validate::posint
 	    generate [m::cmdr::call glue gen_limit]
 	}
+	input pattern {
+	    When specified, search for repositories matching the
+	    pattern.  This is a case-insensitive substring search on
+	    repository urls and mirror set names. A search overrides
+	    and voids any and all repository and limit specifications.
+	    This also keeps the cursor unchanged. The rolodex however
+	    is filled with the search results.
+	} { optional ; validate str }
     } [m::cmdr::call glue cmd_list]
 
     private reset {
@@ -475,7 +493,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	description {
 	    Manual submission of url to moderate.
 	}
-	input url       {Url to track}    { validate str }
+	input url       {Url to track}    { validate [m::cmdr::vt url] }
 	input email     {Submitter, mail} { validate str }
 	input submitter {Submitter, name} { optional ; validate str }
     } [m::cmdr::call glue cmd_submit]
@@ -506,9 +524,8 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	    generate [m::cmdr::call glue gen_vcs_code]
 	}
 	state url {
-	    Location of the repository. Derived from the
-	    id
-	} { validate str
+	    Location of the repository. Derived from the id
+	} { validate str ;#[m::cmdr::vt url]
 	    generate [m::cmdr::call glue gen_url]
 	}
 	option name {

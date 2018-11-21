@@ -12,6 +12,7 @@ kt::source support/invoke.tcl
 
 # # ## ### ##### ######## ############# #####################
 
+lappend cases logo     logo                {}
 lappend cases location t-site              {}
 lappend cases mail     example@example.com {}
 lappend cases manager  {The fox}           {}

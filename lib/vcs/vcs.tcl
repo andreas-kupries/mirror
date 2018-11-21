@@ -96,11 +96,33 @@ proc ::m::vcs::setup {store vcs name url} {
     m futil write $path/%name $name  ;# Mirror set
     m futil write $path/%vcs  $vcode ;# Manager
 
-    CAP $path {
-	# Create vcs-specific special resources, if any
-	$vcode setup  $path $url
-	# Then update for the first time
-	$vcode update $path [::list $url] 1
+    try {
+	CAP $path {
+	    # Create vcs-specific special resources, if any
+	    $vcode setup  $path $url
+	    # Then update for the first time
+	    $vcode update $path [::list $url] 1
+	}
+    } trap {CHILDSTATUS} {e} {
+	# For errors always show captured output.
+	if {![m exec verbose]} {
+	    # TODO: Factor into helper command - Maybe an exec command, hide details
+	    set p "[color bad \u2588\u2588] "
+	    puts stdout $p[join [::split [string trim [m futil cat $path/%stdout]] \n] \n$p]
+	    puts stderr $p[join [::split [string trim [m futil cat $path/%stderr]] \n] \n$p]
+	}
+
+	# Roll back filesystem changes
+	file delete -force -- $path
+
+	# Rethrow as something more distinguished for trapping
+	return -code error -errorcode {M VCS CHILD} $e
+	
+    } on error {e o} {
+	puts [color bad ////////////////////////////////////////]
+	puts [color bad $e]
+	puts [color bad $o]
+	puts [color bad ////////////////////////////////////////]
     }
     return
 }
@@ -259,6 +281,7 @@ proc ::m::vcs::detect {url} {
 }
 
 proc ::m::vcs::url-norm {vcode url} {
+    debug.m/vcs {}
     # Normalize the incoming url
     # I.e. for a number of known sites, force the use of the https
     # they support. Further strip known irrelevant trailers.
@@ -269,8 +292,14 @@ proc ::m::vcs::url-norm {vcode url} {
     lappend map http://core.tcl.tk   https://core.tcl.tk
 
     if {$vcode eq "fossil"} {
+	# Strip query fragment
+	regsub -- {\?[^?]*$}   $url {} url
+	# Strip page fragment
+	regsub -- "#.*\$"      $url {} url
+	# Strip various toplevel pages
 	regsub -- {/index$}    $url {} url
 	regsub -- {/timeline$} $url {} url
+	regsub -- {/login$}    $url {} url
     }
     
     return [string map $map $url]

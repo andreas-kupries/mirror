@@ -1,0 +1,66 @@
+# -*- tcl -*- tcl.tk//DSL tcltest//EN//2.0 tcl.tk//DSL tcltest//EN//2.0
+## (c) 2018 Andreas Kupries
+# # ## ### ##### ######## ############# #####################
+## m::validate::url
+
+kt check Tcl     8.5
+kt check tcltest 2
+
+kt local testing m::validate::url
+
+# # ## ### ##### ######## ############# #####################
+#
+## [..] ok
+
+# # ## ### ##### ######## ############# #####################
+## Pseudo/Fake parameter object to satisfy a validation type.
+## More specifically the command used inside to generate failure
+## messages.
+
+namespace eval P {
+    namespace export type the-name
+    namespace ensemble create
+    proc type     {} { return T }
+    proc the-name {} { return P }
+}
+
+# # ## ### ##### ######## ############# #####################
+
+test validate-url-validate-1.0 {ok - wrong args, not enough} -body {
+    m::validate::url::validate
+} -returnCodes error -result {wrong # args: should be "m::validate::url::validate p x"}
+
+test validate-url-validate-1.1 {ok - wrong args, not enough} -body {
+    m::validate::url::validate P
+} -returnCodes error -result {wrong # args: should be "m::validate::url::validate p x"}
+
+test validate-url-validate-1.2 {ok - wrong args, too many} -body {
+    m::validate::url::validate P URL X
+} -returnCodes error -result {wrong # args: should be "m::validate::url::validate p x"}
+
+# # ## ### ##### ######## ############# #####################
+# [..] 200 ok, redirection followed
+# [..] 200 ok, no redirection
+# [..] 302 fail (moved, not followed)
+# [..] 404 not found
+# [..] 302/301 redirection cycle
+
+test validate-url-validate-2.0 {ok - 200 through redirect} -body {
+    m::validate::url::validate P https://core.tcl-lang.org/
+} -result https://core.tcl-lang.org/index.html
+
+test validate-url-validate-2.1 {ok - 200 plain} -body {
+    m::validate::url::validate P https://core.tcl-lang.org/index.html
+} -result https://core.tcl-lang.org/index.html
+
+test validate-url-validate-2.2 {ok - 404 plain} -body {
+    m::validate::url::validate P https://core.tcl-lang.org/bogus
+} -returnCodes error -result {Expected an url for T "P", got "https://core.tcl-lang.org/bogus"}
+
+test validate-url-validate-2.3 {ok - chisel redirection cycle} -body {
+    m::validate::url::validate P https://chiselapp.com/notfound
+} -returnCodes error -result {Expected an url for T "P", got "https://chiselapp.com/notfound"}
+
+# # ## ### ##### ######## ############# #####################
+cleanupTests
+return

@@ -1,0 +1,58 @@
+# -*- tcl -*- tcl.tk//DSL tcltest//EN//2.0 tcl.tk//DSL tcltest//EN//2.0
+## (c) 2018 Andreas Kupries
+# # ## ### ##### ######## ############# #####################
+## m::url
+
+kt check Tcl     8.5
+kt check tcltest 2
+
+kt local   testing m::url
+
+# # ## ### ##### ######## ############# #####################
+#
+## [..] ok
+
+# # ## ### ##### ######## ############# #####################
+
+test url-ok-1.0 {ok - wrong args, not enough} -body {
+    m::url::ok
+} -returnCodes error -result {wrong # args: should be "m::url::ok url rv ?follow?"}
+
+test url-ok-1.1 {ok - wrong args, not enough} -body {
+    m::url::ok URL
+} -returnCodes error -result {wrong # args: should be "m::url::ok url rv ?follow?"}
+
+test url-ok-1.2 {ok - wrong args, too many} -body {
+    m::url::ok URL RV FOLLOW X
+} -returnCodes error -result {wrong # args: should be "m::url::ok url rv ?follow?"}
+
+# # ## ### ##### ######## ############# #####################
+# [..] 200 ok, redirection followed
+# [..] 200 ok, no redirection
+# [..] 302 fail (moved, not followed)
+# [..] 404 not found
+# [..] 302/301 redirection cycle
+
+test url-ok-2.0.0 {ok - 200 through redirect} -body {
+    list [m::url::ok https://core.tcl-lang.org/ r] $r
+} -result {1 https://core.tcl-lang.org/index.html}
+
+test url-ok-2.0.1 {ok - 200 plain} -body {
+    list [m::url::ok https://core.tcl-lang.org/index.html r] $r
+} -result {1 https://core.tcl-lang.org/index.html}
+
+test url-ok-2.1 {ok - 302 redirect not followed} -body {
+    list [m::url::ok https://core.tcl-lang.org/ r 0] $r
+} -result {0 {}}
+
+test url-ok-2.2 {ok - 404 plain} -body {
+    list [m::url::ok https://core.tcl-lang.org/bogus r] $r
+} -result {0 {}}
+
+test url-ok-2.3 {ok - chisel redirection cycle} -body {
+    list [m::url::ok https://chiselapp.com/notfound r] $r
+} -result {0 {}}
+
+# # ## ### ##### ######## ############# #####################
+cleanupTests
+return

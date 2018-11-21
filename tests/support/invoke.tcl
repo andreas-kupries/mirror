@@ -97,16 +97,21 @@ proc store-scan {} {
 }
 
 proc map {x} {
-    lappend map <MD>  [md]
-    lappend map <ACO> [a-core]
-    lappend map <BCO> [b-core]
-    lappend map <BCH> [b-chisel]
-    lappend map <BGH> [b-github]
+    lappend map <MD>   [md]
+    lappend map <ACO/> [a-core]/index
+    lappend map <ACO>  [a-core]
+    lappend map <BCH/> [b-chisel]/index
+    lappend map <BCH>  [b-chisel]
+    lappend map <BCO/> [b-core]/index
+    lappend map <BCO>  [b-core]
+    lappend map <BGH>  [b-github]
+
     string map $map $x
 }
 
 # # ## ### ##### ######## ############# #####################
 ## REF
+## Use of trailing /index to shortcircuit url redirection.
 
 proc a-core   {} { set _ https://core.tcl.tk/akupries/mirror }
 

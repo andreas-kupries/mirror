@@ -1,6 +1,6 @@
 +-*-+-*-+-*-+-*-+-*-+
 |    | When *| Url *| Email *| Submitter *|
 +-*-+-*-+-*-+-*-+-*-+
-| %1 | * | <ACO> *| fox@hole.com *| The Fox *|
+| %1 | * | <ACO/> *| fox@hole.com *| The Fox *|
 +-*-+-*-+-*-+-*-+-*-+
 OK

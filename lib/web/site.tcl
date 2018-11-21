@@ -363,8 +363,7 @@ proc ::m::web::site::T {label text} {
     if {$text eq ""} { return "" }
     append t $label \n\n
     append t "```" \n
-    append t $text
-    if {![string match *\n $text]} { append text \n }
+    append t [string trim $text] \n
     append t "```" \n
     return $t
 }

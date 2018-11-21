@@ -41,18 +41,24 @@ namespace eval ::m::glue {
 # # ## ### ##### ######## ############# ######################
 
 debug level  m/glue
-debug prefix m/glue {[debug caller] | }
+debug prefix m/glue {}
+#debug prefix m/glue {[debug caller] | }
 
 # # ## ### ##### ######## ############# ######################
 
 proc ::m::glue::gen_limit {p} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
     package require m::state
-    return [m state limit]
+
+    set limit [m state limit]
+
+    debug.m/glue {[debug caller] | [$p config] }
+    debug.m/glue {[debug caller] | --> $limit }
+    return $limit
 }
 
 proc ::m::glue::gen_url {p} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
     package require m::submission
     set details [m submission get [$p config @id]]
     dict with details {}
@@ -60,50 +66,73 @@ proc ::m::glue::gen_url {p} {
     #    email
     #    submitter
     #    when
+    debug.m/glue {[debug caller] | [$p config] }
+    debug.m/glue {[debug caller] | --> $url }
     return $url
 }
 
 proc ::m::glue::gen_name {p} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
     package require m::mset
     package require m::vcs
 
     # Derive a name from the url when no such was specified by the
     # user. Add a serial number if that name is already in use.
-    return [MakeName [m vcs name-from-url [$p config @vcs-code] [$p config @url]]]
+    set name [MakeName \
+		  [m vcs name-from-url \
+		       [$p config @vcs-code] \
+		       [$p config @url]]]
+
+    debug.m/glue {[debug caller] | [$p config] }
+    debug.m/glue {[debug caller] | --> $name }
+    return $name
 }
 
 proc ::m::glue::gen_vcs {p} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
     # Auto detect vcs of url when not specified by the user.
     package require m::validate::vcs
     package require m::vcs
     #
-    return [m validate vcs validate $p [m vcs detect [$p config @url]]]
+    set vcs [m validate vcs validate $p [m vcs detect [$p config @url]]]
+
+    debug.m/glue {[debug caller] | [$p config] }
+    debug.m/glue {[debug caller] | --> $vcs }
+    return $vcs
 }
 
 proc ::m::glue::gen_vcs_code {p} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
     # Determine vcs code from the database id.
     package require m::vcs
     #
-    return [m vcs code [$p config @vcs]]
+    set vcode [m vcs code [$p config @vcs]]
+
+    debug.m/glue {[debug caller] | [$p config] }
+    debug.m/glue {[debug caller] | --> $vcode }
+    return $vcode
 }
 
 proc ::m::glue::gen_current {p} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
     # Provide current as repository for operation when not specified
     # by the user. Fail if we have no current repository.
     package require m::rolodex
     #
     set r [m rolodex top]
-    if {$r ne {}} { return $r }
+    if {$r ne {}} {
+	debug.m/glue {[debug caller] | --> $r }
+	return $r
+    }
+
+    debug.m/glue {[debug caller] | [$p config] }
+    debug.m/glue {[debug caller] | undefined }
     $p undefined!
     # Will not reach here
 }
 
 proc ::m::glue::gen_current_mset {p} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
     # Provide current as mirror set for operation when not specified
     # by the user. Fail if we have no current repository to trace
     # from.
@@ -114,9 +143,13 @@ proc ::m::glue::gen_current_mset {p} {
     if {$r ne {}} {
 	set m [m repo mset $r]
 	if {$m ne {}} {
+	    debug.m/glue {[debug caller] | --> $m }
 	    return $m
 	}
     }
+
+    debug.m/glue {[debug caller] | [$p config] }
+    debug.m/glue {[debug caller] | undefined }
     $p undefined!
     # Will not reach here
 }
@@ -124,11 +157,12 @@ proc ::m::glue::gen_current_mset {p} {
 # # ## ### ##### ######## ############# ######################
 
 proc ::m::glue::cmd_import {config} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
     package require m::mset
     package require m::repo
     package require m::rolodex
     package require m::store
+    package require m::url
 
     set dated [$config @dated]
 
@@ -142,7 +176,7 @@ proc ::m::glue::cmd_import {config} {
 }
 
 proc ::m::glue::cmd_export {config} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
     package require m::mset
     package require m::repo
 
@@ -150,7 +184,7 @@ proc ::m::glue::cmd_export {config} {
 }
 
 proc ::m::glue::cmd_reply_add {config} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
     package require m::db
     package require m::reply
 
@@ -171,7 +205,7 @@ proc ::m::glue::cmd_reply_add {config} {
 }
 
 proc ::m::glue::cmd_reply_remove {config} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
     package require m::db
     package require m::reply
 
@@ -193,7 +227,7 @@ proc ::m::glue::cmd_reply_remove {config} {
 }
 
 proc ::m::glue::cmd_reply_change {config} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
     package require m::db
     package require m::reply
 
@@ -212,7 +246,7 @@ proc ::m::glue::cmd_reply_change {config} {
 }
 
 proc ::m::glue::cmd_reply_default {config} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
     package require m::db
     package require m::reply
 
@@ -228,54 +262,69 @@ proc ::m::glue::cmd_reply_default {config} {
 }
 
 proc ::m::glue::cmd_reply_show {config} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
     package require m::db
     package require m::reply
 
     m db transaction {
-	[table t {{} Name Mail Text} {
-	    foreach {name default mail text} [m reply list] {
-		set mail    [expr {$mail    ? "*" : ""}]
-		set default [expr {$default ? "#" : ""}]
-
-		$t add $default [color note $name] $mail $text
-	    }
-	}] show
+	ReplyConfigShow
     }
     OK
 }
 
 proc ::m::glue::cmd_mailconfig_show {config} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
     package require m::state
 
     m db transaction {
 	[table/d t {
-	    $t add Host   [m state mail-host]
-	    $t add Port   [m state mail-port]
-	    $t add User   [m state mail-user]
-	    $t add Pass   [m state mail-pass]
-	    $t add TLS    [m state mail-tls]
-	    $t add Sender [m state mail-sender]
-	    $t add Header [m state mail-header]
-	    $t add Footer [m state mail-footer]
+	    MailConfigShow $t
 	}] show
     }
     OK
 }
 
 proc ::m::glue::cmd_siteconfig_show {config} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
     package require m::state
 
     m db transaction {
-	SiteConfigShow
+	[table/d t {
+	    SiteConfigShow $t
+	}] show
+    }
+    OK
+}
+
+proc ::m::glue::cmd_show {config} {
+    debug.m/glue {[debug caller] | }
+    package require m::state
+
+    set all [$config @all]
+
+    m db transaction {
+	[table/d t {
+	    $t add Store [m state store]
+	    $t add Limit [m state limit]
+	    $t add Take  [m state take]
+
+	    if {$all} {
+		package require m::db
+		package require m::reply
+
+		$t add Site {}
+		SiteConfigShow $t {- }
+
+		$t add Mail {}
+		MailConfigShow $t {- }
+	    }
+	}] show
     }
     OK
 }
 
 proc ::m::glue::cmd_mailconfig {key desc config} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
     package require m::state
 
     set prefix Current
@@ -297,7 +346,7 @@ proc ::m::glue::cmd_mailconfig {key desc config} {
 }
 
 proc ::m::glue::cmd_siteconfig {key desc config} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
     package require m::state
 
     set prefix Current
@@ -323,7 +372,7 @@ proc ::m::glue::cmd_siteconfig {key desc config} {
 }
 
 proc ::m::glue::cmd_site_off {config} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
     package require m::state
     m db transaction {
 	SiteEnable 0
@@ -332,7 +381,7 @@ proc ::m::glue::cmd_site_off {config} {
 }
 
 proc ::m::glue::cmd_site_on {config} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
     package require m::state
     package require m::web::site
 
@@ -340,7 +389,9 @@ proc ::m::glue::cmd_site_on {config} {
 
     m db transaction {
 	SiteEnable 1
-	SiteConfigShow
+	[table/d t {
+	    SiteConfigShow $t
+	}] show
 	#
 	m web site build $mode
     }
@@ -348,7 +399,7 @@ proc ::m::glue::cmd_site_on {config} {
 }
 
 proc ::m::glue::cmd_store {config} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
     package require m::store
 
     set prefix Current
@@ -370,7 +421,7 @@ proc ::m::glue::cmd_store {config} {
 }
 
 proc ::m::glue::cmd_take {config} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
     package require m::state
 
     m db transaction {
@@ -387,7 +438,7 @@ proc ::m::glue::cmd_take {config} {
 }
 
 proc ::m::glue::cmd_vcs {config} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
     package require m::vcs
 
     m msg [color note {Supported VCS}]
@@ -413,7 +464,7 @@ proc ::m::glue::cmd_vcs {config} {
 }
 
 proc ::m::glue::cmd_add {config} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
     package require m::mset
     package require m::repo
     package require m::rolodex
@@ -428,7 +479,7 @@ proc ::m::glue::cmd_add {config} {
 }
 
 proc ::m::glue::cmd_remove {config} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
     package require m::mset
     package require m::repo
     package require m::rolodex
@@ -475,7 +526,7 @@ proc ::m::glue::cmd_remove {config} {
 }
 
 proc ::m::glue::cmd_rename {config} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
     package require m::mset
     package require m::store
 
@@ -505,7 +556,7 @@ proc ::m::glue::cmd_rename {config} {
 }
 
 proc ::m::glue::cmd_merge {config} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
     package require m::mset
     package require m::repo
     package require m::rolodex
@@ -540,7 +591,7 @@ proc ::m::glue::cmd_merge {config} {
 }
 
 proc ::m::glue::cmd_split {config} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
     package require m::mset
     package require m::repo
     package require m::rolodex
@@ -602,14 +653,14 @@ proc ::m::glue::cmd_split {config} {
 }
 
 proc ::m::glue::cmd_current {config} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
 
     ShowCurrent
     OK
 }
 
 proc ::m::glue::cmd_swap_current {config} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
     package require m::repo
     package require m::rolodex
 
@@ -623,7 +674,7 @@ proc ::m::glue::cmd_swap_current {config} {
 }
 
 proc ::m::glue::cmd_set_current {config} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
     package require m::repo
     package require m::rolodex
 
@@ -637,7 +688,7 @@ proc ::m::glue::cmd_set_current {config} {
 }
 
 proc ::m::glue::cmd_update {config} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
     package require m::mset
     package require m::state
     package require m::store
@@ -692,7 +743,7 @@ proc ::m::glue::cmd_update {config} {
 }
 
 proc ::m::glue::cmd_updates {config} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
     package require m::store
 
     m db transaction {
@@ -716,7 +767,7 @@ proc ::m::glue::cmd_updates {config} {
 }
 
 proc ::m::glue::cmd_pending {config} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
     package require m::mset
     package require m::state
 
@@ -739,32 +790,40 @@ proc ::m::glue::cmd_pending {config} {
 }
 
 proc ::m::glue::cmd_list {config} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
     package require m::repo
     package require m::rolodex
     package require m::state
 
     m db transaction {
-	if {[$config @repository set?]} {
-	    set repo [$config @repository]
-	    set ri [m repo get $repo]
-	    dict with ri {}
-	    set first [list $name $url]
-	    debug.m/glue {from request: $first}
-	    unset name url vcs vcode store ri
-	} else {
-	    set first [m state top]
-	    debug.m/glue {from state: $first}
-	}
-	set limit [$config @limit]
 
-	lassign [m repo get-n $first $limit] next series
+	if {[$config @pattern set?]} {
+	    # Search, shows all results. Does not move the cursor.
+	    set pattern [$config @pattern]
+	    set series [m repo search $pattern]
+	} else {
+	    # No search, show a chunk of the list as per options.
+	    if {[$config @repository set?]} {
+		set repo [$config @repository]
+		set ri [m repo get $repo]
+		dict with ri {}
+		set first [list $name $url]
+		debug.m/glue {from request: $first}
+		unset name url vcs vcode store ri
+	    } else {
+		set first [m state top]
+		debug.m/glue {from state: $first}
+	    }
+	    set limit [$config @limit]
+
+	    lassign [m repo get-n $first $limit] next series
+
+	    debug.m/glue {next   ($next)}
+	    m state top $next
+	}
 	# series = (mset url rid vcode sizekb ...)
 
-	debug.m/glue {next   ($next)}
 	debug.m/glue {series ($series)}
-
-	m state top $next
 
 	set n 0
 	foreach {_ _ repo _ _} $series {
@@ -793,7 +852,7 @@ proc ::m::glue::cmd_list {config} {
 }
 
 proc ::m::glue::cmd_reset {config} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
     package require m::state
 
     m state top {}
@@ -803,13 +862,13 @@ proc ::m::glue::cmd_reset {config} {
 }
 
 proc ::m::glue::cmd_rewind {config} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
     puts [info level 0]		;# XXX TODO FILL-IN rewind
     return
 }
 
 proc ::m::glue::cmd_limit {config} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
     package require m::rolodex
     package require m::state
 
@@ -830,7 +889,7 @@ proc ::m::glue::cmd_limit {config} {
 }
 
 proc ::m::glue::cmd_submissions {config} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
     package require m::submission
 
     m db transaction {
@@ -847,7 +906,7 @@ proc ::m::glue::cmd_submissions {config} {
 }
 
 proc ::m::glue::cmd_rejected {config} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
     package require m::submission
 
     m db transaction {
@@ -861,11 +920,11 @@ proc ::m::glue::cmd_rejected {config} {
 }
 
 proc ::m::glue::cmd_submit {config} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
     package require m::submission
 
     m db transaction {
-	set url       [$config @url]
+	set url       [Url $config]
 	set email     [$config @email]
 	set submitter [$config @submitter]
 
@@ -873,6 +932,7 @@ proc ::m::glue::cmd_submit {config} {
 	if {$submitter ne {}} {
 	    append name " ([color note $submitter])"
 	}
+	
 	m msg "Submitted [color note $url]"
 	m msg "By        $name"
 
@@ -893,7 +953,7 @@ proc ::m::glue::cmd_submit {config} {
 }
 
 proc ::m::glue::cmd_accept {config} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
     package require m::mset
     package require m::repo
     package require m::rolodex
@@ -951,7 +1011,7 @@ proc ::m::glue::cmd_accept {config} {
 }
 
 proc ::m::glue::cmd_reject {config} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
     package require m::submission
     package require m::mail::generator
     package require m::mailer
@@ -1013,7 +1073,7 @@ proc ::m::glue::cmd_reject {config} {
 }
 
 proc ::m::glue::cmd_test_vt_repository {config} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
     package require m::repo
 
     set map [m repo known]
@@ -1027,7 +1087,7 @@ proc ::m::glue::cmd_test_vt_repository {config} {
 }
 
 proc ::m::glue::cmd_test_vt_mset {config} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
     package require m::mset
 
     set map [m mset known]
@@ -1041,7 +1101,7 @@ proc ::m::glue::cmd_test_vt_mset {config} {
 }
 
 proc ::m::glue::cmd_test_vt_reply {config} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
     package require m::reply
 
     set map [m reply known]
@@ -1055,7 +1115,7 @@ proc ::m::glue::cmd_test_vt_reply {config} {
 }
 
 proc ::m::glue::cmd_test_vt_submission {config} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
     package require m::submission
 
     set map [m submission known]
@@ -1069,15 +1129,39 @@ proc ::m::glue::cmd_test_vt_submission {config} {
 }
 
 proc ::m::glue::cmd_debug_levels {config} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
     puts [info level 0]		;# XXX TODO FILL-IN debug levels
     return
 }
 
 # # ## ### ##### ######## ############# ######################
 
+proc ::m::glue::Url {config} {
+    debug.m/glue {[debug caller] | }
+
+    set url [$config @url]
+    debug.m/glue {[debug caller] | re'url = $url }
+
+    try {
+	set in  [$config @url string]
+	debug.m/glue {[debug caller] | in'url = $in }
+    } trap {CMDR PARAMETER UNDEFINED} {} {
+	# This is possible for cmd_accept where the state url by
+	# glue::gen_url, which leaves out the string information
+	set in $url
+    }
+
+    if {$url ne $in} {
+	m msg "[color warning Redirected] to [color note $url]"
+	m msg "From          [color note $in]"
+    }
+
+    debug.m/glue {[debug caller] | --> $url }
+    return $url
+}
+
 proc ::m::glue::ImportRead {chan} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
     return [split [string trim [read $chan]] \n]
     #         :: list (command)
     # command :: list ('M' name)
@@ -1099,30 +1183,47 @@ proc ::m::glue::ImportVerify {commands} {
     set maxl [llength $commands]
     set lfmt %-[string length $maxl]s
     set msg {}
+    set new {}
     foreach command $commands {
-	set command [string trim $command]
 	incr lno
-	debug.m/glue {[format $lfmt $lno]: $command}
+	debug.m/glue {[format $lfmt $lno]: '$command'}
 
+	# strip (trailing) comments, leading & trailing whitespace
+	regsub -- "#.*\$" $command {} command
+	set command [string trim $command]
 
+	# skip empty lines
+	if {$command eq {}} continue
+	
 	lassign $command cmd a b
 	switch -exact -- $cmd {
 	    M {
+		# M name --> a = name, b = ((empty string))
 		if {[llength $command] != 2} {
 		    lappend msg "Line [format $lfmt $lno]: Bad syntax: $command"
 		}
 	    }
 	    R {
+		# R kind url --> a = kind, b = url
 		if {[llength $command] != 3} {
 		    lappend msg "Line [format $lfmt $lno]: Bad syntax: $command"
-		} elseif {![dict exists $vcs $a]} {
-		    lappend msg "Line [format $lfmt $lno]: Unknown vcs: $command"
+		} else {
+		    if {![dict exists $vcs $a]} {
+			lappend msg "Line [format $lfmt $lno]: Unknown vcs: $command"
+		    }
+		    if {![m url ok $b resolved]} {
+			lappend msg "Line [format $lfmt $lno]: Bad url: $b"
+		    } else {
+			# Add resolution to R commands.
+			lappend command $resolved
+		    }
 		}
 	    }
 	    default {
 		lappend msg "Line [format $lfmt $lno]: Unknown command: $command"
 	    }
 	}
+	lappend new $command
     }
 
     if {[llength $msg]} {
@@ -1130,27 +1231,51 @@ proc ::m::glue::ImportVerify {commands} {
     }
 
     # Unchanged.
-    return $commands
+    return $new
 }
 
 proc ::m::glue::ImportSkipKnown {commands} {
     # commands :: list (command)
     # command  :: list ('M' name)
-    #           | list ('R' vcode url)
+    #           | list ('R' vcode url resolved)
     debug.m/glue {}
+    set seen {}
     set lno 0
     set new {}
     set repo {}
     foreach command $commands {
+	debug.m/glue {$command}
+
 	incr lno
-	lassign $command cmd vcs url
+	lassign $command cmd vcs url resolved
 	switch -exact -- $cmd {
-	    R {
-		if {[m repo has $url]} {
+	    R {		
+		if {$url ne $resolved} {
+		    m msg "Line $lno: [color warning Redirected] to [color note $resolved]"
+		    m msg "Line $lno: From          [color note $url]"
+		}
+
+		set check [m vcs url-norm $vcs $resolved]
+		debug.m/glue {checking $check}
+
+		if {[m repo has $check]} {
 		    m msg "Line $lno: [color warning Skip] known repository [color note $url]"
 		    continue
 		}
-	        lappend repo $vcs $url
+		if {$resolved in $repo} {
+		    m msg "Line $lno: [color warning Skip] [color bad duplicate] [color note $url]"
+		    continue
+		}
+		if {[dict exists $seen $resolved]} {
+		    lassign [dict get $seen $resolved] olno m
+		    m msg "Line $lno: [color warning Skip] [color bad duplicate] [color note $url]"
+		    m msg "Line $lno: Belongs to    [color note $m] (Line $olno)"
+		    continue
+		}
+
+		dict set seen $resolved $lno
+		lappend x $resolved
+	        lappend repo $vcs $resolved
 	    }
 	    M {
 		if {![llength $repo]} {
@@ -1158,6 +1283,9 @@ proc ::m::glue::ImportSkipKnown {commands} {
 		    set repo {}
 		    continue
 		}
+		foreach r $x { dict lappend seen $r $vcs } ;# vcs = mname
+		unset x
+		
 		lappend command $repo
 		lappend new $command
 		set repo {}
@@ -1195,9 +1323,11 @@ proc ::m::glue::ImportDo {dated commands} {
 }
 
 proc ::m::glue::Import1 {date mname repos} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
     # repos = list (vcode url ...)
 
+    m msg "Handling [color note $mname] ..."
+    
     if {[llength $repos] == 2} {
 	lassign $repos vcode url
 	# The mirror set contains only a single repository.
@@ -1205,7 +1335,13 @@ proc ::m::glue::Import1 {date mname repos} {
 	if {![m mset has $mname]} {
 	    # No mirror set of the given name exists.
 	    # Create directly in final form. Skip merge.
-	    ImportMake1 $vcode $url $mname
+	    try {
+		ImportMake1 $vcode $url $mname
+	    } trap {M VCS CHILD} {e o} {
+		m msg "[color bad {Unable to import}] [color note $mname]: $e"
+		# No rethrow, the error in the child is not an error
+		# for the whole command. Continue importing the remainder.
+	    }
 	    return
 	}
     }
@@ -1230,11 +1366,24 @@ proc ::m::glue::Import1 {date mname repos} {
     #   form, based on the incoming mname and date.
 
     set serial 0
+    set r {}
     foreach {vcode url} $repos {
-	set data [ImportMake1 $vcode $url import${date}_[incr serial]]
-	dict set r $url $data
+	try {
+	    set data [ImportMake1 $vcode $url import${date}_[incr serial]]
+	    dict set r $url $data
+	} trap {M VCS CHILD} {e o} {
+	    m msg "[color bad {Unable to use}] [color note $url]: $e\n"
+	    # No rethrow, the error in the child is not an error
+	    # for the whole command. Continue importing the remainder.
+	}
     }
 
+    if {![dict size $r]} {
+	# All inputs fail, report and continue with the remainder
+	m msg "[color bad {Unable to import}] [color note $mname]: No repositories"
+	return
+    }
+    
     set rename 1
     if {[m mset has $mname]} {
 	# Targeted mirror set exists. Make it first in the merge list.
@@ -1255,9 +1404,14 @@ proc ::m::glue::Import1 {date mname repos} {
 	    try {
 		m msg "Merging  $url"
 		Merge $msetp $mset
-	    } trap MISMATCH {} {
+	    } trap {M::CMDR MISMATCH} {} {
 		m msg "  Rejected"
 		lappend unmatched $vcode $url
+	    } on error {e o} {
+		puts [color bad ////////////////////////////////////////]
+		puts [color bad $e]
+		puts [color bad $o]
+		puts [color bad ////////////////////////////////////////]
 	    }
 	}
 
@@ -1273,6 +1427,7 @@ proc ::m::glue::Import1 {date mname repos} {
 	# finalizes at least one mirror set, ensuring termination of
 	# the loop.
 	set repos $unmatched
+	set rename 1
     }
 
     m rolodex commit
@@ -1280,7 +1435,7 @@ proc ::m::glue::Import1 {date mname repos} {
 }
 
 proc ::m::glue::ImportMake1 {vcode url base} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
     set vcs     [m vcs id $vcode]
     set tmpname [MakeName $base]
     set mset    [m mset add $tmpname]
@@ -1288,7 +1443,7 @@ proc ::m::glue::ImportMake1 {vcode url base} {
 
     m rolodex push [m repo add $vcs $mset $url]
 
-    m msg "  Setting up the $vcode store for $url ..."
+    m msg "  Setting up the $vcode store for [color note $url] ..."
     set store [m store add $vcs $mset $tmpname $url]
     m msg "  [color note Done]"
 
@@ -1296,8 +1451,8 @@ proc ::m::glue::ImportMake1 {vcode url base} {
 }
 
 proc ::m::glue::Add {config} {
-    debug.m/glue {}
-    set url   [$config @url]
+    debug.m/glue {[debug caller] | }
+    set url   [Url $config]
     set vcs   [$config @vcs]
     set vcode [$config @vcs-code]
     set name  [$config @name]
@@ -1332,7 +1487,6 @@ proc ::m::glue::Add {config} {
     m rolodex push [m repo add $vcs $mset $url]
 
     m msg "  Setting up the $vcode store ..."
-
     m store add $vcs $mset $name $url
 
     m rolodex commit
@@ -1340,20 +1494,34 @@ proc ::m::glue::Add {config} {
     return
 }
 
+proc ::m::glue::InvalE {label key} {
+    set v [m state $key]
+    return [list [Inval $label {$v ne {}}] $v]
+}
+
+proc ::m::glue::Inval {x isvalid} {
+    debug.m/glue {[debug caller] | }
+    if {[uplevel 1 [list ::expr $isvalid]]} {
+	return $x
+    } else {
+	return [color bad $x]
+    }
+}
+
 # TODO: Bool, Date, Size => utility package
 proc ::m::glue::Bool {flag} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
     return [expr {$flag ? "[color good on]" : "[color bad off]"}]
 }
 
 proc ::m::glue::Date {epoch} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
     if {$epoch eq {}} return
     return [clock format $epoch -format {%Y-%m-%d %H:%M:%S}]
 }
 
 proc ::m::glue::Size {x} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
                               if {$x < 1024} { return ${x}K }
     set x [expr {$x/1024.}] ; if {$x < 1024} { return [format %.1f $x]M }
     set x [expr {$x/1024.}] ; if {$x < 1024} { return [format %.1f $x]G }
@@ -1363,7 +1531,7 @@ proc ::m::glue::Size {x} {
 }
 
 proc ::m::glue::ShowCurrent {} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
     package require m::repo
     package require m::rolodex
 
@@ -1399,13 +1567,13 @@ proc ::m::glue::ShowCurrent {} {
 }
 
 proc ::m::glue::OK {} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
     m msg [color good OK]
     return -code return
 }
 
 proc ::m::glue::MakeName {prefix} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
     if {![m mset has $prefix]} { return $prefix }
     set n 1
     while {[m mset has ${prefix}#$n]} { incr n }
@@ -1413,7 +1581,7 @@ proc ::m::glue::MakeName {prefix} {
 }
 
 proc ::m::glue::UpdateSets {msets} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
 
     set n [llength $msets]
     if {!$n} {
@@ -1426,7 +1594,7 @@ proc ::m::glue::UpdateSets {msets} {
 }
 
 proc ::m::glue::Dedup {values} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
     # While keeping the order
     set res {}
     set have {}
@@ -1439,7 +1607,7 @@ proc ::m::glue::Dedup {values} {
 }
 
 proc ::m::glue::MergeFill {msets} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
     set n [llength $msets]
 
     if {!$n} {
@@ -1476,7 +1644,7 @@ proc ::m::glue::MergeFill {msets} {
 }
 
 proc ::m::glue::Rename {mset newname} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
     m mset rename $mset $newname
 
     # TODO MAYBE: stuff cascading logic into `mset rename` ?
@@ -1487,7 +1655,7 @@ proc ::m::glue::Rename {mset newname} {
 }
 
 proc ::m::glue::Merge {target origin} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
 
     # Target and origin are mirror sets.
     #
@@ -1532,31 +1700,61 @@ proc ::m::glue::Merge {target origin} {
     return
 }
 
+proc ::m::glue::MailConfigShow {t {prefix {}}} {
+    debug.m/glue {[debug caller] | }
+
+    set u [m state mail-user]
+    set s [m state mail-sender]
+    
+    $t add ${prefix}Host   [m state mail-host]
+    $t add ${prefix}Port   [m state mail-port]
+    $t add ${prefix}User   [Inval $u {$u ne "undefined"}]
+    $t add ${prefix}Pass   [m state mail-pass]
+    $t add ${prefix}TLS    [m state mail-tls]
+    $t add ${prefix}Sender [Inval $s {$s ne "undefined"}]
+    $t add ${prefix}Header [m state mail-header]
+    $t add ${prefix}Footer [m state mail-footer]
+    return
+}
+
+proc ::m::glue::ReplyConfigShow {} {
+    debug.m/glue {[debug caller] | }
+
+    [table t {{} Name Mail Text} {
+	foreach {name default mail text} [m reply list] {
+	    set mail    [expr {$mail    ? "*" : ""}]
+	    set default [expr {$default ? "#" : ""}]
+
+	    $t add $default [color note $name] $mail $text
+	}
+    }] show
+    return
+}
+
 proc ::m::glue::SiteRegen {} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
     if {![m state site-active]} return
     package require m::web::site
     m web site build silent
     return
 }
 
-proc ::m::glue::SiteConfigShow {} {
-    debug.m/glue {}
-    [table/d t {
-	$t add State    [Bool [m state site-active]]
-	$t add Url      [m state site-url]
-	$t add Logo     [m state site-logo]
-	$t add Title    [m state site-title]
-	$t add Manager  {}
-	$t add {- Name} [m state site-mgr-name]
-	$t add {- Mail} [m state site-mgr-mail]
-	$t add Location [m state site-store]
-    }] show
+proc ::m::glue::SiteConfigShow {t {prefix {}}} {
+    debug.m/glue {[debug caller] | }
+
+    $t add ${prefix}State [Bool [m state site-active]]
+    $t add {*}[InvalE ${prefix}Url       site-url]
+    $t add ${prefix}Logo       [m state  site-logo]
+    $t add {*}[InvalE ${prefix}Title     site-title]
+    $t add ${prefix}Manager  {}
+    $t add {*}[InvalE "${prefix}- Name"  site-mgr-name]
+    $t add {*}[InvalE "${prefix}- Mail"  site-mgr-mail]
+    $t add {*}[InvalE ${prefix}Location  site-store]
     return
 }
 
 proc ::m::glue::SiteEnable {flag} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
     if {[m state site-active] != $flag} {
 	if {$flag} SiteConfigValidate
 	m state site-active $flag
@@ -1569,7 +1767,7 @@ proc ::m::glue::SiteEnable {flag} {
 }
 
 proc ::m::glue::SiteConfigValidate {} {
-    debug.m/glue {}
+    debug.m/glue {[debug caller] | }
     set m {}
     set ok 1
 
