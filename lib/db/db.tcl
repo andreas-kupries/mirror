@@ -340,5 +340,25 @@ proc ::m::db::SETUP-201811202300 {} {
     return
 }
 
+
+
+
+
+
+
+
+
+
+
+proc ::m::db::SETUP-201811212300 {} {
+    # Added `hg` to the set of supported VCS.
+
+    D m::db
+    T^ version_control_system
+    >+ 'hg' 'Mercurial'
+
+    return
+}
+
 # # ## ### ##### ######## ############# #####################
 return

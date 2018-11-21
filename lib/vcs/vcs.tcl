@@ -31,6 +31,7 @@ package require m::futil
 package require m::vcs::fossil
 package require m::vcs::git
 package require m::vcs::github
+package require m::vcs::hg
 package require debug
 package require debug::caller
 
@@ -275,6 +276,7 @@ proc ::m::vcs::detect {url} {
 
     github detect $url
     git    detect $url
+    hg     detect $url
     fossil detect $url
 
     return -code error "Unable to determine vcs for $url"
@@ -285,7 +287,9 @@ proc ::m::vcs::url-norm {vcode url} {
     # Normalize the incoming url
     # I.e. for a number of known sites, force the use of the https
     # they support. Further strip known irrelevant trailers.
+    # Resolve short host names to the proper full name
 
+    lappend map sf.net               sourceforge.net
     lappend map git@github.com:      https://github.com/
     lappend map http://github.com    https://github.com
     lappend map http://chiselapp.com https://chiselapp.com
