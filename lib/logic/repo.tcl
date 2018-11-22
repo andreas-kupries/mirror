@@ -35,7 +35,7 @@ namespace eval ::m {
 namespace eval ::m::repo {
     namespace export \
 	add remove enable move/mset move/1 has get name \
-	known get-n mset search id
+	known get-n mset search id count
     namespace ensemble create
 }
 
@@ -112,6 +112,14 @@ proc ::m::repo::id {url} {
 	SELECT id
 	FROM   repository
 	WHERE  url = :url
+    }]
+}
+
+proc ::m::repo::count {} {
+    debug.m/repo {}
+    return [m db onecolumn {
+	SELECT count (*)
+	FROM   repository
     }]
 }
 

@@ -63,21 +63,27 @@ proc ::m::web::site::build {{mode verbose}} {
 	Export		;# (See `export`)
 	Stores
 
-	set bytime   [m store updates]
-	set byname   [m store by-name]
-	set bysize   [m store by-size]
-	set byvcs    [m store by-vcs]
-	set troubled [ErrOnly [NameFill [DropSep $byname]]]
+	set bytime [m store updates]
+	set byname [m store by-name]
+	set bysize [m store by-size]
+	set byvcs  [m store by-vcs]
+	set issues [ErrOnly [NameFill [DropSep $byname]]]
 
-	# TODO: dict of statistics
-	set n [llength $troubled]
+	dict set stats issues  [set n [llength $issues]]
+	dict set stats size    [m store total-size]
+	dict set stats nrepos  [m repo count]
+	dict set stats nmsets  [m mset count]
+	dict set stats nstores [m store count]
 
-	List index.md          $bytime   $n ;# (See `updates`) 
-	List index_name.md     $byname   $n ;# (by name, vcs, size)
-	List index_size.md     $bysize   $n ;# (by size, name, vcs)
-	List index_vcs.md      $byvcs    $n ;# (by vcs, name, size)
-	List index_troubled.md $troubled $n ;# (by name, only trouble)
+	List index.md        $bytime $stats ;# (See `updates`) 
+	List index_name.md   $byname $stats ;# (by name, vcs, size)
+	List index_size.md   $bysize $stats ;# (by size, name, vcs)
+	List index_vcs.md    $byvcs  $stats ;# (by vcs, name, size)
 
+	if {$n} {
+	    List index_issues.md $issues $stats ;# (by name, only trouble)
+	}
+	
 	# + TODO: submissions pending, submission responses, past rejections
 
 	Fin
@@ -230,21 +236,34 @@ proc ::m::web::site::Contact {} {
     return
 }
 
-proc ::m::web::site::List {page series ntroubles} {
+proc ::m::web::site::List {page series stats} {
     debug.m/web/site {}
 
+    dict with stats {}
+    # issues
+    # size
+    # nrepos
+    # nmsets
+    # nstores
+    
     append text [H Index]
     
-    set hvcs     [L index_vcs.html      VCS          ]
-    set hsize    [L index_size.html     Size         ]
-    set hname    [L index_name.html     {Mirror Set} ]
-    set hchan    [L index.html          Changed      ]
-    set troubled [L index_troubled.html "Issues: $ntroubles" ]
+    set hvcs   [L index_vcs.html    VCS          ]
+    set hsize  [L index_size.html   Size         ]
+    set hname  [L index_name.html   {Mirror Set} ]
+    set hchan  [L index.html        Changed      ]
 
-    append text \n
-    append text "Total size: [m::glue::Size [m store total-size]]" \n
-    append text \n
-    append text $troubled \n
+    if {$issues} {
+	set issues [L index_issues.html "Issues: $issues" ]
+    } else {
+	set issues {}
+    }
+
+    append text "Sets: $nmsets"
+    append text " Repos: $nrepos"
+    append text " Stores: $nstores"
+    append text " Size: [m::glue::Size $size]"
+    append text " $issues" \n
     append text \n
 
     append text "||$hname|$hvcs|$hsize|$hchan|Updated|Created|" \n

@@ -30,6 +30,5 @@ Generating <MD>/site
   + pages/index_name.md
   + pages/index_size.md
   + pages/index_vcs.md
-  + pages/index_troubled.md
 = SSG build web ...
 OK

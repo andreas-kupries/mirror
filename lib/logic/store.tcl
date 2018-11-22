@@ -35,7 +35,7 @@ namespace eval ::m::store {
     namespace export \
 	add remove move rename merge split update has check \
 	id vcs-name updates by-name by-size by-vcs move-location \
-	get remotes total-size
+	get remotes total-size count
     namespace ensemble create
 }
 
@@ -215,6 +215,14 @@ proc ::m::store::total-size {} {
     }]
     if {$sum eq {}} { set sum 0 }
     return $sum
+}
+
+proc ::m::store::count {} {
+    debug.m/store {}
+    return [m db onecolumn {
+	SELECT count (*)
+	FROM store
+    }]
 }
 
 proc ::m::store::by-name {} {

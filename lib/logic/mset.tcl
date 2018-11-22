@@ -33,7 +33,7 @@ namespace eval ::m::mset {
 	list add remove rename has \
 	name used-vcs has-vcs size \
 	stores take-pending pending known \
-	repos spec id
+	repos spec id count
     namespace ensemble create
 }
 
@@ -137,6 +137,14 @@ proc ::m::mset::id {name} {
 	,      name       N
 	WHERE  N.name = :name
 	AND    N.id   = M.name
+    }]
+}
+
+proc ::m::mset::count {} {
+    debug.m/mset {}
+    return [m db onecolumn {
+	SELECT count (*)
+	FROM   mirror_set
     }]
 }
 
