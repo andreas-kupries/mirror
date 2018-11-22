@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+##
+#
+# Helper. Get a list of their repositories for all the people the
+# specified user is following/tracking.
+#
+
+around=${1}
+dst=${2}
+
+echo For $around ...
+
+for neighbour in $(git hub following $around --raw)
+do
+    echo ..Getting $neighbour
+    
+    name="$(git hub user --raw $neighbour | awk '/^name/ { print $2 }')"
+    echo ....= $name
+
+    mkdir -f ${dst}
+    gh-pull "${neighbour}" "${name}" > "${dst}/${neighbour}-full"
+done
