@@ -1,12 +1,15 @@
 #!/usr/bin/env tclsh
-# -*- tcl -*-
-package require Tcl 8.5
+## -*- tcl -*-
+# # ## ### ##### ######## ############# ######################
+
 # CLI
 # Database migration
 #
 # Enables testing of new migrations before appyling them to producton
 # databases. The path to the database to migrate is a required
 # argument. No accidental use of the default location.
+
+# # ## ### ##### ######## ############# ######################
 
 # @@ Meta Begin
 # Application mirror-migrate   ?
@@ -20,6 +23,10 @@ package require Tcl 8.5
 # Meta subject     ?
 # Meta summary     ?
 # @@ Meta End
+
+# # ## ### ##### ######## ############# ######################
+
+package require Tcl 8.5
 
 proc main {} {
     migrate [cmdline]

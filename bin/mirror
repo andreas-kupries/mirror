@@ -1,6 +1,26 @@
 #!/usr/bin/env tclsh
 ## -*- tcl -*-
 # # ## ### ##### ######## ############# ######################
+
+# CLI - Main application to manage the database of mirrors.
+
+# # ## ### ##### ######## ############# ######################
+
+# @@ Meta Begin
+# Application mirror   ?
+# Meta author      {Andreas Kupries}
+# Meta category    ?
+# Meta description ?
+# Meta location    https://core.tcl-lang.org/akupries/????
+# Meta platform    tcl
+# Meta require     m::cmdr
+# Meta require     {Tcl 8.5-}
+# Meta subject     ?
+# Meta summary     ?
+# @@ Meta End
+
+# # ## ### ##### ######## ############# ######################
+
 package require Tcl 8.5
 package require try
 
@@ -18,21 +38,6 @@ if 0 {
 	}
     }
 }
-
-# CLI - Main application to manage the database of mirrors.
-
-# @@ Meta Begin
-# Application mirror   ?
-# Meta author      {Andreas Kupries}
-# Meta category    ?
-# Meta description ?
-# Meta location    https://core.tcl-lang.org/akupries/????
-# Meta platform    tcl
-# Meta require     m::cmdr
-# Meta require     {Tcl 8.5-}
-# Meta subject     ?
-# Meta summary     ?
-# @@ Meta End
 
 package require debug
 package require cmdr::color

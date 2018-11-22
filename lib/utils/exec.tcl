@@ -194,10 +194,12 @@ proc ::m::exec::go {cmd args} {
 	# d - verbose ^----^
     } elseif {$verbose} {
 	# c
-	exec 2>@ stderr >@ stdout {*}$args
+	debug.m/exec {2>@ stderr >@ stdout $args}
+	exec          2>@ stderr >@ stdout {*}$args
     } else {
 	# a
-	exec 2> [NULL] > [NULL] {*}$args
+	debug.m/exec {2> [NULL] > [NULL] $args}
+	exec          2> [NULL] > [NULL] {*}$args
     }
     return
 }
@@ -226,10 +228,12 @@ proc ::m::exec::get {cmd args} {
 	return $oc
     } elseif {$verbose} {
 	# c
-	return [exec 2>@ stderr {*}$args]
+	debug.m/exec {2>@ stderr $args}
+	return [exec  2>@ stderr {*}$args]
     } else {
 	# a
-	return [exec 2>  [NULL] {*}$args]
+	debug.m/exec {2>  [NULL] $args}
+	return [exec  2>  [NULL] {*}$args]
     }
 }
 
@@ -241,10 +245,12 @@ proc ::m::exec::nc-get {cmd args} {
     if {$verbose} {
 	# c
 	m msg "> $args"
-	return [exec 2>@ stderr {*}$args]
+	debug.m/exec {2>@ stderr $args}
+	return [::exec  2>@ stderr {*}$args]
     } else {
 	# a
-	return [exec 2>  [NULL] {*}$args]
+	debug.m/exec {2>  [NULL] $args}
+	return [::exec  2>  [NULL] {*}$args]
     }
 }
 
@@ -270,10 +276,12 @@ proc ::m::exec::silent {cmd args} {
 	# b, d
 	set o [capture path out]
 	set e [capture path err]
-	exec 2> $e > $o {*}$args
+	debug.m/exec {2> $e > $o $args}
+	exec          2> $e > $o {*}$args
     } else {
 	# a, c
-	exec 2> [NULL] > [NULL] {*}$args
+	debug.m/exec {2> [NULL] > [NULL] $args}
+	exec          2> [NULL] > [NULL] {*}$args
     }
     return
 }
@@ -287,7 +295,8 @@ proc ::m::exec::CAP {cmd vo ve} {
     set e [capture path err]
 
     try {
-	exec 2> $e.now > $o.now {*}$cmd
+	debug.m/exec {2> $e.now > $o.now $cmd}
+	exec          2> $e.now > $o.now {*}$cmd
     } finally {
 	set oc [m futil cat $o.now]
 	set ec [m futil cat $e.now]
