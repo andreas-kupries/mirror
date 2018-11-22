@@ -52,8 +52,8 @@ proc ::m::vcs::hg::LogNormalize {o e} {
 
 proc ::m::vcs::hg::detect {url} {
     debug.m/vcs/hg {}
-    if {[string match *hg.code.sf.net          $url]} { return -code return hg }
-    if {[string match *hg.code.sourceforge.net $url]} { return -code return hg }
+    if {[string match *hg.code.sf.net/*          $url]} { return -code return hg }
+    if {[string match *hg.code.sourceforge.net/* $url]} { return -code return hg }
     return
 }
 
@@ -79,7 +79,7 @@ proc ::m::vcs::hg::setup {path url} {
     debug.m/vcs/hg {}
 
     set repo [HgOf $path]
-    Hg clone -noupdate $url $repo
+    Hg clone --noupdate $url $repo
     return
 }
 
@@ -152,6 +152,7 @@ proc ::m::vcs::hg::Count {path} {
     debug.m/vcs/hg {}
     set tip [HgGet identify --num --rev tip -R [HgOf $path]]
     incr tip
+    debug.m/vcs/hg { --> $tip }
     return $tip
 }
 
