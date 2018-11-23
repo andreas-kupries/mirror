@@ -25,6 +25,13 @@ It should be noted MM does not automatically perform repository
 updates on its own. It expects to be invoked by some external
 scheduler, for example `cron`, for this.
 
+## Examples
+
+Currently the only example of MM in use can be found at
+[https://akupries.tclers.tk/r/tcl](https://akupries.tclers.tk/r/tcl).
+This location collects and mirrors as many Tcl-related repositories as
+it can find.
+
 ## Basics of operation
 
 ### Adding repositories
