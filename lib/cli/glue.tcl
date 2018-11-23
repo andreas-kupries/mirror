@@ -165,12 +165,17 @@ proc ::m::glue::cmd_import {config} {
     package require m::url
 
     set dated [$config @dated]
+    if {[$config @spec set?]} {
+	set sname [$config @spec string]
+    } else {
+	set sname {standard input}
+    }
 
     m msg "Processing ..."
     ImportDo $dated \
 	[ImportSkipKnown \
 	     [ImportVerify \
-		  [ImportRead [$config @spec]]]]
+		  [ImportRead $sname [$config @spec]]]]
     SiteRegen
     OK
 }
@@ -970,7 +975,7 @@ proc ::m::glue::cmd_submit {config} {
 	if {$submitter ne {}} {
 	    append name " ([color note $submitter])"
 	}
-	
+
 	m msg "Submitted [color note $url]"
 	m msg "By        $name"
 
@@ -1198,8 +1203,9 @@ proc ::m::glue::Url {config} {
     return $url
 }
 
-proc ::m::glue::ImportRead {chan} {
+proc ::m::glue::ImportRead {label chan} {
     debug.m/glue {[debug caller] | }
+    m msg "Reading [color note $label] ..."
     return [split [string trim [read $chan]] \n]
     #         :: list (command)
     # command :: list ('M' name)
@@ -1211,6 +1217,8 @@ proc ::m::glue::ImportVerify {commands} {
     # commands :: list (command)
     # command  :: list ('M' name)
     #           | list ('R' vcode url)
+
+    m msg "Verifying ..."
 
     foreach {code name} [m vcs list] {
 	dict set vcs $code .
@@ -1232,16 +1240,18 @@ proc ::m::glue::ImportVerify {commands} {
 
 	# skip empty lines
 	if {$command eq {}} continue
-	
+
 	lassign $command cmd a b
 	switch -exact -- $cmd {
 	    M {
+		Ping "  $command"
 		# M name --> a = name, b = ((empty string))
 		if {[llength $command] != 2} {
 		    lappend msg "Line [format $lfmt $lno]: Bad syntax: $command"
 		}
 	    }
 	    R {
+		Ping "  [list R $b]"
 		# R kind url --> a = kind, b = url
 		if {[llength $command] != 3} {
 		    lappend msg "Line [format $lfmt $lno]: Bad syntax: $command"
@@ -1249,20 +1259,29 @@ proc ::m::glue::ImportVerify {commands} {
 		    if {![dict exists $vcs $a]} {
 			lappend msg "Line [format $lfmt $lno]: Unknown vcs: $command"
 		    }
+
+		    Ping+ " ..."
 		    if {![m url ok $b resolved]} {
 			lappend msg "Line [format $lfmt $lno]: Bad url: $b"
 		    } else {
+			#Ping+ \n
+			Ping "  = $resolved"
 			# Add resolution to R commands.
 			lappend command $resolved
 		    }
 		}
 	    }
 	    default {
+		Ping "  $command"
 		lappend msg "Line [format $lfmt $lno]: Unknown command: $command"
 	    }
 	}
 	lappend new $command
+	#Ping+ \n
     }
+
+    # Start a last ping to erase the animation remnants.
+    Ping ""
 
     if {[llength $msg]} {
 	m::cmdr::error \n\t[join $msg \n\t] IMPORT BAD
@@ -1277,6 +1296,8 @@ proc ::m::glue::ImportSkipKnown {commands} {
     # command  :: list ('M' name)
     #           | list ('R' vcode url resolved)
     debug.m/glue {}
+    m msg "Weeding ..."
+
     set seen {}
     set lno 0
     set new {}
@@ -1287,7 +1308,7 @@ proc ::m::glue::ImportSkipKnown {commands} {
 	incr lno
 	lassign $command cmd vcs url resolved
 	switch -exact -- $cmd {
-	    R {		
+	    R {
 		if {$url ne $resolved} {
 		    m msg "Line $lno: [color warning Redirected] to [color note $resolved]"
 		    m msg "Line $lno: From          [color note $url]"
@@ -1323,7 +1344,7 @@ proc ::m::glue::ImportSkipKnown {commands} {
 		}
 		foreach r $x { dict lappend seen $r $vcs } ;# vcs = mname
 		unset x
-		
+
 		lappend command $repo
 		lappend new $command
 		set repo {}
@@ -1342,6 +1363,12 @@ proc ::m::glue::ImportDo {dated commands} {
     # mset     :: list ('M' name repos)
     # repos    :: list (vcode1 url1 v2 u2 ...)
     debug.m/glue {}
+
+    if {![llength $commands]} {
+	m msg [color warning "Nothing to import"]
+    } else {
+	m msg "Importing (finally) ..."
+    }
 
     if {$dated} {
 	set date _[lindex [split [Date [clock seconds]]] 0]
@@ -1365,7 +1392,7 @@ proc ::m::glue::Import1 {date mname repos} {
     # repos = list (vcode url ...)
 
     m msg "Handling [color note $mname] ..."
-    
+
     if {[llength $repos] == 2} {
 	lassign $repos vcode url
 	# The mirror set contains only a single repository.
@@ -1382,7 +1409,7 @@ proc ::m::glue::Import1 {date mname repos} {
 		m repo remove  $repo
 		m rolodex drop $repo
 		m mset remove  $mset
-		
+
 		m msg "[color bad {Unable to import}] [color note $mname]: $e"
 		# No rethrow, the error in the child is not an error
 		# for the whole command. Continue importing the remainder.
@@ -1436,7 +1463,7 @@ proc ::m::glue::Import1 {date mname repos} {
 	m msg "[color bad {Unable to import}] [color note $mname]: No repositories"
 	return
     }
-    
+
     set rename 1
     if {[m mset has $mname]} {
 	# Targeted mirror set exists. Make it first in the merge list.
@@ -1758,7 +1785,7 @@ proc ::m::glue::MailConfigShow {t {prefix {}}} {
 
     set u [m state mail-user]
     set s [m state mail-sender]
-    
+
     $t add ${prefix}Host   [m state mail-host]
     $t add ${prefix}Port   [m state mail-port]
     $t add ${prefix}User   [Inval $u {$u ne "undefined"}]
@@ -1841,6 +1868,24 @@ proc ::m::glue::SiteConfigValidate {} {
     m msg [join $m \n]
     m::cmdr::error "Unable to activate site generation" \
 	SITE CONFIG INCOMPLETE
+}
+
+proc ::m::glue::Ping+ {text} {
+    debug.m/glue {[debug caller] | }
+    # Extend current line with more text, stay on the line, except
+    # when text does not.
+    puts -nonewline stdout $text
+    flush           stdout
+    return
+}
+
+proc ::m::glue::Ping {text} {
+    debug.m/glue {[debug caller] | }
+    # Move to start of line, erase all, write new text, stay on the
+    # line, except when text does not.
+    puts -nonewline stdout \r\033\[0K$text
+    flush           stdout
+    return
 }
 
 # # ## ### ##### ######## ############# ######################

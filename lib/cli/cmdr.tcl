@@ -248,7 +248,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	    Show site and mail configuration as well
 	} { presence }
     } [m::cmdr::call glue cmd_show]
-    
+
     private store {
 	description {
 	    Query/change store path. Change implies copying all
@@ -400,7 +400,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	input spec {
 	    Path to the file to read the import specification from.
 	    Falls back to stdin when no file is specified.
-	} { optional ; validate rchan }
+	} { optional ; validate rchan ; default stdin }
 
     } [m::cmdr::call glue cmd_import]
 
