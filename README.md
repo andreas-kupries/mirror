@@ -31,9 +31,7 @@ scheduler, for example `cron`, for this.
 
 The basic command to add a single __repository__ to the system is
 
-```
-mirror add <url>
-```
+    mirror add <url>
 
 MM will try to figure out the type of __repository__ to mirror from
 the specified url, and further derive a name for the __mirror set__ to
@@ -42,16 +40,12 @@ hold the repository as well.
 If it guesses wrong the options `--vcs` and `--name` can be used to
 explicitly specify the correct values.
 
-```
-mirror add <url> --name <name> --vcs <vcs>
-```
+    mirror add <url> --name <name> --vcs <vcs>
 
 The set of version control systems supported by the installed `mirror`
 can be queried with
 
-```
-mirror vcs
-```
+    mirror vcs
 
 Going back to `add` and its auto-detection of vcs type, the currently
 employed heuristics (.i.e url patterns), are, in order:
@@ -160,26 +154,20 @@ lines are ignored.
 
 The simplest possible import file looks like
 
-```
-R <vcs> <url>
-M <name>
-```
+    R <vcs> <url>
+    M <name>
 
 and is equivalent to 
 
-```
-mirror add <url> --name <name> --vcs <vcs>
-```
+    mirror add <url> --name <name> --vcs <vcs>
 
 to place more repositories into the the mirror set <name> simply place
 more repository specification before it, like
 
-```
-R <vcs1> <url1>
-R <vcs2> <url2>
-...
-M <name>
-```
+    R <vcs1> <url1>
+    R <vcs2> <url2>
+    ...
+    M <name>
 
 Any number of repositories and mirror sets can be specified.
 
