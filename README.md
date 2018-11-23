@@ -168,9 +168,10 @@ and is equivalent to
 
     mirror add <url> --name <name> --vcs <vcs>
 
-to place more repositories into the the mirror set <name> simply place
+To place more repositories into the mirror set <name> simply place
 more repository specification before it, like
 
+    # A comment
     R <vcs1> <url1>
     R <vcs2> <url2>
     ...
@@ -199,7 +200,7 @@ which is gone. Yet the local backup should not be deleted either.
 
 Thus we have `mirror disable` and `mirror enable` with which we can
 take a repository out of the update rotation, or put it back in. A
-repository in the rotation is called `active`, and `inactive`
+repository in the rotation is called __active__, and __inactive__
 otherwise.
 
 ### Web site
