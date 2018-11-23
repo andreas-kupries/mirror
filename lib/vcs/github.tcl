@@ -40,6 +40,7 @@ package require struct::set
 package require m::exec
 package require m::msg
 package require m::futil
+package require m::url
 package require m::vcs::git
 package require debug
 package require debug::caller
@@ -98,10 +99,6 @@ proc ::m::vcs::github::version {iv} {
 	set ok 0
 	lappend issues "`git hub` not installed."
     }
-    if {![llength [auto_execok curl]]} {
-	lappend issues [color bad "`curl` not found in PATH"]
-    }
-
     if {!$ok} return
 
     set v [m exec get git hub version]
@@ -214,15 +211,10 @@ proc ::m::vcs::github::Forks {path} {
 	# the system. I.e. a user/repo marked as suspicious and hidden
 	# is still reported here. Checking against the regular web
 	# interface allows us to filter these out.
-	try {
-	    m exec nc-get curl -s -f -I $url
-	    # -L  Follow temporary and permanent redirections
-	    # -I  HEAD only
-	    # -f  Silent fail (ignore fail document)
-	    # -s  Silence other output
-	} on ok {e o} {
+
+	if {[m url ok $url _]} {
 	    lappend forks $fork
-	} on error {e o} {
+	} else {
 	    # report a missing fork
 	}
     }
