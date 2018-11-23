@@ -1,0 +1,9 @@
+# - -- --- ----- -------- -------------
+# Import the mirror repository itself
+
+R fossil https://chiselapp.com/user/andreas_kupries/repository/mirror/index
+R fossil https://core.tcl-lang.org/akupries/mirror
+R github https://github.com/andreas-kupries/mirror
+M {Mirror Management - Andreas Kupries}
+
+# Done

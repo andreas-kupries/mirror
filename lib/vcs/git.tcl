@@ -67,6 +67,13 @@ proc ::m::vcs::git::LogNormalize {o e} {
 proc ::m::vcs::git::detect {url} {
     debug.m/vcs/git {}
     if {![string match *git* $url]} return
+    if {[catch {
+	m exec silent git help
+    }]} {
+	m msg "[color note "git"] [color warning "not available"]"
+	# Fall through
+	return
+    }
     return -code return git
 }
 

@@ -52,9 +52,18 @@ proc ::m::vcs::hg::LogNormalize {o e} {
 
 proc ::m::vcs::hg::detect {url} {
     debug.m/vcs/hg {}
-    if {[string match *hg.code.sf.net/*          $url]} { return -code return hg }
-    if {[string match *hg.code.sourceforge.net/* $url]} { return -code return hg }
-    return
+    if {
+	![string match *hg.code.sf.net/*          $url] &&
+	![string match *hg.code.sourceforge.net/* $url]
+    } return
+    if {[catch {
+	m exec silent hg help
+    }]} {
+	m msg "[color note "hg"] [color warning "not available"]"
+	# Fall through
+	return
+    }
+    return -code return hg
 }
 
 proc ::m::vcs::hg::version {iv} {

@@ -9,13 +9,16 @@
 # # ## ### ##### ######## ############# ######################
 
 # @@ Meta Begin
-# Application mirror   ?
+# Application gh-pull   ?
 # Meta author      {Andreas Kupries}
 # Meta category    ?
 # Meta description ?
 # Meta location    https://core.tcl-lang.org/akupries/????
 # Meta platform    tcl
-# Meta require     m::cmdr
+# Meta require     m::exec
+# Meta require     m::futil
+# Meta require     debug
+# Meta require     cmdr::color
 # Meta require     {Tcl 8.5-}
 # Meta subject     ?
 # Meta summary     ?
@@ -131,7 +134,7 @@ proc write {repo desc name lang} {
     puts "# $desc"
     puts "##"
     puts [list R github https://github.com/$repo]
-    puts [list M "[string totitle $project] ($desc) - $name"]
+    puts [list M "$project ($desc) - $name"]
     puts ""
     return
 }

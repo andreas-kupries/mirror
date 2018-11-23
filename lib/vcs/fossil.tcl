@@ -63,6 +63,13 @@ proc ::m::vcs::fossil::LogNormalize {o e} {
 
 proc ::m::vcs::fossil::detect {url} {
     debug.m/vcs/fossil {}
+    if {[catch {
+	m exec silent fossil help
+    }]} {
+	m msg "[color note "fossil"] [color warning "not available"]"
+	# Fall through
+	return
+    }
     return -code return fossil
 }
 

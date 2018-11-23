@@ -82,6 +82,13 @@ proc ::m::vcs::github::detect {url} {
 	# Fall through
 	return
     }
+    if {[catch {
+	m exec silent git help
+    }]} {
+	m msg "[color note "git"] [color warning "not available"]"
+	# Fall through
+	return
+    }
     return -code return github
 }
 

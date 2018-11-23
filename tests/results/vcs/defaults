@@ -1,9 +1,10 @@
 Supported VCS
-+--------+--------+-*-+
-| Code   | Name   | Version *|
-+--------+--------+-*-+
-| fossil | Fossil | * |
-| git    | Git    | * |
-| github | GitHub | * |
-+--------+--------+-*-+
++-*-+-*-+-*-+
+| Code *| Name *| Version *|
++-*-+-*-+-*-+
+| fossil *| Fossil *| * |
+| git *| Git *| * |
+| github *| GitHub *| * |
+| hg *| Mercurial *| * |
++-*-+-*-+-*-+
 OK

@@ -10,13 +10,15 @@ dst=${2}
 
 echo For $around ...
 
-for neighbour in $(git hub following $around --raw)
+git hub following $around --raw | sort > ${dst}/outbound.-${around}
+
+for neighbour in $(cat ${dst}/outbound.-${around})
 do
     echo ..Getting $neighbour
     
-    name="$(git hub user --raw $neighbour | awk '/^name/ { print $2 }')"
+    name="$(git hub user --raw $neighbour | grep ^name | sed -e 's/name[ 	]*//')"
     echo ....= $name
 
-    mkdir -f ${dst}
-    gh-pull "${neighbour}" "${name}" > "${dst}/${neighbour}-full"
+     2>/dev/null mkdir ${dst}
+    gh-pull "${neighbour}" "${name}" > "${dst}/${neighbour}"
 done
