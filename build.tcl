@@ -8,4 +8,4 @@ kettle tclapp bin/mirror
 # Helpers for working with github
 #
 kettle tclapp bin/gh-pull
-kettle tclapp bin/gh-follow
+#kettle tclapp bin/gh-follow

@@ -1367,7 +1367,7 @@ proc ::m::glue::ImportDo {dated commands} {
     if {![llength $commands]} {
 	m msg [color warning "Nothing to import"]
     } else {
-	m msg "Importing (finally) ..."
+	m msg "Importing [llength $commands] (finally) ..."
     }
 
     if {$dated} {

@@ -197,7 +197,7 @@ proc ::m::vcs::git::Remotes {path} {
 proc ::m::vcs::git::Count {path} {
     debug.m/vcs/git {}
     m exec post-hook ::m::vcs::git::LogNormalize
-    return [m exec get git --git-dir [GitOf $path] rev-list --all --count]
+    return [string trim [m exec get git --git-dir [GitOf $path] rev-list --all --count]]
 }
 
 proc ::m::vcs::git::Owned {remote} {

@@ -75,13 +75,16 @@ proc do {user name} {
     log "Pull list of repositories for $user ..."
 
     set repos [m exec nc-get git hub repos $user]
+    set repos [lrange [split $repos \n] 1 end]
     
-    log "Processing ..."
-    foreach entry [lrange [split $repos \n] 1 end] {
+    log "Processing [llength $repos] ..."
+    foreach entry $repos {
 	#log (($entry))
 	#log ""
+
+	regexp {^([^[:space:]]*)[[:space:]]*([^[:space:]]*)[[:space:]]*([^[:space:]]*)[[:space:]]*(.*)$} $entry -> index data repo desc
 	
-	set desc [lassign $entry index date repo]
+	#set desc [lassign $entry index date repo]
 
 	#log I|$index|
 	#log D|$date|

@@ -75,13 +75,13 @@ proc ::m::web::site::build {{mode verbose}} {
 	dict set stats nmsets  [m mset count]
 	dict set stats nstores [m store count]
 
-	List index.md        $bytime $stats ;# (See `updates`) 
-	List index_name.md   $byname $stats ;# (by name, vcs, size)
-	List index_size.md   $bysize $stats ;# (by size, name, vcs)
-	List index_vcs.md    $byvcs  $stats ;# (by vcs, name, size)
+	List "By Last Change"     index.md      $bytime $stats
+	List "By Name, VCS, Size" index_name.md $byname $stats
+	List "By Size, Name, VCS" index_size.md $bysize $stats
+	List "By VCS, Name, Size" index_vcs.md  $byvcs  $stats
 
 	if {$n} {
-	    List index_issues.md $issues $stats ;# (by name, only trouble)
+	    List "Issues by Name" index_issues.md $issues $stats
 	}
 	
 	# + TODO: submissions pending, submission responses, past rejections
@@ -236,7 +236,7 @@ proc ::m::web::site::Contact {} {
     return
 }
 
-proc ::m::web::site::List {page series stats} {
+proc ::m::web::site::List {suffix page series stats} {
     debug.m/web/site {}
 
     dict with stats {}
@@ -246,7 +246,7 @@ proc ::m::web::site::List {page series stats} {
     # nmsets
     # nstores
     
-    append text [H Index]
+    append text [H "Index ($suffix)"]
     
     set hvcs   [L index_vcs.html    VCS          ]
     set hsize  [L index_size.html   Size         ]
