@@ -3,7 +3,7 @@
 ## Site generation
 
 # @@ Meta Begin
-# Package m::web::site 0 
+# Package m::web::site 0
 # Meta author   {Andreas Kupries}
 # Meta location https://core.tcl.tk/akupries/????
 # Meta platform tcl
@@ -24,6 +24,7 @@ package require debug::caller
 package require m::asset
 package require m::exec
 package require m::futil
+package require m::format
 package require m::state
 package require m::mset
 package require m::vcs
@@ -61,6 +62,8 @@ proc ::m::web::site::build {{mode verbose}} {
 	! "= Data dependent content ..."
 	Contact
 	Export		;# (See `export`)
+	Search
+	Submit
 	Stores
 
 	set bytime [m store updates]
@@ -83,7 +86,7 @@ proc ::m::web::site::build {{mode verbose}} {
 	if {$n} {
 	    List "Issues by Name" index_issues.md $issues $stats
 	}
-	
+
 	# + TODO: submissions pending, submission responses, past rejections
 
 	Fin
@@ -178,7 +181,7 @@ proc ::m::web::site::Store {mset mname store} {
     if {$export ne {}} {
 	set f external/local_${store}
 	WX static/$f $export
-	set export [L $f {Local Site}]
+	set export [LB $f {Local Site}]
     }
 
     # Assemble page ...
@@ -189,20 +192,20 @@ proc ::m::web::site::Store {mset mname store} {
     append text |---|---|---| \n
 
     R $simg   {} $vcsname
-    R Size    {} [m::glue::Size $size]
+    R Size    {} [m format size $size]
     if {$export ne {}} {
 	R {} {} $export
     }
-    R {Last Check}  {} [m::glue::Date $updated]
-    R {Last Change} {} [m::glue::Date $changed]
-    R Created       {} [m::glue::Date $created]
+    R {Last Check}  {} [m format epoch $updated]
+    R {Last Change} {} [m format epoch $changed]
+    R Created       {} [m format epoch $created]
 
     set active 1
     foreach {label urls} $r {
 	R $label {}
 	foreach url [lsort -dict $urls] {
 	    incr id
-	    set u [L $url $url]
+	    set u [LB $url $url]
 	    set a {}
 	    if {$active} {
 		set a [dict get	[m repo get [m repo id $url]] active]
@@ -245,9 +248,9 @@ proc ::m::web::site::List {suffix page series stats} {
     # nrepos
     # nmsets
     # nstores
-    
+
     append text [H "Index ($suffix)"]
-    
+
     set hvcs   [L index_vcs.html    VCS          ]
     set hsize  [L index_size.html   Size         ]
     set hname  [L index_name.html   {Mirror Set} ]
@@ -262,7 +265,7 @@ proc ::m::web::site::List {suffix page series stats} {
     append text "Sets: $nmsets"
     append text " Repos: $nrepos"
     append text " Stores: $nstores"
-    append text " Size: [m::glue::Size $size]"
+    append text " Size: [m format size $size]"
     append text " $issues" \n
     append text \n
 
@@ -274,7 +277,7 @@ proc ::m::web::site::List {suffix page series stats} {
     foreach row $series {
 	dict with row {}
 	# store mname vcode changed updated created size active remote
-	
+
 	if {$created eq "."} {
 	    append text "||||||||" \n
 	    continue
@@ -288,14 +291,14 @@ proc ::m::web::site::List {suffix page series stats} {
 		set img [I images/yellow.svg "/"]
 	    }
 	}
-	
-	set size    [m::glue::Size $size]
-	set changed [m::glue::Date $changed]
-	set updated [m::glue::Date $updated]
-	set created [m::glue::Date $created]
-       	set vcode   [L store_${store}.html $vcode]
+
+	set size    [m format size $size]
+	set changed [m format epoch $changed]
+	set updated [m format epoch $updated]
+	set created [m format epoch $created]
+       	set vcode   [LB store_${store}.html $vcode]
 	if {$mname ne {}} {
-	    set mname [L store_${store}.html $mname]
+	    set mname [LB store_${store}.html $mname]
 	}
 	append text "|$img|$mname|$vcode|$size|$changed|$updated|$created|" \n
 	set last $mname
@@ -309,8 +312,30 @@ proc ::m::web::site::List {suffix page series stats} {
 
 proc ::m::web::site::Export {} {
     debug.m/web/site {}
-    W static/external/spec.txt [m mset spec]
+    W static/spec.txt [m mset spec]
     return
+}
+
+proc ::m::web::site::Search {} {
+    debug.m/web/site {}
+    WX static/search [CGI mirror-search]
+    return
+}
+
+proc ::m::web::site::Submit {} {
+    debug.m/web/site {}
+    WX static/submit [CGI mirror-submit]
+    return
+}
+
+proc ::m::web::site::CGI {app} {
+    debug.m/web/site {}
+    global argv0
+    set bindir [file dirname $argv0]
+    
+    append t "#![file normalize [file join $bindir $app]]" \n
+    append t "database: [file normalize [m::db::location get]]" \n
+    return $t
 }
 
 proc ::m::web::site::Init {} {
@@ -368,6 +393,12 @@ proc ::m::web::site::L {url {label {}}} {
     debug.m/web/site {}
     if {$label eq {}} { set label $url }
     return "\[$label]($url)"
+}
+
+proc ::m::web::site::LB {url {label {}}} {
+    debug.m/web/site {}
+    if {$label eq {}} { set label $url }
+    return "<a target='_blank' href='$url'>$label </a>"
 }
 
 proc ::m::web::site::R {args} {
@@ -452,8 +483,10 @@ proc ::m::web::site::M {} {
     lappend map @-management-@ [m state site-mgr-name]
     lappend map @-nav-@        {
 	Contact        $rootDirPath/contact.html
-	{Content Spec} $rootDirPath/external/spec.txt
+	{Content Spec} $rootDirPath/spec.txt
+	Search         $rootDirPath/search
     }
+    # Submit         $rootDirPath/submit
     lappend map @-title-@      [m state site-title]
     lappend map @-url-@        $u
     lappend map @-year-@       [clock format [clock seconds] -format %Y]

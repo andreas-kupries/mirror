@@ -35,7 +35,7 @@ namespace eval ::m::store {
     namespace export \
 	add remove move rename merge split update has check \
 	id vcs-name updates by-name by-size by-vcs move-location \
-	get remotes total-size count
+	get remotes total-size count search
     namespace ensemble create
 }
 
@@ -223,6 +223,47 @@ proc ::m::store::count {} {
 	SELECT count (*)
 	FROM store
     }]
+}
+proc ::m::store::search {substring} {
+    debug.m/store {}
+
+    set sub [string tolower $substring]
+    set series {}
+    set last {}
+    m db eval {
+	SELECT S.id      AS store
+	,      N.name    AS mname
+	,      V.code    AS vcode
+	,      T.changed AS changed
+	,      T.updated AS updated
+	,      T.created AS created
+	,      S.size_kb AS size
+	,      (SELECT count (*)
+		FROM  repository R
+		WHERE R.mset = S.mset
+		AND   R.vcs  = S.vcs) AS remote
+	,      (SELECT count (*)
+		FROM  repository R
+		WHERE R.mset = S.mset
+		AND   R.vcs  = S.vcs
+		AND   R.active) AS active
+	FROM store_times            T
+	,    store                  S
+	,    mirror_set             M
+	,    version_control_system V
+	,    name                   N
+	WHERE T.store   = S.id
+	AND   S.mset    = M.id
+	AND   S.vcs     = V.id
+	AND   M.name    = N.id
+	ORDER BY mname ASC, vcode ASC, size ASC
+    } {
+	if {
+	    [string first $sub [string tolower $mname]] < 0
+	} continue
+	Srow series ;# upvar column variables
+    }
+    return $series
 }
 
 proc ::m::store::by-name {} {

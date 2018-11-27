@@ -1,0 +1,211 @@
+#!/home/aku/Data/My/Web/bin.tcl/tclsh8.6
+## -*- tcl -*-
+# # ## ### ##### ######## ############# ######################
+#!/usr/bin/env tclsh -- Need 8.6
+
+# CGI helper application to manage the search form of the web site.
+
+# # ## ### ##### ######## ############# ######################
+
+# @@ Meta Begin
+# Application mirror-search   ?
+# Meta author      {Andreas Kupries}
+# Meta category    ?
+# Meta description ?
+# Meta location    https://core.tcl-lang.org/akupries/????
+# Meta platform    tcl
+# Meta require     m::db
+# Meta require     {Tcl 8.6-}
+# Meta subject     ?
+# Meta summary     ?
+# @@ Meta End
+
+# # ## ### ##### ######## ############# ######################
+#puts stderr [info nameofexecutable]
+package require Tcl 8.6
+package require m::db::location
+package require m::db
+package require m::format
+package require m::store
+package require m::web::bootstrap
+package require wapp
+
+proc main {} {
+    cmdline
+    #wapp-start -trace
+    wapp-start {}
+}
+
+proc cmdline {} {
+    global argv
+    if {[llength $argv] > 1} usage
+    if {[llength $argv] < 1} return
+
+    lassign $argv config
+
+    # The config file is trusted, as is the database it references,
+    # deploy this only in a secure and controlled environment.
+
+    proc database: {database} {
+	m::db::location set $database
+	return
+    }
+
+    source $config
+    rename database: {}
+    return
+}
+
+proc usage {} {
+    global argv0
+    puts stderr "Usage: $argv0 ?config-file?"
+    exit 1
+}
+
+# # ## ### ##### ######## ############# ######################
+
+# Main page. Search form, and list of results.
+# All unknown urls point to the same.
+proc wapp-default {} {
+    wapp-allow-xorigin-params
+    wapp-trim { %unsafe([m web bootstrap header Search]) }
+    Form
+    # - pattern
+    List {*}[Search]
+    wapp-trim {	%unsafe([m web bootstrap footer]) }
+    return
+}
+
+# Request environment
+proc wapp-page-env {} {
+    wapp-allow-xorigin-params
+    wapp-subst {<h1>Mirror Environment</h1>\n<pre>\n}
+    foreach var [lsort [wapp-param-list]] {
+	if {[string index $var 0]=="."} continue
+	wapp-subst {%html($var) = %html([list [wapp-param $var]])\n}
+    }
+    wapp-subst {</pre>\n}
+}
+
+# # ## ### ##### ######## ############# ######################
+
+proc List {pattern series} {
+    # Essentially a replica of m::web::site::List, for wapp ...
+    ListHeader [llength $series]
+    
+    foreach row $series {
+	#puts stderr (($row))
+	dict with row {}
+	# store mname vcode changed updated created size active remote
+	ListRow \
+	    store_${store}.html \
+	    $mname \
+	    $vcode \
+	    [m format epoch $changed] \
+	    [m format epoch $updated] \
+	    [m format epoch $created] \
+	    [m format size  $size] \
+	    {*}[Status $store $active $remote]
+    }
+
+    ListFooter
+    return
+}
+
+proc Sep {} {
+    wapp-trim {
+	<tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+    }
+    return
+}
+
+proc ListRow {slink mname vcode changed updated created size stext simg} {
+    wapp-trim { <tr> <td> }
+    if {$stext ne {}} {
+	wapp-trim { <img alt='%html($stext)' src='%url($simg)'> }
+    }
+    wapp-trim { </td> <td> }
+    if {$mname ne {}} {
+	wapp-trim { <a target='_blank' href='%url($slink)'> %html($mname) </a> }
+    } else {
+	wapp-trim { %html($mname) }
+    }
+    wapp-trim {
+	</td> <td> <a target='_blank' href='%url($slink)'>%html($vcode)</a>
+	</td> <td> %html($size)
+	</td> <td> %html($changed)
+	</td> <td> %html($updated)
+	</td> <td> %html($created)
+	</td> </tr>
+    }
+}
+
+proc ListHeader {n} {
+    wapp-trim {
+	<p> Matching: %html($n) </p>
+	<p> <table class='table'>
+	<tr>
+	<th> </th>
+	<th> Mirror Set </th>
+	<th> VCS </th>
+	<th> Size </th>
+	<th> Changed </th>
+	<th> Updated </th>
+	<th> Created </th>
+	</tr>
+    }
+}
+
+proc ListFooter {} {
+    wapp-trim { </table> </p> }
+}
+
+proc Status {store active remote} {
+    set stderr [lindex [m vcs cap $store] 1]
+    if {[string length $stderr]} {
+	set status images/bad.svg
+	set stext ATTEND
+    } elseif {!$active} {
+	set status images/off.svg
+	set stext -
+    } elseif {$active < $remote} {
+	set status images/yellow.svg
+	set stext /
+    } else {
+	set status {}
+	set stext {}
+    }
+
+    return [list $stext $status]
+}
+
+proc Form {} {
+    # entry field - search term
+    set pattern [string trim [wapp-param pattern]]
+    wapp-trim {
+	<form method='POST' action='%url([wapp-param PATH_HEAD])'>
+	<!-- <input type='image' src='images/ok.svg' alt='Search'> -->
+	<input type='text' name='pattern' size=30 value='%html($pattern)'>
+	</form>
+    }
+    return
+}
+
+proc Search {} {
+    if {![wapp-param-exists pattern]} { return {{} {}} }
+
+    # Pattern available in the parameters - self posted return
+    set pattern [string trim [wapp-param pattern]]
+
+    # Nothing to search for.
+    if {$pattern eq {}} { return {{} {}} }
+
+    # Perform search
+    m db transaction {
+	set series [m store search $pattern]
+    }
+    return [list $pattern $series]
+}
+
+# # ## ### ##### ######## ############# ###################### GO
+main

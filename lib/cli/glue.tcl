@@ -21,6 +21,7 @@ package require cmdr::table 0.1 ;# API: headers, borders
 package require debug
 package require debug::caller
 package require m::msg
+package require m::format
 
 # # ## ### ##### ######## ############# ######################
 
@@ -796,10 +797,10 @@ proc ::m::glue::cmd_updates {config} {
 		    $t add - - - - - -
 		    continue
 		}
-		set size    [Size $size]
-		set changed [Date $changed]
-		set updated [Date $updated]
-		set created [Date $created]
+		set size    [m format size  $size]
+		set changed [m format epoch $changed]
+		set updated [m format epoch $updated]
+		set created [m format epoch $created]
 		$t add $mname $vcode $size $changed $updated $created
 	    }
 	}] show
@@ -886,7 +887,7 @@ proc ::m::glue::cmd_list {config} {
 		if {$idx == ($n-2)} { lappend tag @p }
 		if {$idx == ($n-1)} { lappend tag @c }
 		set a [expr {$active ? "A" : "-"}]
-		$t add $tag $a $url $name $vcode [Size $sizekb]
+		$t add $tag $a $url $name $vcode [m format size $sizekb]
 	    }
 	}] show
     }
@@ -939,7 +940,7 @@ proc ::m::glue::cmd_submissions {config} {
 	[table t {{} When Url Email Submitter} {
 	    foreach {id url email submitter when} [m submission list] {
 		set id %$id
-		set when [Date $when]
+		set when [m format epoch $when]
 
 		$t add $id $when $url $email $submitter
 	    }
@@ -1022,7 +1023,7 @@ proc ::m::glue::cmd_accept {config} {
 	m msg "Accepted $url"
 	m msg "By       $name"
 
-	dict set details when [Date $when]
+	dict set details when [m format epoch $when]
 	if {![info exists $submitter] || ($submitter eq {})} {
 	    dict set details submitter $email
 	}
@@ -1371,7 +1372,7 @@ proc ::m::glue::ImportDo {dated commands} {
     }
 
     if {$dated} {
-	set date _[lindex [split [Date [clock seconds]]] 0]
+	set date _[lindex [split [m format epoch [clock seconds]]] 0]
     } else {
 	set date {}
     }
@@ -1592,22 +1593,6 @@ proc ::m::glue::Inval {x isvalid} {
 proc ::m::glue::Bool {flag} {
     debug.m/glue {[debug caller] | }
     return [expr {$flag ? "[color good on]" : "[color bad off]"}]
-}
-
-proc ::m::glue::Date {epoch} {
-    debug.m/glue {[debug caller] | }
-    if {$epoch eq {}} return
-    return [clock format $epoch -format {%Y-%m-%d %H:%M:%S}]
-}
-
-proc ::m::glue::Size {x} {
-    debug.m/glue {[debug caller] | }
-                              if {$x < 1024} { return ${x}K }
-    set x [expr {$x/1024.}] ; if {$x < 1024} { return [format %.1f $x]M }
-    set x [expr {$x/1024.}] ; if {$x < 1024} { return [format %.1f $x]G }
-    set x [expr {$x/1024.}] ; if {$x < 1024} { return [format %.1f $x]T }
-    set x [expr {$x/1024.}] ; if {$x < 1024} { return [format %.1f $x]P }
-    set x [expr {$x/1024.}] ;                  return [format %.1f $x]E
 }
 
 proc ::m::glue::ShowCurrent {} {
