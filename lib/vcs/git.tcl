@@ -39,7 +39,7 @@ namespace eval m::vcs {
 }
 namespace eval m::vcs::git {
     namespace export setup cleanup update check split merge \
-	version detect remotes export
+	version detect remotes export name-from-url
     namespace ensemble create
 }
 
@@ -62,6 +62,24 @@ proc ::m::vcs::git::LogNormalize {o e} {
     set e $err
 
     return [list $o $e]
+}
+
+proc ::m::vcs::git::name-from-url {url} {
+    debug.m/vcs/git {}
+    
+    set gl [string match *gitlab* $url]
+
+    lappend map "https://"        {}
+    lappend map "http://"         {}
+    lappend map "git@github.com:" {}
+
+    set url [string map $map $url]
+
+    if {$gl} {
+	return [join [lrange [file split $url] end-1 end] /]@gl
+    } else {
+	return [lindex [file split $url] end]
+    }
 }
 
 proc ::m::vcs::git::detect {url} {

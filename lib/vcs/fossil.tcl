@@ -38,7 +38,7 @@ namespace eval m::vcs {
 }
 namespace eval m::vcs::fossil {
     namespace export setup cleanup update check split merge \
-	version detect remotes export
+	version detect remotes export name-from-url
     namespace ensemble create
 }
 
@@ -59,6 +59,14 @@ proc ::m::vcs::fossil::LogNormalize {o e} {
     lappend e {*}$auth
 
     return [list $o $e]
+}
+
+proc ::m::vcs::fossil::name-from-url {url} {
+    debug.m/vcs/fossil {}
+    
+    regsub -- {/index$}    $url {} url
+    regsub -- {/timeline$} $url {} url
+    return [lindex [file split $url] end]
 }
 
 proc ::m::vcs::fossil::detect {url} {

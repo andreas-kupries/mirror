@@ -311,34 +311,7 @@ proc ::m::vcs::url-norm {vcode url} {
 
 proc ::m::vcs::name-from-url {vcode url} {
     debug.m/vcs {}
-    # strip schema, host, user, pass ...
-    # strip trailing bogus things ... (fossil specific)
-
-    set gh [string match *github* $url]
-    set gl [string match *gitlab* $url]
-
-    lappend map "https://"        {}
-    lappend map "http://"         {}
-    lappend map "git@github.com:" {}
-
-    set url [string map $map $url]
-    
-    switch -glob -- $vcode {
-	fossil {
-	    regsub -- {/index$}    $url {} url
-	    regsub -- {/timeline$} $url {} url
-	    return [lindex [file split $url] end]
-	}
-	git* {
-	    if {$gh} {
-		return [join [lrange [file split $url] end-1 end] /]@gh
-	    } elseif {$gl} {
-		return [join [lrange [file split $url] end-1 end] /]@gl
-	    } else {
-		return [lindex [file split $url] end]
-	    }
-	}
-    }
+    return [$vcode name-from-url $url]
 }
 
 # # ## ### ##### ######## ############# #####################

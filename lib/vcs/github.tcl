@@ -65,13 +65,40 @@ namespace eval m::vcs::github {
     namespace import ::m::vcs::git::export
 
     namespace export setup cleanup update check split merge \
-	detect version remotes export
+	detect version remotes export name-from-url
     namespace ensemble create
 
     namespace import ::cmdr::color
 }
 
 # # ## ### ##### ######## ############# #####################
+
+proc ::m::vcs::github::name-from-url {url} {
+    debug.m/vcs/github {}
+    lappend map "https://"        {}
+    lappend map "http://"         {}
+    lappend map "git@github.com:" {}
+
+    set url [string map $map $url]
+    lassign [lreverse [file split $url]] repo owner
+
+    set name [m exec get git hub user     $owner | grep ^Name]
+    set desc [m exec get git hub repo-get $owner/$repo description]
+
+    if {$desc ne {}} {
+	append n "$desc"
+    } else {
+	append n $owner/$repo
+    }
+    if {$name ne {}} {
+	regexp {^([^[:space:]]*[[:space:]]*)(.*)$} $name -> _ name
+	append n " - $name"
+    } else {
+	append n @gh
+    }
+
+    return $n
+}
 
 proc ::m::vcs::github::detect {url} {
     debug.m/vcs/github {}

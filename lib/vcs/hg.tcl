@@ -38,7 +38,7 @@ namespace eval m::vcs {
 }
 namespace eval m::vcs::hg {
     namespace export setup cleanup update check split merge \
-	version detect remotes export
+	version detect remotes export name-from-url
     namespace ensemble create
 }
 
@@ -50,6 +50,11 @@ proc ::m::vcs::hg::LogNormalize {o e} {
     return [list $o $e]
 }
 
+proc ::m::vcs::hg::name-from-url {url} {
+    debug.m/vcs/hg {}
+    return
+}
+    
 proc ::m::vcs::hg::detect {url} {
     debug.m/vcs/hg {}
     if {
