@@ -131,7 +131,10 @@ proc ListRow {slink mname vcode changed updated created size stext simg} {
 	wapp-trim { %html($mname) }
     }
     wapp-trim {
-	</td> <td> <a target='_blank' href='%url($slink)'>%html($vcode)</a>
+	</td> <td> <a target='_blank' href='%url($slink)'>
+	<img height='32' alt='%html($vcode)' src='%url(images/logo/${vcode}.svg)'>
+	%html($vcode)
+	</a>
 	</td> <td> %html($size)
 	</td> <td> %html($changed)
 	</td> <td> %html($updated)
