@@ -22,7 +22,9 @@
 # # ## ### ##### ######## ############# ######################
 
 package require Tcl 8.5
-package require try
+if {![llength [info commands try]]} {
+    package require try
+}
 
 if 0 {
     puts =\t[join $auto_path \n=\t]
