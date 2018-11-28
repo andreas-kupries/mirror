@@ -510,6 +510,25 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	input url       {Url to track}    { validate [m::cmdr::vt url] }
 	input email     {Submitter, mail} { validate str }
 	input submitter {Submitter, name} { optional ; validate str }
+	option vcs {
+	    Version control system handling the repository.
+	} {
+	    validate [m::cmdr::vt vcs]
+	    generate [m::cmdr::call glue gen_vcs]
+	}
+	state vcs-code {
+	    Version control system handling the repository.
+	    Internal code, derived from the option value (database id).
+	} {
+	    generate [m::cmdr::call glue gen_vcs_code]
+	}
+	option name {
+	    Name for the future mirror set to hold the submitted repository.
+	} {
+	    alias N
+	    validate str
+	    generate [m::cmdr::call glue gen_name]
+	}
     } [m::cmdr::call glue cmd_submit]
 
     private accept {
@@ -524,9 +543,10 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	} { validate [m::cmdr::vt submission] }
 	option vcs {
 	    Version control system handling the repository.
+	    Override the submission.
 	} {
 	    validate [m::cmdr::vt vcs]
-	    generate [m::cmdr::call glue gen_vcs]
+	    generate [m::cmdr::call glue gen_submit_vcs]
 	}
 	option nomail {
 	    Disable generation and sending of acceptance mail.
@@ -538,16 +558,17 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	    generate [m::cmdr::call glue gen_vcs_code]
 	}
 	state url {
-	    Location of the repository. Derived from the id
-	} { validate str ;#[m::cmdr::vt url]
-	    generate [m::cmdr::call glue gen_url]
+	    Location of the repository. Taken from the submission.
+	} { validate str
+	    generate [m::cmdr::call glue gen_submit_url]
 	}
 	option name {
 	    Name for the mirror set to hold the repository.
+	    Overrides the name from the submission.
 	} {
 	    alias N
 	    validate str
-	    generate [m::cmdr::call glue gen_name]
+	    generate [m::cmdr::call glue gen_submit_name]
 	}
     } [m::cmdr::call glue cmd_accept]
 

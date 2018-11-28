@@ -48,11 +48,13 @@ proc ::m::submission::known {} {
 	SELECT id
 	,      url
 	,      email
+	,      description
 	FROM   submission
     } {
-	dict set map %$id                    $id
-	dict set map [string tolower $url]   $id
-	dict set map [string tolower $email] $id
+	dict set map %$id                          $id
+	dict set map [string tolower $url]         $id
+	dict set map [string tolower $email]       $id
+	dict set map [string tolower $description] $id
     }
 
     return $map
@@ -63,10 +65,12 @@ proc ::m::submission::list {} {
 
     return [m db eval {
 	SELECT id
+	,      sdate
 	,      url
+	,      vcode
+	,      description
 	,      email
 	,      submitter
-	,      sdate
 	FROM   submission
 	ORDER BY sdate DESC, id DESC
     }]
@@ -83,13 +87,13 @@ proc ::m::submission::rejected {} {
     }]
 }
 
-proc ::m::submission::add {url email submitter} {
+proc ::m::submission::add {url vcode desc email submitter} {
     debug.m/submission {}
     
     set now [clock seconds]
     m db eval {
 	INSERT INTO submission
-	VALUES ( NULL, :url, :email, :submitter, :now )
+	VALUES ( NULL, :url, :vcode, :desc, :email, :submitter, :now )
     }
 
     return [m db last_insert_rowid]
@@ -133,7 +137,8 @@ proc ::m::submission::reject {submission reason} {
 	WHERE id = :submission
     }]
     m db eval {
-	INSERT INTO rejected VALUES ( NULL, :url, :reason )
+	INSERT INTO rejected
+	VALUES ( NULL, :url, :reason )
 	;
 	DELETE
 	FROM  submission
@@ -144,14 +149,18 @@ proc ::m::submission::reject {submission reason} {
 
 proc ::m::submission::get {submission} {
     debug.m/submission {}
-    return [m db eval {
+    set r [m db eval {
 	SELECT 'url'        , url
+	,      'vcode'      , vcode
+	,      'desc'       , description
 	,      'email'      , email
 	,      'submitter'  , submitter
 	,      'when'       , sdate
 	FROM   submission
 	WHERE  id = :submission
     }]
+    debug.m/submission { --> (($r)) }
+    return $r
 }
 
 # # ## ### ##### ######## ############# ######################

@@ -58,7 +58,7 @@ proc ::m::glue::gen_limit {p} {
     return $limit
 }
 
-proc ::m::glue::gen_url {p} {
+proc ::m::glue::gen_submit_url {p} {
     debug.m/glue {[debug caller] | }
     package require m::submission
     set details [m submission get [$p config @id]]
@@ -67,9 +67,53 @@ proc ::m::glue::gen_url {p} {
     #    email
     #    submitter
     #    when
+    #    desc
+    #    vcode
     debug.m/glue {[debug caller] | [$p config] }
     debug.m/glue {[debug caller] | --> $url }
     return $url
+}
+
+proc ::m::glue::gen_submit_name {p} {
+    debug.m/glue {[debug caller] | }
+    package require m::submission
+    set details [m submission get [$p config @id]]
+    dict with details {}
+    # -> url
+    #    email
+    #    submitter
+    #    when
+    #    desc
+    #    vcode
+
+    if {$desc eq {}} {
+	set desc [gen_name $p]
+    }
+    debug.m/glue {[debug caller] | [$p config] }
+    debug.m/glue {[debug caller] | --> $desc }
+    return $desc
+}
+
+proc ::m::glue::gen_submit_vcs {p} {
+    debug.m/glue {[debug caller] | }
+    package require m::submission
+    package require m::vcs
+    set details [m submission get [$p config @id]]
+    dict with details {}
+    # -> url
+    #    email
+    #    submitter
+    #    when
+    #    desc
+    #    vcode
+    if {$vcode eq {}} {
+	set vcs [gen_vcs $p]
+    } else {
+	set vcs [m vcs id $vcode]
+    }
+    debug.m/glue {[debug caller] | [$p config] }
+    debug.m/glue {[debug caller] | --> $vcode ($vcs) }
+    return $vcs
 }
 
 proc ::m::glue::gen_name {p} {
@@ -937,12 +981,13 @@ proc ::m::glue::cmd_submissions {config} {
     package require m::submission
 
     m db transaction {
-	[table t {{} When Url Email Submitter} {
-	    foreach {id url email submitter when} [m submission list] {
+	# Dynamic: Description, Submitter
+	[table t {{} When Url VCS Description Email Submitter} {
+	    foreach {id when url vcode desc email submitter} [m submission list] {
 		set id %$id
 		set when [m format epoch $when]
 
-		$t add $id $when $url $email $submitter
+		$t add $id $when $url $vcode $desc $email $submitter
 	    }
 	}] show
     }
@@ -966,31 +1011,37 @@ proc ::m::glue::cmd_rejected {config} {
 proc ::m::glue::cmd_submit {config} {
     debug.m/glue {[debug caller] | }
     package require m::submission
+    package require m::repo
 
     m db transaction {
 	set url       [Url $config]
 	set email     [$config @email]
 	set submitter [$config @submitter]
+	set vcode     [$config @vcs-code]
+	set desc      [$config @name]
 
 	set name [color note $email]
 	if {$submitter ne {}} {
 	    append name " ([color note $submitter])"
 	}
 
-	m msg "Submitted [color note $url]"
+	m msg "Submitted [color note $vcode] @ [color note $url]"
+	if {$desc ne {}} {
+	    m msg "Noted as  [color note $desc]"
+	}
 	m msg "By        $name"
 
-	# TODO ...
-	# Most checking done by the web form
+	if {[m repo has $url]} {
+	    m msg [color bad "Already known"]
+	    return
+	} elseif {[m submission has $url]} {
+	    m msg [color warning "Already submitted"]
+	} elseif {[set reason [m submission dup $url]] ne {}} {
+	    m msg [color bad "Already rejected: $reason"]
+	    return
+	}
 
-	# - url already known ?
-	# - url already rejected ?
-
-	# Further:
-	#
-	# - url 200 OK ?
-
-	m submission add $url $email $submitter
+	m submission add $url $vcode $desc $email $submitter
     }
     SiteRegen
     OK
@@ -1015,6 +1066,8 @@ proc ::m::glue::cmd_accept {config} {
 	#    email
 	#    submitter
 	#    when
+	#    desc
+	#    vcode
 	set name [color note $email]
 	if {$submitter ne {}} {
 	    append name " ([color note $submitter])"
@@ -1028,8 +1081,8 @@ proc ::m::glue::cmd_accept {config} {
 	    dict set details submitter $email
 	}
 
-	m submission accept $submission
 	Add $config
+	m submission accept $submission
 
 	# TODO: Ordering ... mail failure has to undo the store
 	# creation, and other non-database effects of `Add`.
@@ -1039,9 +1092,14 @@ proc ::m::glue::cmd_accept {config} {
 	    lappend mail "Mirror. Accepted submission of @url@"
 	    lappend mail "Hello @submitter@"
 	    lappend mail
-	    lappend mail "Thank you for your submission of @url@ to us, as of @when@."
+	    lappend mail "Thank you for your submission of @url@"
+	    if {$desc ne {}} {
+		lappend mail "(@desc@)"
+	    }
+	    lappend mail "As of @when@."
 	    lappend mail ""
-	    lappend mail "Your submission has been accepted. The repository should appear on our web-pages soon."
+	    lappend mail "Your submission has been accepted."
+	    lappend mail "The repository should appear on our web-pages soon."
 	    lappend mail ""
 	    lappend mail "Sincerely"
 	    lappend mail "  @sender@"
@@ -1084,12 +1142,14 @@ proc ::m::glue::cmd_reject {config} {
 	    #    email
 	    #    submitter
 	    #    when
+	    #    desc
+	    #    vcode
 	    set name [color note $email]
 	    if {$submitter ne {}} {
 		append name " ([color note $submitter])"
 	    }
 
-	    m msg "  Rejected $url"
+	    m msg "  Rejected $url ($desc)"
 	    m msg "  By       $name"
 
 	    m submission reject $submission $text
@@ -1100,9 +1160,13 @@ proc ::m::glue::cmd_reject {config} {
 	    lappend mail "Mirror. Declined submission of @url@"
 	    lappend mail "Hello @submitter@"
 	    lappend mail
-	    lappend mail "Thank you for your submission of @url@ to us, as of @when@."
+	    lappend mail "Thank you for your submission of @url@ to us"
+	    if {$desc ne {}} {
+		lappend mail "(@desc@)"
+	    }
+	    lappend mail "As of @when@."
 	    lappend mail ""
-	    lappend mail "We are sorry to tell you that we decline it."
+	    lappend mail "We are sorry to tell you that we are declining it."
 	    lappend mail $text ;# cause
 	    lappend mail ""
 	    lappend mail "Sincerely"

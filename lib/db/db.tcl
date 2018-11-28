@@ -340,22 +340,33 @@ proc ::m::db::SETUP-201811202300 {} {
     return
 }
 
-
-
-
-
-
-
-
-
-
-
 proc ::m::db::SETUP-201811212300 {} {
     # Added `hg` to the set of supported VCS.
 
     D m::db
     T^ version_control_system
     >+ 'hg' 'Mercurial'
+
+    return
+}
+
+proc ::m::db::SETUP-201811272200 {} {
+    # Added optional columns `vcode` and `description` to the
+    # submissions table. Initialized to empty. Further dropped unique
+    # requirement from url, allowing multiple submissions of the same,
+    # enabling fixing of description, vcode. Added index instead.
+
+    D m::db
+    I+
+    C url         TEXT NOT NULL
+    C vcode       TEXT
+    C description TEXT
+    C email       TEXT NOT NULL
+    C submitter   TEXT
+    C sdate       INTEGER NOT NULL
+    < submission  id url '' '' email submitter sdate
+    X sdate
+    X url
 
     return
 }
