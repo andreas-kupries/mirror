@@ -1,0 +1,423 @@
+#!/home/aku/Data/My/Web/bin.tcl/tclsh8.6
+## -*- tcl -*-
+# # ## ### ##### ######## ############# ######################
+#!/usr/bin/env tclsh -- Need 8.6
+
+# CGI helper application to manage the submission form of the web site.
+
+# # ## ### ##### ######## ############# ######################
+
+# @@ Meta Begin
+# Application mirror-submit  ?
+# Meta author      {Andreas Kupries}
+# Meta category    ?
+# Meta description ?
+# Meta location    https://core.tcl-lang.org/akupries/????
+# Meta platform    tcl
+# Meta require     m::db
+# Meta require     {Tcl 8.6-}
+# Meta subject     ?
+# Meta summary     ?
+# @@ Meta End
+
+# # ## ### ##### ######## ############# ######################
+#puts stderr [info nameofexecutable]
+package require Tcl 8.6
+package require wapp
+package require m::db
+package require m::db::location
+package require m::format
+package require m::repo
+package require m::submission
+package require m::vcs
+package require m::web::bootstrap
+
+proc main {} {
+    cmdline
+    #wapp-start -trace
+    wapp-start {}
+}
+
+proc cmdline {} {
+    global argv
+    if {[llength $argv] > 1} usage
+    if {[llength $argv] < 1} return
+
+    lassign $argv config
+
+    # The config file is trusted, as is the database it references,
+    # deploy this only in a secure and controlled environment.
+
+    proc database: {database} {
+	m::db::location set $database
+	return
+    }
+
+    proc stderr: {path} {
+	file mkdir [file dirname $path]
+	close stderr
+	open $path a ;# This is now stderr
+	return
+    }
+
+    source $config
+    rename database: {}
+    return
+}
+
+proc usage {} {
+    global argv0
+    puts stderr "Usage: $argv0 ?config-file?"
+    exit 1
+}
+
+# # ## ### ##### ######## ############# ######################
+
+# Main page. Search form, and list of results.
+# All unknown urls point to the same.
+proc wapp-default {} {
+    EV
+    wapp-trim { %unsafe([m web bootstrap header "Submit a repository"]) }
+    m db transaction {
+	wapp-trim { <p> <table> }
+	wapp-trim { <tr valign='top'> <td> }
+	Submit
+	Form
+	wapp-trim { </td> <td> }
+	wapp-trim { &nbsp; </td> <td> }
+	Messages
+	wapp-trim { </td> </tr> }
+	wapp-trim { </table> </p> }
+	PendingRef
+	RejectedRef
+    }
+    wapp-trim {	%unsafe([m web bootstrap footer]) }
+    return
+}
+
+proc wapp-page-pending {} {
+    wapp-allow-xorigin-params
+    wapp-trim { %unsafe([m web bootstrap header "Pending submissions"]) }
+    Pending
+    wapp-trim {	%unsafe([m web bootstrap footer]) }
+    return
+}
+
+proc wapp-page-rejected {} {
+    wapp-allow-xorigin-params
+    wapp-trim { %unsafe([m web bootstrap header "Rejected submissions"]) }
+    Rejected
+    wapp-trim {	%unsafe([m web bootstrap footer]) }
+    return
+}
+
+# Request environment
+proc wapp-page-env {} {
+    wapp-allow-xorigin-params
+    wapp-subst {<h1>Mirror Environment</h1>\n<pre>\n}
+    foreach var [lsort [wapp-param-list]] {
+	if {[string index $var 0]=="."} continue
+	wapp-subst {%html($var) = %html([list [wapp-param $var]])\n}
+    }
+    wapp-subst {</pre>\n}
+}
+
+# # ## ### ##### ######## ############# ######################
+
+proc EV {} {
+    set n [clock clicks]
+    puts stderr "\n_ _ __ ___ _____ ________ _____________"
+    foreach var [lsort [wapp-param-list]] {
+	#if {[string index $var 0]=="."} continue
+	puts stderr "$var = [list [wapp-param $var]]"
+    }
+    return
+}
+
+proc Form {} {
+    set url       [string trim [wapp-param url      ]]
+    set vcode     [string trim [wapp-param vcode    ]]
+    set desc      [string trim [wapp-param desc     ]]
+    set email     [string trim [wapp-param email    ]]
+    set submitter [string trim [wapp-param submitter]]
+    set sid       [string trim [wapp-param sid]]
+
+    #puts stderr "url   (($url))"
+    #puts stderr "vcode (($vcode))"
+    #puts stderr "desc  (($desc))"
+    #puts stderr "email (($email))"
+    #puts stderr "submi (($submitter))"
+    #puts stderr "sess  (($sid))"
+
+    if {$sid eq {}} {
+	set sid ([clock clicks])
+	wapp-set-param sid $sid
+    }
+    
+    wapp-trim {
+	<form method='POST' action='%url([wapp-param PATH_HEAD])'>
+	<input type='hidden' name='sid' value='%html($sid)'>
+	<table class='table'>
+	<tr> <td>
+	<select name='vcode'>
+    }
+    # future: vcs logo
+    set codes [linsert [m vcs list] 0 {} (Auto)]
+    foreach {code name} $codes {
+	if {$code eq $vcode} {
+	    #puts stderr "select $code / $name"
+
+	    wapp-trim { <option selected value='%html($code)'> %html($name) </option> }
+	} else {
+	    wapp-trim { <option value='%html($code)'> %html($name) </option> }
+	}
+    }
+    wapp-trim {
+	</select>
+	</td>
+	<td> <input type='text' name='url'       size=30 value='%html($url)'      > </td>
+	</tr>
+	<tr> <td> Description </td> <td> <input type='text' name='desc'      size=30 value='%html($desc)'     > </td> </tr>
+	<tr> <td> Email       </td> <td> <input type='text' name='email'     size=30 value='%html($email)'    > </td> </tr>
+	<tr> <td> Submitter   </td> <td> <input type='text' name='submitter' size=30 value='%html($submitter)'> </td> </tr>
+	<tr> <td> <input type='image' src='images/submit.svg' alt='Submit'> </td> </tr>
+	</table>
+	</form>
+    }
+}
+
+proc Submit {} {
+    set url       [string trim [wapp-param url      ]]
+    set vcode     [string trim [wapp-param vcode    ]]
+    set desc      [string trim [wapp-param desc     ]]
+    set email     [string trim [wapp-param email    ]]
+    set submitter [string trim [wapp-param submitter]]
+    set sid       [string trim [wapp-param sid]]
+    set stop 0
+
+    # Check mandatory fields
+    if {$email eq {}} {
+	M "Mandatory email is missing" error
+	incr stop
+    }
+    if {$url eq {}} {
+	M "Mandatory url is missing" error
+	incr stop
+    }
+    if {$stop} return
+    
+    # Resolve and check url...
+    M> ; M+ "Submitted: " ; M+ $url note ; M<
+
+    if {![m url ok $url res]} {
+	M "Failed to find"  error
+	return
+    }
+    if {$url ne $res} {
+	M> ; M+ "Redirected: " ; M+ $res note ; M<
+	set url $res
+    }
+    M>
+    if {$vcode eq {}} {
+	# Run the auto-detection from cmd_add/cmd_submit of the cli.
+	set vcode [m vcs detect $url]
+	M+ "VCS: " ; M+ $vcode note ; M+ " (auto-detected)"
+    } else {
+	M+ "VCS: " ; M+ $vcode note
+    }
+    M<
+
+    set norm [m vcs url-norm $vcode $url]
+    if {$norm ne $url} {
+	M> ; M+ "Normalized: " ; M+ $norm note ; M<
+	set url $norm
+    }
+	
+    if {[m repo has $url]} {
+	M "Already known" note
+	return
+    }
+
+    set reason [m submission dup $url]
+    if {$reason ne {}} {
+	M "Already rejected: $reason" error
+	return
+    } elseif {[m submission has^ $url $sid]} {
+	M "Already submitted, will replace" warn
+    } else {
+	# TODO: Here is where we have to add a bayes filter based on past
+	# ham/spam submissions as means of auto-filtering submissions.
+	# Maybe: auto-climb to parent/root of a fork ?
+	#M "Will add"
+    }
+    M>
+    if {$desc eq {}} {
+	# Run the name generator heuristic from cmd_add/cmd_submit of the cli.
+	set desc [m vcs name-from-url $vcode $url]
+        M+ "Description: " ; M+ $desc note ; M+ " (generated)"
+    } else {
+	M+ "Description: " ; M+ $desc note
+    }
+    M<
+    M>
+    if {$submitter eq {}} {
+	M+ "By <" ; M+ $email note ; M+ ">"
+    } else {
+	M+ "By " ; M+ $submitter note ; M+ "<" ; M+ $email note ; M+ ">"
+    }
+    M<
+
+    m submission add $norm $sid $vcode $desc $email $submitter
+
+    M OK ok
+    
+    # Clear main form fields, and shown form
+    # (Keeping email and submitter to reduce pain of re-entry)
+    #wapp-set-param url       {}
+    wapp-set-param vcode     $vcode
+    wapp-set-param desc      $desc
+    #wapp-set-param email     {}
+    #wapp-set-param submitter {}
+    return
+}
+
+proc Messages {} {
+    variable ms
+    foreach cmd $ms {
+	lassign $cmd c m color
+	switch -exact -- $c {
+	    S { wapp-trim { <p>  } }
+	    E { wapp-trim { </p> } }
+	    M {	
+		set c [string map {
+		    error red
+		    bad   red
+		    note  blue
+		    ok    green
+		    warn  magenta
+		} $color]
+		if {$c ne {}} {
+		    wapp-trim { <font color='%html($c)'> %html($m) </font> }
+		} else {
+		    wapp-trim { %html($m) }
+		}
+	    }
+	}
+    }
+    return
+}
+
+proc M {message {color {}}} {
+    M>
+    M+ $message $color
+    M<
+}
+proc M+ {message {color {}}} {
+    variable ms
+    lappend ms [list M $message $color]
+    return
+}
+proc M> {} {
+    variable ms
+    lappend ms S
+    return
+}
+proc M< {} {
+    variable ms
+    lappend ms E
+    return
+}
+
+
+proc S {} { upvar 1 __stop stop ; incr stop }
+
+proc H {} {
+    upvar 1 __stop stop
+    if {[info exists stop] && $stop} { return -code return }
+    return
+}
+
+proc PendingRef {} {
+    set n [expr {[llength [m submission list]]/6}]
+    wapp-trim {
+	<p> <a href='%url([wapp-param BASE_URL]/pending)'>
+	Pending submissions: %html($n)
+	</a> </p>
+    }
+}
+
+proc RejectedRef {} {
+    set n [expr {[llength [m submission rejected]]/2}]
+    wapp-trim {
+	<p> <a href='%url([wapp-param BASE_URL]/rejected)'>
+	Rejected submissions: %html($n)
+	</a> </p>
+    }
+}
+
+proc Pending {} {
+    set series [m submission list]
+    # series is sorted by date descending
+    PendingHeader [expr {[llength $series]/6}]
+    foreach {id when url vcode description email submitter} $series {
+	# hide: id, email, submitter
+	set when [m format epoch $when]
+	wapp-trim {
+	    <tr>
+	    <td> %html($when)        </td>
+	    <td> <a target='_blank' href='%url($url)'> %html($url) </a> </td>
+	    <td>
+	    <img height='32' alt='%html($vcode)' src='%url(../images/logo/${vcode}.svg)'>
+	    %html($vcode)
+	    </td>
+	    <td> %html($description) </td>
+	    </tr>
+	}
+    }
+    Footer
+}
+
+proc Rejected {} {
+    set series [m submission rejected]
+    RejectedHeader [expr {[llength $series]/2}]
+    foreach {url reason} $series {
+	wapp-trim {
+	    <tr>
+	    <td> %html($url)    </td>
+	    <td> %html($reason) </td>
+	    </tr>
+	}
+    }
+    Footer
+}
+
+proc PendingHeader {n} {
+    wapp-trim {
+	<p> Pending submissions: %html($n) </p>
+	<p> <table class='table'>
+	<tr>
+	<th> When </th>
+	<th> Url  </th>
+	<th> VCS  </th>
+	<th> Name </th>
+	</tr>
+    }
+}
+
+proc RejectedHeader {n} {
+    wapp-trim {
+	<p> Rejected submissions: %html($n) </p>
+	<p> <table class='table'>
+	<tr>
+	<th> Url     </th>
+	<th> Reason  </th>
+	</tr>
+    }
+}
+
+proc Footer {} {
+    wapp-trim { </table> </p> }
+}
+
+# # ## ### ##### ######## ############# ###################### GO
+main

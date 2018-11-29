@@ -371,5 +371,29 @@ proc ::m::db::SETUP-201811272200 {} {
     return
 }
 
+proc ::m::db::SETUP-201811282200 {} {
+    # Added special column `session` to the submissions
+    # table. Initialized to a value the other parts (cli, CGI) will
+    # not generate.  Made url + session unique, i.e. primary key.  A
+    # session is allowed to overwrite its submissions, but not the
+    # submissions of other sessions.
+
+    D m::db
+    I+
+    C session     TEXT NOT NULL
+    C url         TEXT NOT NULL
+    C vcode       TEXT
+    C description TEXT
+    C email       TEXT NOT NULL
+    C submitter   TEXT
+    C sdate       INTEGER NOT NULL
+    U session url
+    < submission  id ':lock:' url vcode description email submitter sdate
+    X sdate
+    X url
+
+    return
+}
+
 # # ## ### ##### ######## ############# #####################
 return

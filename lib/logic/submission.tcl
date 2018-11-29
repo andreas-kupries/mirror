@@ -28,7 +28,7 @@ namespace eval ::m {
 }
 namespace eval ::m::submission {
     namespace export \
-	list add has dup accept reject get known rejected
+	list add has has^ dup accept reject get known rejected
 
     namespace ensemble create
 }
@@ -87,13 +87,30 @@ proc ::m::submission::rejected {} {
     }]
 }
 
-proc ::m::submission::add {url vcode desc email submitter} {
+proc ::m::submission::add {url session vcode desc email submitter} {
     debug.m/submission {}
     
     set now [clock seconds]
-    m db eval {
-	INSERT INTO submission
-	VALUES ( NULL, :url, :vcode, :desc, :email, :submitter, :now )
+
+    if {[has^ $url $session]} {
+	# Submission exists, for this session => Update/Replace
+	m db eval {
+	    UPDATE submission
+	    SET vcode       = :vcode
+	    ,   description = :desc
+	    ,   email       = :email
+	    ,   submitter   = :submitter
+	    ,   sdate       = :now
+	    WHERE url     = :url
+	    AND   session = :session
+	}
+    } else {
+	# New submission, first for the session => Insert/Add
+	m db eval {
+	    INSERT
+	    INTO submission
+	    VALUES ( NULL, :session, :url, :vcode, :desc, :email, :submitter, :now )
+	}
     }
 
     return [m db last_insert_rowid]
@@ -109,14 +126,24 @@ proc ::m::submission::has {url} {
     }]    
 }
 
+proc ::m::submission::has^ {url session} {
+    debug.m/submission {}
+
+    return [m db onecolumn {
+	SELECT count (*)
+	FROM  submission
+	WHERE url     = :url
+	AND   session = :session
+    }]    
+}
+
 proc ::m::submission::dup {url} {
     debug.m/submission {}
-    m db eval {
+    return [m db onecolumn {
 	SELECT reason
 	FROM   rejected
 	WHERE  url = :url
-    }
-    return
+    }]
 }
 
 proc ::m::submission::accept {submission} {
@@ -137,7 +164,8 @@ proc ::m::submission::reject {submission reason} {
 	WHERE id = :submission
     }]
     m db eval {
-	INSERT INTO rejected
+	INSERT OR REPLACE
+	INTO rejected
 	VALUES ( NULL, :url, :reason )
 	;
 	DELETE

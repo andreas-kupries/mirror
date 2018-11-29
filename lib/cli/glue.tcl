@@ -1013,35 +1013,43 @@ proc ::m::glue::cmd_submit {config} {
     package require m::submission
     package require m::repo
 
+    # session id for cli, daily rollover, keyed to host and user
+    set sid "cli.[expr {[clock second] % 86400}]/[info hostname]/$tcl_platform(user)"
+    
     m db transaction {
 	set url       [Url $config]
 	set email     [$config @email]
 	set submitter [$config @submitter]
 	set vcode     [$config @vcs-code]
 	set desc      [$config @name]
+	set url       [m vcs url-norm $vcode $url]
 
-	set name [color note $email]
+	set name <[color note $email]>
 	if {$submitter ne {}} {
-	    append name " ([color note $submitter])"
+	    set name "[color note $submitter] $name"
 	}
 
-	m msg "Submitted [color note $vcode] @ [color note $url]"
+	m msg "Submitted:   [color note $vcode] @ [color note $url]"
 	if {$desc ne {}} {
-	    m msg "Noted as  [color note $desc]"
+	    m msg "Description: [color note $desc]"
 	}
-	m msg "By        $name"
+	m msg "By:          $name"
 
 	if {[m repo has $url]} {
 	    m msg [color bad "Already known"]
 	    return
-	} elseif {[m submission has $url]} {
-	    m msg [color warning "Already submitted"]
-	} elseif {[set reason [m submission dup $url]] ne {}} {
-	    m msg [color bad "Already rejected: $reason"]
-	    return
 	}
 
-	m submission add $url $vcode $desc $email $submitter
+	if {[set reason [m submission dup $url]] ne {}} {
+	    m msg [color bad "Already rejected: $reason"]
+	    return
+	} elseif {[m submission has^ $url $sid]} {
+	    m msg [color warning "Already submitted, replacing"]
+	} else {
+	    m msg [color warning "Adding"]
+	}
+
+	m submission add $url $sid $vcode $desc $email $submitter
     }
     SiteRegen
     OK
@@ -1076,11 +1084,6 @@ proc ::m::glue::cmd_accept {config} {
 	m msg "Accepted $url"
 	m msg "By       $name"
 
-	dict set details when [m format epoch $when]
-	if {![info exists $submitter] || ($submitter eq {})} {
-	    dict set details submitter $email
-	}
-
 	Add $config
 	m submission accept $submission
 
@@ -1089,21 +1092,16 @@ proc ::m::glue::cmd_accept {config} {
 	if {!$nomail} {
 	    m msg "Sending acceptance mail to $email ..."
 
-	    lappend mail "Mirror. Accepted submission of @url@"
-	    lappend mail "Hello @submitter@"
-	    lappend mail
-	    lappend mail "Thank you for your submission of @url@"
-	    if {$desc ne {}} {
-		lappend mail "(@desc@)"
+	    dict set details when [m format epoch $when]
+	    if {![info exists $submitter] || ($submitter eq {})} {
+		dict set details submitter $email
 	    }
-	    lappend mail "As of @when@."
-	    lappend mail ""
+
+	    MailHeader mail Accepted $desc
 	    lappend mail "Your submission has been accepted."
 	    lappend mail "The repository should appear on our web-pages soon."
-	    lappend mail ""
-	    lappend mail "Sincerely"
-	    lappend mail "  @sender@"
-
+	    MailFooter mail
+	    
 	    m mailer to $email \
 		[m mail generator reply [join $mail \n] $details]
 	}
@@ -1157,23 +1155,19 @@ proc ::m::glue::cmd_reject {config} {
 	    if {!$mail} continue
 	    m msg "    Sending rejection notice to $email ..."
 
-	    lappend mail "Mirror. Declined submission of @url@"
-	    lappend mail "Hello @submitter@"
-	    lappend mail
-	    lappend mail "Thank you for your submission of @url@ to us"
-	    if {$desc ne {}} {
-		lappend mail "(@desc@)"
+	    dict set details when [m format epoch $when]
+	    if {![info exists $submitter] || ($submitter eq {})} {
+		dict set details submitter $email
 	    }
-	    lappend mail "As of @when@."
-	    lappend mail ""
-	    lappend mail "We are sorry to tell you that we are declining it."
-	    lappend mail $text ;# cause
-	    lappend mail ""
-	    lappend mail "Sincerely"
-	    lappend mail "  @sender@"
+
+	    MailHeader themail Declined $desc
+	    lappend    themail "We are sorry to tell you that we are declining it."
+	    lappend    themail $text ;# cause
+	    MailFooter themail
 
 	    m mailer to $email \
-		[m mail generator reply [join $mail \n] $details]
+		[m mail generator reply [join $themail \n] $details]
+	    unset themail
 	}
     }
     SiteRegen
@@ -1243,6 +1237,37 @@ proc ::m::glue::cmd_debug_levels {config} {
 }
 
 # # ## ### ##### ######## ############# ######################
+
+proc ::m::glue::MailFooter {mv} {
+    debug.m/glue {[debug caller] | }
+    upvar 1 $mv mail
+
+    lappend mail ""
+    lappend mail "Sincerely"
+    lappend mail "  @sender@"
+    return
+}
+
+proc ::m::glue::MailHeader {mv label desc} {
+    debug.m/glue {[debug caller] | }
+    upvar 1 $mv mail
+
+    set title [m state site-title]
+    if {$title eq {}} { set title Mirror }
+
+    lappend mail "$title. $label submission of @s:url@"
+    lappend mail "Hello @s:submitter@"
+    lappend mail ""
+    lappend mail "Thank you for your submission of"
+    if {$desc ne {}} {
+	lappend mail "  \[@s:desc@](@s:url@)"
+    } else {
+	lappend mail "  @s:url@"
+    }
+    lappend mail "to $title, as of @s:when@"
+    lappend mail ""
+    return
+}
 
 proc ::m::glue::Url {config} {
     debug.m/glue {[debug caller] | }

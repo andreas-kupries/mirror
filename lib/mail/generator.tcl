@@ -61,6 +61,8 @@ proc ::m::mail::generator::reply {template submission} {
     # - submitter (name)
     # - email
     # - when - submission date (formatted)
+    # - vcode
+    # - desc
     set sender [m state mail-sender]
     
     dict for {k v} $submission {

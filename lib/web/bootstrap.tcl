@@ -78,7 +78,27 @@ proc ::m::web::bootstrap::GET {} {
 
     # Extract the bootstrap header and footer for our use.
     regexp {(<head>.*<header>).*(<footer.*)</html>} $c -> header footer
-    set header [string map [list "title>Contact" "title>%%%"] $header]
+
+    set self [wapp-param SELF_URL]
+    set base [wapp-param BASE_URL]
+    lappend map  https:/ https://
+    lappend map  http:/  http://
+    set app [string map $map [file dirname $base]]
+
+    # Rewrite the canonical link to current page
+    regsub \
+	"<link ref=\"canonical\" href=\"\[^\"]*\">" $header \
+	"<link ref='canonical' href='$self'>" header
+
+    # Replace title with place holder to fill in by caller.
+    unset map
+    lappend map "title>Contact" "title>%%%"
+
+    # Rewrite relative links to site assets to absolute.
+    lappend map "./" "${app}/"
+
+    set header [string map $map $header]
+    set footer [string map $map $footer]
     return
 }
 
