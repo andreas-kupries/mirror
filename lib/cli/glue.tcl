@@ -250,7 +250,7 @@ proc ::m::glue::cmd_reply_add {config} {
 
 	m reply add $reply $mail $text
     }
-    SiteRegen
+    #SiteRegen
     OK
 }
 
@@ -272,7 +272,7 @@ proc ::m::glue::cmd_reply_remove {config} {
 
 	m reply remove $reply
     }
-    SiteRegen
+    #SiteRegen
     OK
 }
 
@@ -291,7 +291,7 @@ proc ::m::glue::cmd_reply_change {config} {
 
 	m reply change $reply $text
     }
-    SiteRegen
+    #SiteRegen
     OK
 }
 
@@ -307,7 +307,7 @@ proc ::m::glue::cmd_reply_default {config} {
 
 	m reply default! $reply
     }
-    SiteRegen
+    #SiteRegen
     OK
 }
 
@@ -1887,6 +1887,7 @@ proc ::m::glue::ReplyConfigShow {} {
 
 proc ::m::glue::SiteRegen {} {
     debug.m/glue {[debug caller] | }
+    package require m::state
     if {![m state site-active]} return
     package require m::web::site
     m web site build silent
