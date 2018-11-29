@@ -20,6 +20,7 @@ package provide m::vcs::git 0
 
 package require Tcl 8.5
 package require struct::set
+package require cmdr::color
 package require m::futil
 package require m::exec
 package require debug
@@ -85,10 +86,8 @@ proc ::m::vcs::git::name-from-url {url} {
 proc ::m::vcs::git::detect {url} {
     debug.m/vcs/git {}
     if {![string match *git* $url]} return
-    if {[catch {
-	m exec silent git help
-    }]} {
-	m msg "[color note "git"] [color warning "not available"]"
+    if {![llength [auto_execok git]]} {
+	m msg "[cmdr color note "git"] [cmdr color warning "not available"]"
 	# Fall through
 	return
     }

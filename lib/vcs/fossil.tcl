@@ -19,6 +19,7 @@ package provide m::vcs::fossil 0
 ## Requisites
 
 package require Tcl 8.5
+package require cmdr::color
 package require m::futil
 package require m::exec
 package require debug
@@ -71,10 +72,12 @@ proc ::m::vcs::fossil::name-from-url {url} {
 
 proc ::m::vcs::fossil::detect {url} {
     debug.m/vcs/fossil {}
-    if {[catch {
-	m exec silent fossil help
-    }]} {
-	m msg "[color note "fossil"] [color warning "not available"]"
+    if {![llength [auto_execok fossil]]} {
+	set p "PATH: "
+	puts stderr "fossil = [auto_execok fossil]"
+	puts stderr $p[join [split $::env(PATH) :] \n$p]
+	
+	m msg "[cmdr color note "fossil"] [cmdr color warning "not available"]"
 	# Fall through
 	return
     }

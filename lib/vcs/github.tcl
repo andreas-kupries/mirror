@@ -107,14 +107,12 @@ proc ::m::vcs::github::detect {url} {
     if {[catch {
 	m exec silent git hub help
     }]} {
-	m msg "[color note "git hub"] [color warning "not available"]"
+	m msg "[cmdr color note "git hub"] [cmdr color warning "not available"]"
 	# Fall through
 	return
     }
-    if {[catch {
-	m exec silent git help
-    }]} {
-	m msg "[color note "git"] [color warning "not available"]"
+    if {![llength [auto_execok git]]} {
+	m msg "[cmdr color note "git"] [cmdr color warning "not available"]"
 	# Fall through
 	return
     }

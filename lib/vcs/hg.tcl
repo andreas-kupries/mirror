@@ -19,6 +19,7 @@ package provide m::vcs::hg 0
 ## Requisites
 
 package require Tcl 8.5
+package require cmdr::color
 package require m::futil
 package require m::exec
 package require debug
@@ -61,10 +62,8 @@ proc ::m::vcs::hg::detect {url} {
 	![string match *hg.code.sf.net/*          $url] &&
 	![string match *hg.code.sourceforge.net/* $url]
     } return
-    if {[catch {
-	m exec silent hg help
-    }]} {
-	m msg "[color note "hg"] [color warning "not available"]"
+    if {![llength [auto_execok hg]]} {
+	m msg "[cmdr color note "hg"] [cmdr color warning "not available"]"
 	# Fall through
 	return
     }
