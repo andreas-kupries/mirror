@@ -81,7 +81,19 @@ proc wapp-default {} {
     m db transaction {
 	wapp-trim { <p> <table> }
 	wapp-trim { <tr valign='top'> <td> }
-	Submit
+	try {
+	    Submit
+	} on error {e o} {
+	    set id [pid].[clock clicks]
+	    dict unset o -errorinfo
+	    puts stderr "___ <<$id>> $e"
+	    puts stderr "___ $o"
+	    puts stderr $::errorInfo
+	    M "Internal error caught, id <<$id>>" error
+	    M "Submission failed" error
+	    M "Apologies for the inconvenience" error
+	    #M "Please send us mail with the id above" note
+	}
 	Form
 	wapp-trim { </td> <td> }
 	wapp-trim { &nbsp; </td> <td> }
@@ -142,13 +154,6 @@ proc Form {} {
     set submitter [string trim [wapp-param submitter]]
     set sid       [string trim [wapp-param sid]]
 
-    #puts stderr "url   (($url))"
-    #puts stderr "vcode (($vcode))"
-    #puts stderr "desc  (($desc))"
-    #puts stderr "email (($email))"
-    #puts stderr "submi (($submitter))"
-    #puts stderr "sess  (($sid))"
-
     if {$sid eq {}} {
 	set sid ([clock clicks])
 	wapp-set-param sid $sid
@@ -165,8 +170,6 @@ proc Form {} {
     set codes [linsert [m vcs list] 0 {} (Auto)]
     foreach {code name} $codes {
 	if {$code eq $vcode} {
-	    #puts stderr "select $code / $name"
-
 	    wapp-trim { <option selected value='%html($code)'> %html($name) </option> }
 	} else {
 	    wapp-trim { <option value='%html($code)'> %html($name) </option> }
@@ -267,17 +270,15 @@ proc Submit {} {
     }
     M<
 
-    m submission add $norm $sid $vcode $desc $email $submitter
+    m submission add $url $sid $vcode $desc $email $submitter
 
     M OK ok
-    
-    # Clear main form fields, and shown form
+
+    # Fill the form with the changed fields before showing.
     # (Keeping email and submitter to reduce pain of re-entry)
-    #wapp-set-param url       {}
-    wapp-set-param vcode     $vcode
-    wapp-set-param desc      $desc
-    #wapp-set-param email     {}
-    #wapp-set-param submitter {}
+    wapp-set-param url   $url
+    wapp-set-param vcode $vcode
+    wapp-set-param desc  $desc
     return
 }
 
