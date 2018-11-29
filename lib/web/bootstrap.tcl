@@ -97,6 +97,11 @@ proc ::m::web::bootstrap::GET {} {
     # Rewrite relative links to site assets to absolute.
     lappend map "./" "${app}/"
 
+    # Rewrite navbar index reference to absolute
+    lappend map \
+	"navbar-brand\" href=\"" \
+	"navbar-brand\" href=\"${app}/"
+    
     set header [string map $map $header]
     set footer [string map $map $footer]
     return
