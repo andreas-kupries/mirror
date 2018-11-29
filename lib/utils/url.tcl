@@ -51,7 +51,14 @@ proc ::m::url::ok {url rv {follow yes}} {
     debug.m/url {}
     upvar 1 $rv resolved
 
-    set token [http::geturl $url -validate 1]
+    try {
+	set token [http::geturl $url -validate 1]
+    } on error {e o} {
+	#puts stderr "___ $e [list $o]"
+	#puts stderr $::errorInfo
+	return 0
+    }
+    
     set state [array get $token]
     http::cleanup $token
     
@@ -86,7 +93,14 @@ proc ::m::url::Resolve {statevar} {
 	    return 0
 	}
 
-	set token [http::geturl $new -validate 1]
+	try {
+	    set token [http::geturl $new -validate 1]
+	} on error {e o} {
+	    #puts stderr "___ $e [list $o]"
+	    #puts stderr $::errorInfo
+	    return 0
+	}
+
 	set state [array get $token]
 	http::cleanup $token
 
