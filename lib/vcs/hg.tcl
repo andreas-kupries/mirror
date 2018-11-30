@@ -38,7 +38,7 @@ namespace eval m::vcs {
     namespace ensemble create
 }
 namespace eval m::vcs::hg {
-    namespace export setup cleanup update check split merge \
+    namespace export setup cleanup update check cleave merge \
 	version detect remotes export name-from-url
     namespace ensemble create
 }
@@ -76,7 +76,7 @@ proc ::m::vcs::hg::version {iv} {
 	m exec post-hook ;# clear
 
 	set v [m exec get hg version]   ; debug.m/vcs/hg {raw = (($v))}
-	set v [::split $v \n]           ; debug.m/vcs/hg {split    = '$v'}
+	set v [split  $v \n]            ; debug.m/vcs/hg {split    = '$v'}
 	set v [lindex $v 0]             ; debug.m/vcs/hg {sel line = '$v'}
 	set v [lindex $v end]           ; debug.m/vcs/hg {sel col  = '$v'}
 	set v [string trimright $v ")"] ; debug.m/vcs/hg {trim     = '$v'}
@@ -118,7 +118,7 @@ proc ::m::vcs::hg::check {primary other} {
     return 1 ;#[string equal [ProjectCode $primary] [ProjectCode $other]]
 }
 
-proc ::m::vcs::hg::split {origin dst} {
+proc ::m::vcs::hg::cleave {origin dst} {
     debug.m/vcs/hg {}
     return
 }

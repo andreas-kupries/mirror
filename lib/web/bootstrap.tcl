@@ -53,7 +53,7 @@ proc ::m::web::bootstrap::header {title} {
     variable header
     if {$header eq {}} { GET }
     lappend map %%% $title
-    return "[string map $map $header] <hr class='page-title'>$title</h1> </header> <h1> $title </h1>"
+    return "[string map $map $header] <h1> $title </h1>"
 }
 
 proc ::m::web::bootstrap::footer {} {
@@ -77,7 +77,7 @@ proc ::m::web::bootstrap::GET {} {
     set c [m futil cat [file join [pwd] contact.html]]
 
     # Extract the bootstrap header and footer for our use.
-    regexp {(<head>.*<header>).*(<footer.*)</html>} $c -> header footer
+    regexp {(<head>.*</header>).*(<footer.*)</html>} $c -> header footer
 
     set self [wapp-param SELF_URL]
     set base [wapp-param BASE_URL]
@@ -90,9 +90,14 @@ proc ::m::web::bootstrap::GET {} {
 	"<link ref=\"canonical\" href=\"\[^\"]*\">" $header \
 	"<link ref='canonical' href='$self'>" header
 
+    # Regenerate the parts of the document stripped by the extraction.
+    set header "<!DOCTYPE html><html>$header"
+    set footer "</section><div></div></div>$footer</html>"
+
     # Replace title with place holder to fill in by caller.
-    unset map
-    lappend map "title>Contact" "title>%%%"
+    unset   map
+    lappend map "title>Contact"   "title>%%%"
+    lappend map "title\">Contact" "title\">%%%"
 
     # Rewrite relative links to site assets to absolute.
     lappend map "./" "${app}/"

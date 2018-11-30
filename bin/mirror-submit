@@ -33,6 +33,8 @@ package require m::vcs
 package require m::web::bootstrap
 
 proc main {} {
+    global env
+    if {![info exists env(TERM)]} { set env(TERM) xterm }
     cmdline
     #wapp-start -trace
     wapp-start {}
@@ -167,7 +169,7 @@ proc Form {} {
 	<select name='vcode'>
     }
     # future: vcs logo
-    set codes [linsert [m vcs list] 0 {} (Auto)]
+    set codes [linsert [m vcs all] 0 {} (Auto)]
     foreach {code name} $codes {
 	if {$code eq $vcode} {
 	    wapp-trim { <option selected value='%html($code)'> %html($name) </option> }
@@ -339,7 +341,7 @@ proc H {} {
 }
 
 proc PendingRef {} {
-    set n [expr {[llength [m submission list]]/6}]
+    set n [expr {[llength [m submission all]]/6}]
     wapp-trim {
 	<p> <a href='%url([wapp-param BASE_URL]/pending)'>
 	Pending submissions: %html($n)
@@ -357,7 +359,7 @@ proc RejectedRef {} {
 }
 
 proc Pending {} {
-    set series [m submission list]
+    set series [m submission all]
     # series is sorted by date descending
     PendingHeader [expr {[llength $series]/6}]
     foreach {id when url vcode description email submitter} $series {

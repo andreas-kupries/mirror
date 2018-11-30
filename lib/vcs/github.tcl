@@ -60,11 +60,11 @@ namespace eval m::vcs {
 namespace eval m::vcs::github {
     namespace import ::m::vcs::git::cleanup
     namespace import ::m::vcs::git::check
-    namespace import ::m::vcs::git::split
+    namespace import ::m::vcs::git::cleave
     namespace import ::m::vcs::git::merge
     namespace import ::m::vcs::git::export
 
-    namespace export setup cleanup update check split merge \
+    namespace export setup cleanup update check cleave merge \
 	detect version remotes export name-from-url
     namespace ensemble create
 
@@ -135,7 +135,7 @@ proc ::m::vcs::github::version {iv} {
     if {!$ok} return
 
     set v [m exec get git hub version]
-    set v [::split $v \n]
+    set v [split $v \n]
     set v [lindex $v 0 end]
     set v [string trim $v ']
     return $v
@@ -165,7 +165,7 @@ proc ::m::vcs::github::update {path urls first} {
     lassign [struct::set intersect3 $old $forks] _ gone new
 
     foreach fork $new {
-	lassign [::split $fork /] org repo
+	lassign [split $fork /] org repo
 	set label m-vcs-github-fork-$org
  	set url https://github.com/$fork
 	m::vcs::git::Git remote add $label $url
@@ -174,7 +174,7 @@ proc ::m::vcs::github::update {path urls first} {
     set git [m::vcs::git::GitOf $path]
 
     foreach fork $gone {
-	lassign [::split $fork /] user repo
+	lassign [split $fork /] user repo
 	set label m-vcs-github-fork-$user
 
 	# Convert all branches defined by this remote (i.e. user or
@@ -279,7 +279,7 @@ proc ::m::vcs::github::ForksLoad {path} {
     } forks]} {
 	set forks {}
     } else {
-	set forks [::split [string trim $forks] \n]
+	set forks [split [string trim $forks] \n]
     }
     return $forks
 }

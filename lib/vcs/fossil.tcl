@@ -38,7 +38,7 @@ namespace eval m::vcs {
     namespace ensemble create
 }
 namespace eval m::vcs::fossil {
-    namespace export setup cleanup update check split merge \
+    namespace export setup cleanup update check cleave merge \
 	version detect remotes export name-from-url
     namespace ensemble create
 }
@@ -129,7 +129,7 @@ proc ::m::vcs::fossil::check {primary other} {
     return [string equal [ProjectCode $primary] [ProjectCode $other]]
 }
 
-proc ::m::vcs::fossil::split {origin dst} {
+proc ::m::vcs::fossil::cleave {origin dst} {
     debug.m/vcs/fossil {}
     return
 }
@@ -173,13 +173,13 @@ proc ::m::vcs::fossil::FossilOf {path} {
 proc ::m::vcs::fossil::Count {path} {
     debug.m/vcs/fossil {}
     set f  [FossilOf $path]
-    return [Sel 1 [Grep1 check-ins:* [::split [FossilGet info -R $f] \n]]]
+    return [Sel 1 [Grep1 check-ins:* [split [FossilGet info -R $f] \n]]]
 }
 
 proc ::m::vcs::fossil::ProjectCode {path} {
     debug.m/vcs/fossil {}
     set f  [FossilOf $path]
-    return [Sel 1 [Grep1 project-code:* [::split [FossilGet info -R $f] \n]]]
+    return [Sel 1 [Grep1 project-code:* [split [FossilGet info -R $f] \n]]]
 }
 
 proc ::m::vcs::fossil::Grep1 {pattern lines} {

@@ -495,7 +495,7 @@ proc ::m::glue::cmd_vcs {config} {
 
     m db transaction {
 	[table t {Code Name Version} {
-	    foreach {code name} [m vcs list] {
+	    foreach {code name} [m vcs all] {
 		set version [m vcs version $code issues]
 		set vmsg {}
 		if {$version ne {}} {
@@ -983,7 +983,7 @@ proc ::m::glue::cmd_submissions {config} {
     m db transaction {
 	# Dynamic: Description, Submitter
 	[table t {{} When Url VCS Description Email Submitter} {
-	    foreach {id when url vcode desc email submitter} [m submission list] {
+	    foreach {id when url vcode desc email submitter} [m submission all] {
 		set id %$id
 		set when [m format epoch $when]
 
@@ -1310,7 +1310,7 @@ proc ::m::glue::ImportVerify {commands} {
 
     m msg "Verifying ..."
 
-    foreach {code name} [m vcs list] {
+    foreach {code name} [m vcs all] {
 	dict set vcs $code .
 	dict set vcs $name .
     }
@@ -1875,7 +1875,7 @@ proc ::m::glue::ReplyConfigShow {} {
     debug.m/glue {[debug caller] | }
 
     [table t {{} Name Mail Text} {
-	foreach {name default mail text} [m reply list] {
+	foreach {name default mail text} [m reply all] {
 	    set mail    [expr {$mail    ? "*" : ""}]
 	    set default [expr {$default ? "#" : ""}]
 

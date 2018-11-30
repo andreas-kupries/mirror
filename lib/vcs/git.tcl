@@ -39,7 +39,7 @@ namespace eval m::vcs {
     namespace ensemble create
 }
 namespace eval m::vcs::git {
-    namespace export setup cleanup update check split merge \
+    namespace export setup cleanup update check cleave merge \
 	version detect remotes export name-from-url
     namespace ensemble create
 }
@@ -162,7 +162,7 @@ proc ::m::vcs::git::check {primary other} {
     return true
 }
 
-proc ::m::vcs::git::split {origin dst} {
+proc ::m::vcs::git::cleave {origin dst} {
     debug.m/vcs/git {}
     return
 }

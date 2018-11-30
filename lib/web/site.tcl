@@ -145,7 +145,7 @@ proc ::m::web::site::Site {mode action script} {
 
 proc ::m::web::site::Stores {} {
     debug.m/web/site {}
-    foreach {mset mname} [m mset list] {
+    foreach {mset mname} [m mset all] {
 	foreach store [m mset stores $mset] {
 	    Store $mset $mname $store
 	}

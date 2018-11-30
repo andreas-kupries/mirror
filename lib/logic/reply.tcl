@@ -28,7 +28,7 @@ namespace eval ::m {
 }
 namespace eval ::m::reply {
     namespace export \
-	list add remove change has known get \
+	all add remove change has known get \
 	default default? default!
 
     namespace ensemble create
@@ -61,7 +61,7 @@ proc ::m::reply::known {} {
     return $map
 }
 
-proc ::m::reply::list {} {
+proc ::m::reply::all {} {
     debug.m/reply {}
 
     return [m db eval {

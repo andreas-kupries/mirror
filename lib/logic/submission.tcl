@@ -28,7 +28,7 @@ namespace eval ::m {
 }
 namespace eval ::m::submission {
     namespace export \
-	list add has has^ dup accept reject get known rejected
+	all add has has^ dup accept reject get known rejected
 
     namespace ensemble create
 }
@@ -60,7 +60,7 @@ proc ::m::submission::known {} {
     return $map
 }
 
-proc ::m::submission::list {} {
+proc ::m::submission::all {} {
     debug.m/submission {}
 
     return [m db eval {
