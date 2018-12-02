@@ -375,6 +375,21 @@ proc ::m::web::site::Fin {} {
     variable dst
     ! "= SSG build web ..."
     SSG build $dst ${dst}_out
+
+    # dst     = path/web     = site input
+    # dst_out = path/web_out = site stage
+    #           path/site    = site serve
+
+    set stage ${dst}_out
+    set serve [file join [file dirname $dst] site]
+
+    ! "= Flip stage to serve"
+    
+    file delete -force ${serve}_last
+    if {[file exists $serve]} {
+	file rename $serve ${serve}_last
+    }
+    file rename $stage $serve
     return
 }
 
