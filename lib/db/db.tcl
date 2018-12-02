@@ -7,9 +7,9 @@
 # Meta author   {Andreas Kupries}
 # Meta location https://core.tcl.tk/akupries/????
 # Meta platform tcl
-# Meta summary     Database access and schema
-# Meta description Database access and schema
-# Meta subject    {database access} schema
+# Meta summary     Main database access and schema
+# Meta description Main database access and schema
+# Meta subject    {database access} schema main
 # Meta require {Tcl 8.5-}
 # @@ Meta End
 
@@ -40,6 +40,7 @@ namespace eval ::m {
 
 namespace eval ::m::db {
     namespace import ::db::setup::*
+    variable wait 0
 }
 
 # Database accessor command - auto open & initialize database on first
@@ -47,10 +48,16 @@ namespace eval ::m::db {
 
 proc ::m::db {args} {
     debug.m/db {Setup}
+    variable db::wait
     # On first use replace this initializer placeholder with the
     # actual database command.
     rename     ::m::db ::m::db_setup
     sqlite3    ::m::db [db::location get]
+
+    if {$wait > 0} {
+	debug.m/db {Wait $wait millis}
+	::m::db timeout $wait
+    }
 
     # Initialize it.
     ::db setup ::m::db ::m::db::SETUP
@@ -64,6 +71,12 @@ proc ::m::db {args} {
 
     # Re-execute the call using the proper definition.
     uplevel 1 [list ::m::db {*}$args]
+}
+
+proc ::m::db::wait {seconds} {
+    debug.m/db {}
+    variable wait [expr {$seconds * 1000}]
+    return
 }
 
 proc ::m::db::reset {} {
@@ -336,7 +349,7 @@ proc ::m::db::SETUP-201811202300 {} {
     C active INTEGER  NOT NULL
     < repository  id url vcs mset '1'
     X vcs mset
-    
+
     return
 }
 

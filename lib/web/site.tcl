@@ -22,13 +22,15 @@ package require Tcl 8.5
 package require debug
 package require debug::caller
 package require m::asset
+package require m::db
 package require m::exec
-package require m::futil
 package require m::format
-package require m::state
+package require m::futil
 package require m::mset
-package require m::vcs
+package require m::site
+package require m::state
 package require m::store
+package require m::vcs
 
 # # ## ### ##### ######## ############# ######################
 
@@ -335,12 +337,16 @@ proc ::m::web::site::CGI {app} {
     debug.m/web/site {}
     global argv0
 
-    # app is sibling of site generator and shall use the same database
-    # as the site generator.
+    # With respect to locations
+    # - The CGI apps are siblings of the manager cli.
+    # - The CGI database is a sibling of the main database.
+    #   See `Sync` here for the code keeping it up-to-date.
+    #   However note that `m::site` automaitcally goes for the sibling
+    #   given the path to the main, so we do not do this here.
     
     set bindir [file dirname $argv0]    
     append t "#![file normalize [file join $bindir $app]]" \n
-    append t "database: [file normalize [m::db::location get]]" \n
+    append t "database: [m::db::location get]" \n
     return $t
 }
 
@@ -383,17 +389,113 @@ proc ::m::web::site::Fin {} {
     set stage ${dst}_out
     set serve [file join [file dirname $dst] site]
 
-    ! "= Flip stage to serve"
-    
-    file delete -force ${serve}_last
-    if {[file exists $serve]} {
-	file rename $serve ${serve}_last
+    ! "= Sync and flip stage to serve"
+
+    # Allow for 10 second transactions from the CGI helpers before
+    # giving up.
+    m::site::wait 10
+    m::site transaction {
+	Sync
+	file delete -force ${serve}_last
+	if {[file exists $serve]} {
+	    file rename $serve ${serve}_last
+	}
+	file rename $stage $serve
     }
-    file rename $stage $serve
     return
 }
 
+proc ::m::web::site::Sync {} {
+    debug.m/web/site {}
+    lappend map @ [m::db::location get]
+    #m::site eval [string map $map { ATTACH DATABASE '@' AS 'primary' }]
+
+    FillIndex
+
+    #m::site eval { DETACH DATABASE 'primary' }
+    return
+}
+
+proc ::m::web::site::FillIndex {} {
+    debug.m/web/site {}
+
+    m site eval { DELETE FROM store_index }
+
+    # m store search '' (inlined, simply all)
+    m db eval {
+	SELECT S.id      AS store
+	,      N.name    AS mname
+	,      V.code    AS vcode
+	,      T.changed AS changed
+	,      T.updated AS updated
+	,      T.created AS created
+	,      S.size_kb AS size
+	,      (SELECT count (*)
+		FROM  repository R
+		WHERE R.mset = S.mset
+		AND   R.vcs  = S.vcs) AS remote
+	,      (SELECT count (*)
+		FROM  repository R
+		WHERE R.mset = S.mset
+		AND   R.vcs  = S.vcs
+		AND   R.active) AS active
+	FROM store_times            T
+	,    store                  S
+	,    mirror_set             M
+	,    version_control_system V
+	,    name                   N
+	WHERE T.store   = S.id
+	AND   S.mset    = M.id
+	AND   S.vcs     = V.id
+	AND   M.name    = N.id
+    } {
+	# store, mname, vcode, changed, updated, created, size, remote, active
+
+	set page    store_${store}.html
+	set status  [Status $store $active $remote]
+	set remotes [m db eval {
+	    SELECT R.url
+	    FROM repository R
+	    ,    store      S
+	    WHERE S.id   = :store
+	    AND   S.vcs  = R.vcs
+	    AND   S.mset = R.mset
+	}]
+	
+	lappend remotes $mname
+	set remotes [string tolower [join $remotes { }]]
+	# We are using the remotes field for the entire text we can
+	# search over.  Should rename the field, not bothering until
+	# we need a larger schema change it can be folded into.
+
+	m site eval {
+	    INSERT
+	    INTO store_index
+	    VALUES ( NULL,
+		     :mname, :vcode, :page, :remotes, :status,
+		     :size, :changed, :updated, :created )
+	}
+    }
+    return
+}
+
+proc ::m::web::site::Status {store active remote} {
+    debug.m/web/site {}
+
+    set stderr [lindex [m vcs cap $store] 1]
+    if {[string length $stderr]} {
+	return bad.svg
+    } elseif {!$active} {
+	return off.svg
+    } elseif {$active < $remote} {
+	return yellow.svg
+    } else {
+	return {}
+    }
+}
+    
 proc ::m::web::site::SI {stderr} {
+    debug.m/web/site {}
     if {![string length $stderr]} {
 	return {}
 	set status images/ok.svg

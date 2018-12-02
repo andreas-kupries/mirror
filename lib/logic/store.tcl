@@ -229,7 +229,6 @@ proc ::m::store::search {substring} {
 
     set sub [string tolower $substring]
     set series {}
-    set last {}
     m db eval {
 	SELECT S.id      AS store
 	,      N.name    AS mname
