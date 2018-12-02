@@ -57,6 +57,7 @@ proc ::m::vcs::git::LogNormalize {o e} {
 	{ -> }
 	{^origin }
 	{^m-vcs-}
+	{warning: redirecting to}
     } $e] out err
 
     if {[llength $out]} { lappend o {*}$out }
@@ -67,7 +68,7 @@ proc ::m::vcs::git::LogNormalize {o e} {
 
 proc ::m::vcs::git::name-from-url {url} {
     debug.m/vcs/git {}
-    
+
     set gl [string match *gitlab* $url]
 
     lappend map "https://"        {}

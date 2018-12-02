@@ -131,7 +131,7 @@ proc List {pattern series} {
 proc ListRow {slink mname vcode changed updated created size simg stext} {
     wapp-trim { <tr> <td> }
     if {$stext ne {}} {
-	wapp-trim { <img alt='%html($stext)' src='%url($simg)'> }
+	wapp-trim { <img alt='%html($stext)' src='%url(images/$simg)'> }
     }
     wapp-trim { </td> <td> }
     if {$mname ne {}} {

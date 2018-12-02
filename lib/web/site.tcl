@@ -106,6 +106,7 @@ proc ::m::web::site::ErrOnly {series} {
 	if {$img eq {}} continue
 	lappend tmp $row
     }
+
     return $tmp
 }
 
@@ -115,21 +116,24 @@ proc ::m::web::site::NameFill {series} {
     set last {}
     foreach row $series {
 	set name [dict get $row mname]
-	if {$name ne {}} { set name $last }
+	if {$name eq {}} { set name $last }
 	dict set row mname $name
 	set last $name
 	lappend tmp $row
     }
+
     return $tmp
 }
 
 proc ::m::web::site::DropSep {series} {
     debug.m/web/site {}
+
     set tmp {}
     foreach row $series {
 	if {[dict get $row created] eq "."} continue
 	lappend tmp $row
     }
+
     return $tmp
 }
 
@@ -376,7 +380,7 @@ proc ::m::web::site::Init {} {
     return
 }
 
-proc ::m::web::site::Fin {} {
+proc ::m::web::site::Fin {} { #return
     debug.m/web/site {}
     variable dst
     ! "= SSG build web ..."
@@ -411,8 +415,27 @@ proc ::m::web::site::Sync {} {
     #m::site eval [string map $map { ATTACH DATABASE '@' AS 'primary' }]
 
     FillIndex
+    FillRejected
 
     #m::site eval { DETACH DATABASE 'primary' }
+    return
+}
+
+proc ::m::web::site::FillRejected {} {
+    debug.m/web/site {}
+
+    m site eval { DELETE FROM rejected }
+    m db eval {
+	SELECT url
+	,      reason
+	FROM rejected
+    } {
+	m site eval {
+	    INSERT
+	    INTO rejected
+	    VALUES ( NULL, :url, :reason )
+	}
+    }
     return
 }
 

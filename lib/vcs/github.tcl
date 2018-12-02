@@ -37,6 +37,7 @@ package provide m::vcs::github 0
 package require Tcl 8.5
 package require cmdr::color
 package require struct::set
+package require fileutil
 package require m::exec
 package require m::msg
 package require m::futil
@@ -162,17 +163,31 @@ proc ::m::vcs::github::update {path urls first} {
     set forks [Forks $path]
     set old   [ForksLoad $path]
 
+    #puts GOT\t[llength $forks]
+    #puts HAV\t[llength $old]
+
     lassign [struct::set intersect3 $old $forks] _ gone new
 
+    #puts NEW\t[llength $new]\n\t[join $new \n\t]
+    #puts GONE\t[llength $gone]\n\t[join $gone \n\t]
+
+    #puts ___+++
     foreach fork $new {
 	lassign [split $fork /] org repo
 	set label m-vcs-github-fork-$org
  	set url https://github.com/$fork
-	m::vcs::git::Git remote add $label $url
+
+	if {[HasRemote $label]} {
+	    #puts =PRES:\t$label\t$url
+	} else {
+	    #puts +ADD:\t$label\t$url
+	    m::vcs::git::Git remote add $label $url
+	}
     }
 
     set git [m::vcs::git::GitOf $path]
 
+    #puts ___---
     foreach fork $gone {
 	lassign [split $fork /] user repo
 	set label m-vcs-github-fork-$user
@@ -188,22 +203,49 @@ proc ::m::vcs::github::update {path urls first} {
 	# remote. Writing the tags however is done through `git`
 	# itself.
 
-	foreach branch [glob -nocomplain -directory $git/refs/remotes/$label *] {
-	    set uuid   [string trim [m futil cat $branch]]
-	    set branch [file tail $branch]
-	    set tag    [Tag $git/refs/tags ${user}/${branch}]
+	#puts -REM:\t$label
+	# glob -nocomplain -directory $git/refs/remotes/$label *
+	if {[file exists $git/refs/remotes/$label]} {
+	    foreach branch [fileutil::find $git/refs/remotes/$label] {
+		if {[file isdirectory $branch]} continue
+		#puts \tBRA:\t$branch
 
-	    m::vcs::git::Git tag $tag $uuid
+		set uuid   [string trim [m futil cat $branch]]
+		set branch [file tail $branch]
+		set tag    [Tag $git/refs/tags ${user}/${branch}]
+
+		#puts \t=TAG:\t$tag\t$uuid
+		m::vcs::git::Git tag $tag $uuid
+	    }
 	}
 
-	m::vcs::git::Git remote remove $label
+	if {[HasRemote $label]} {
+	    #puts \t-REM:\t$label
+	    m::vcs::git::Git remote remove $label
+	} else {
+	    #puts \t=IGN:\t$label
+	}
     }
 
+    #puts SAVE
     # Save fork information for future updates. See above for usage
     # (change detection).
     ForksSave $path $forks
 
+    #puts UPDATE
     return [m vcs git update $path $urls $first]
+}
+
+proc ::m::vcs::github::HasRemote {remote} {
+    debug.m/vcs/github {}
+    upvar 1 path path
+    if {[catch {
+	m::vcs::git::Git remote show $remote
+    }]} {
+	return 0
+    } else {
+	return 1
+    }
 }
 
 proc ::m::vcs::github::remotes {path} {
@@ -233,6 +275,8 @@ proc ::m::vcs::github::Forks {path} {
     global env
     set env(TERM) xterm
 
+    #puts -nonewline \nFORKS\t ; flush stdout
+
     # Pull the origin to query about forks
     set origin [OriginLoad $path]
 
@@ -245,13 +289,16 @@ proc ::m::vcs::github::Forks {path} {
 	# is still reported here. Checking against the regular web
 	# interface allows us to filter these out.
 
+	#puts -nonewline . ; flush stdout
 	if {[m url ok $url _]} {
 	    lappend forks $fork
 	} else {
+	    #puts -nonewline - ; flush stdout
 	    # report a missing fork
 	}
     }
 
+    #puts PULLED
     return $forks
 }
 
