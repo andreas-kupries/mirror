@@ -160,34 +160,29 @@ proc ::m::vcs::github::setup {path url} {
 proc ::m::vcs::github::update {path urls first} {
     debug.m/vcs/github {}
 
-    set forks [Forks $path]
-    set old   [ForksLoad $path]
+    set forks [ForksRemote $path]
+    set old   [ForksLocal  $path]
 
-    #puts GOT\t[llength $forks]
-    #puts HAV\t[llength $old]
+    debug.m/vcs/github {Got  [llength $forks]}
+    debug.m/vcs/github {Have [llength $old]}
 
     lassign [struct::set intersect3 $old $forks] _ gone new
 
-    #puts NEW\t[llength $new]\n\t[join $new \n\t]
-    #puts GONE\t[llength $gone]\n\t[join $gone \n\t]
+    debug.m/vcs/github {Same [llength $_]}
+    debug.m/vcs/github {New  [llength $new]}
+    debug.m/vcs/github {Gone [llength $gone]}
 
-    #puts ___+++
     foreach fork $new {
 	lassign [split $fork /] org repo
 	set label m-vcs-github-fork-$org
  	set url https://github.com/$fork
 
-	if {[HasRemote $label]} {
-	    #puts =PRES:\t$label\t$url
-	} else {
-	    #puts +ADD:\t$label\t$url
-	    m::vcs::git::Git remote add $label $url
-	}
+	debug.m/vcs/github {Add     $label $url}
+	m::vcs::git::Git remote add $label $url
     }
 
     set git [m::vcs::git::GitOf $path]
 
-    #puts ___---
     foreach fork $gone {
 	lassign [split $fork /] user repo
 	set label m-vcs-github-fork-$user
@@ -203,55 +198,31 @@ proc ::m::vcs::github::update {path urls first} {
 	# remote. Writing the tags however is done through `git`
 	# itself.
 
-	#puts -REM:\t$label
-	# glob -nocomplain -directory $git/refs/remotes/$label *
 	if {[file exists $git/refs/remotes/$label]} {
 	    foreach branch [fileutil::find $git/refs/remotes/$label] {
 		if {[file isdirectory $branch]} continue
-		#puts \tBRA:\t$branch
+		debug.m/vcs/github {Branch $branch}
 
 		set uuid   [string trim [m futil cat $branch]]
 		set branch [file tail $branch]
 		set tag    [Tag $git/refs/tags ${user}/${branch}]
 
-		#puts \t=TAG:\t$tag\t$uuid
+		debug.m/vcs/github {Tag    $uuid $tag}
 		m::vcs::git::Git tag $tag $uuid
 	    }
 	}
 
-	if {[HasRemote $label]} {
-	    #puts \t-REM:\t$label
-	    m::vcs::git::Git remote remove $label
-	} else {
-	    #puts \t=IGN:\t$label
-	}
+	debug.m/vcs/github {Remove  $label}
+	m::vcs::git::Git remote remove $label
     }
 
-    #puts SAVE
-    # Save fork information for future updates. See above for usage
-    # (change detection).
-    ForksSave $path $forks
-
-    #puts UPDATE
     return [m vcs git update $path $urls $first]
-}
-
-proc ::m::vcs::github::HasRemote {remote} {
-    debug.m/vcs/github {}
-    upvar 1 path path
-    if {[catch {
-	m::vcs::git::Git remote show $remote
-    }]} {
-	return 0
-    } else {
-	return 1
-    }
 }
 
 proc ::m::vcs::github::remotes {path} {
     debug.m/vcs/github {}
     set urls {}
-    foreach fork [ForksLoad $path] {
+    foreach fork [ForksLocal $path] {
 	lappend urls https://github.com/$fork
     }
     return [list Forks $urls]
@@ -270,7 +241,7 @@ proc ::m::vcs::github::Tag {path label} {
     }
 }
 
-proc ::m::vcs::github::Forks {path} {
+proc ::m::vcs::github::ForksRemote {path} {
     debug.m/vcs/github {}
     global env
     set env(TERM) xterm
@@ -282,6 +253,8 @@ proc ::m::vcs::github::Forks {path} {
 
     set forks {}
     foreach fork [m::vcs::git::Get hub forks --raw $origin] {
+	debug.m/vcs/github {Verify $fork}
+
 	set url https://github.com/$fork
 	# Check if the fork is actually available :: The git hub REST
 	# api reports all forks regardless of status wrt the rest of
@@ -291,10 +264,11 @@ proc ::m::vcs::github::Forks {path} {
 
 	#puts -nonewline . ; flush stdout
 	if {[m url ok $url _]} {
+	    debug.m/vcs/github {    Ok $url}
 	    lappend forks $fork
 	} else {
-	    #puts -nonewline - ; flush stdout
 	    # report a missing fork
+	    debug.m/vcs/github {  FAIL $url}
 	}
     }
 
@@ -319,16 +293,18 @@ proc ::m::vcs::github::ForksSave {path forks} {
     return
 }
 
-proc ::m::vcs::github::ForksLoad {path} {
+proc ::m::vcs::github::ForksLocal {path} {
     debug.m/vcs/github {}
-    if {[catch {
-	m futil cat $path/forks
-    } forks]} {
-	set forks {}
-    } else {
-	set forks [split [string trim $forks] \n]
+
+    lassign [m futil grep {\(fetch\)$} \
+		 [split [m::vcs::git::Get remote -v] \n]] forks _
+    set r {}
+    foreach fork $forks {
+	lassign $fork label url _
+	if {![string match m-vcs-github-fork-* $label]} continue
+	lappend r [join [lrange [split $url /] end-1 end] /]
     }
-    return $forks
+    return $r
 }
 
 # # ## ### ##### ######## ############# #####################

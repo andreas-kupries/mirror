@@ -3,7 +3,7 @@
 ## Helpers for url handling (validation, follow redirection)
 
 # @@ Meta Begin
-# Package m::url 0 
+# Package m::url 0
 # Meta author   {Andreas Kupries}
 # Meta location https://core.tcl.tk/akupries/????
 # Meta platform tcl
@@ -54,37 +54,47 @@ proc ::m::url::ok {url rv {follow yes}} {
     try {
 	set token [http::geturl $url -validate 1]
     } on error {e o} {
+	debug.m/url {E $e}
 	#puts stderr "___ $e [list $o]"
 	#puts stderr $::errorInfo
+	debug.m/url {--> FAIL}
 	return 0
     }
-    
+
     set state [array get $token]
     http::cleanup $token
-    
+
+    debug.m/url {State: $state}
+
     if {$follow} {
 	set ok [Resolve state]
 	if {!$ok} {
 	    set resolved {}
+	    debug.m/url {--> $ok}
 	    return $ok
 	}
     }
 
     set ncode [lindex [dict get $state http] 1]
+    debug.m/url {Code: $ncode}
+
     if {$ncode != 200} {
 	set resolved {}
+	debug.m/url {--> FAIL}
 	return 0
     }
 
     set resolved [dict get $state url]
+    debug.m/url {--> OK}
     return 1
 }
 
 proc ::m::url::Resolve {statevar} {
     debug.m/url {}
     upvar 1 $statevar state
-    
+
     dict set seen [dict get $state url] .
+    debug.m/url {Seen: [dict get $state url]}
 
     while {[dict exists $state meta Location]} {
 	set new [dict get $state meta Location]
@@ -96,6 +106,7 @@ proc ::m::url::Resolve {statevar} {
 	try {
 	    set token [http::geturl $new -validate 1]
 	} on error {e o} {
+	    debug.m/url {E $e}
 	    #puts stderr "___ $e [list $o]"
 	    #puts stderr $::errorInfo
 	    return 0
@@ -104,7 +115,10 @@ proc ::m::url::Resolve {statevar} {
 	set state [array get $token]
 	http::cleanup $token
 
+	debug.m/url {State: $state}
+
 	dict set seen $new .
+	debug.m/url {Seen: $new}
     }
     # No further redirection.
     return 1
