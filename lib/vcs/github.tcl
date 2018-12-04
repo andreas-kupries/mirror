@@ -90,13 +90,14 @@ proc ::m::vcs::github::name-from-url {url} {
     if {$desc ne {}} {
 	append n "$desc"
     } else {
-	append n $owner/$repo
+	append n $repo
     }
     if {$name ne {}} {
 	regexp {^([^[:space:]]*[[:space:]]*)(.*)$} $name -> _ name
-	append n " - $name"
+	set name [string trim $name "{}"]
+	append n " - $name - $owner"
     } else {
-	append n @gh
+	append n "@gh - $owner"
     }
 
     return $n

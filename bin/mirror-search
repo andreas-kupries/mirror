@@ -14,7 +14,11 @@
 # Meta description ?
 # Meta location    https://core.tcl-lang.org/akupries/????
 # Meta platform    tcl
-# Meta require     m::db
+# Meta require     m::db::location
+# Meta require     m::site
+# Meta require     m::format
+# Meta require     m::web::bootstrap
+# Meta require     m::wapp
 # Meta require     {Tcl 8.6-}
 # Meta subject     ?
 # Meta summary     ?
@@ -30,6 +34,8 @@ package require m::web::bootstrap
 package require wapp
 
 proc main {} {
+    global env
+    if {![info exists env(TERM)]} { set env(TERM) xterm }
     cmdline
     # Allow for 10 second transactions from the cli or submission
     # helper before giving up.
@@ -50,6 +56,13 @@ proc cmdline {} {
 
     proc database: {database} {
 	m::db::location set $database
+	return
+    }
+
+    proc stderr: {path} {
+	file mkdir [file dirname $path]
+	close stderr
+	open $path a ;# This is now stderr
 	return
     }
 

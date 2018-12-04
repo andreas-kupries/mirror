@@ -177,5 +177,56 @@ proc ::m::site::SETUP-201811302300 {} {
     return
 }
 
+proc ::m::site::SETUP-201812032300 {} {
+    debug.m/db {}
+    # Extend site schema with caches for url validity and description generation
+
+    D m::site
+    # - -- --- ----- -------- -------------
+    # Map urls to validity and resolution (if valid)
+    # Marked with an expiry time.
+    C expiry    INTEGER  NOT NULL -- expiry timestamp
+    C url       TEXT     NOT NULL UNIQUE
+    C ok        INTEGER  NOT NULL
+    C resolved  TEXT     NOT NULL
+    T cache_url
+    X expiry
+
+    # - -- --- ----- -------- -------------
+    # Map urls to generated description
+    # Marked with an expiry time.
+    C expiry    INTEGER  NOT NULL -- expiry timestamp
+    C url       TEXT     NOT NULL UNIQUE
+    C desc      TEXT     NOT NULL
+    T cache_desc
+    X expiry
+
+    return
+}
+
+proc ::m::site::SETUP-201812040100 {} {
+    debug.m/db {}
+    # Fix submission table primary key
+
+    D m::site
+    # - -- --- ----- -------- -------------
+    # url is not unique, only url + session
+    I+
+    C session         TEXT NOT NULL
+    C url             TEXT NOT NULL
+    C vcode           TEXT
+    C description     TEXT
+    C email           TEXT NOT NULL
+    C submitter       TEXT
+    C when_submitted  INTEGER NOT NULL
+    U session url
+    < submission  \
+	id session url vcode description email submitter when_submitted
+    X when_submitted
+    X url
+
+    return
+}
+
 # # ## ### ##### ######## ############# #####################
 return
