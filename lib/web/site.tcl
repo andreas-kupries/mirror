@@ -411,20 +411,152 @@ proc ::m::web::site::Fin {} { #return
 
 proc ::m::web::site::Sync {} {
     debug.m/web/site {}
-    lappend map @ [m::db::location get]
-    #m::site eval [string map $map { ATTACH DATABASE '@' AS 'primary' }]
 
+    # Data flows
+    # - Main
+    #   - mset_pending			local, no sync
+    #   - reply				local, no sync
+    #   - rolodex			local, no sync
+    #   - schema			local, no sync
+    #
+    #   - mirror_set			[1] join/view pushed to site
+    #   - name				[1] store_index, total replacement
+    #   - repository			[1]
+    #   - store				[1]
+    #   - store_times			[1]
+    #   - version_control_system	[1]
+    #
+    #   - rejected			push to site rejected, total replacement
+    #   - submission			pull from site (insert or update)
+    #   - submission_handled		push to site, deletions in submission
+    #
+    # - Site
+    #   - cache_desc	local, no sync
+    #   - cache_url	local, no sync
+    #   - schema	local, no sync
+    #
+    #   - rejected	pulled from main rejected, total replacement
+    #   - store_index	pulled from main [1], total replacement
+    #
+    #   - submission	pulled deletions from main (submission_handled)
+    #			push remaining to main (insert or update)
+    
     FillIndex
     FillRejected
+    SyncSubmissions
+    return
+}
 
-    #m::site eval { DETACH DATABASE 'primary' }
+proc ::m::web::site::SyncSubmissions {} {
+    debug.m/web/site {}
+
+    # Syncing the submissions is easier than originally
+    # thought. Because the flow is more restricted than thought, due
+    # to the use of sessions.
+
+    # 1. Submissions from CGI flow through site to main. Only
+    #    deletions flow back, as the cli handles them in main.
+    
+    # 2. Submissions done in main, via the cli, have their own format
+    #    for session identifiers which cannot overlap with sessions
+    #    from the CGI. As such there is no need to push them to site,
+    #    CGI will has no use for them when looking for pre-existing
+    #    submissions. Anything needed there comes into site through
+    #    the index and rejection tables.
+    
+    DropHandledSubmissions
+    GetNewSubmissions
+    return
+}
+
+proc ::m::web::site::GetNewSubmissions {} {
+    debug.m/web/site {}
+    
+    # Phase II of syncing submissions between main and site.
+
+    # Iterate over all the submissions in site. Update the entries in
+    # main, or create new entries for them. It is the same logic
+    # mirror-submit uses for the site database to distinguish and
+    # perform add or edit (insert / update). Except this crosses two
+    # databases.
+
+    m site eval {
+	SELECT session
+	,      url
+	,      vcode
+	,      description
+	,      email
+	,      submitter
+	,      when_submitted
+	FROM submission
+    } {
+	if {[m db onecolumn {
+	    SELECT count (*)
+	    FROM  submission
+	    WHERE url     = :url
+	    AND   session = :session
+	}]} {
+	    # exists, update
+	    m db eval {
+		UPDATE submission
+		SET vcode       = :vcode
+		,   description = :desc
+		,   email       = :email
+		,   submitter   = :submitter
+		,   sdate       = :when_submitted
+		WHERE url     = :url
+		AND   session = :session
+	    }
+	} else {
+	    # not known, insert
+	    m db eval {
+		INSERT
+		INTO submission
+		VALUES ( NULL, :session, :url, :vcode, :desc, :email, :submitter, :when_submitted )
+	    }
+	}
+    }
+    
+    return
+}
+
+proc ::m::web::site::DropHandledSubmissions {} {
+    debug.m/web/site {}
+
+    # Phase I of syncing submissions between main and site.
+
+    # Iterate over all the submissions marked as handled in main and
+    # remove them from site. From the main helper table also.
+
+    m db eval {
+	SELECT url
+	,      session
+	FROM submission_handled
+    } {
+	m site eval {
+	    DELETE
+	    FROM submission
+	    WHERE url     = :url
+	    AND   session = :session
+	}
+    }
+
+    m db eval {
+	DELETE
+	FROM submission_handled
+    }
+    
     return
 }
 
 proc ::m::web::site::FillRejected {} {
     debug.m/web/site {}
 
+    # Copy current state of url rejections from main to site database.
+    # Implemented as `delete all old ; insert all new`.
+    
     m site eval { DELETE FROM rejected }
+    
     m db eval {
 	SELECT url
 	,      reason
@@ -441,6 +573,9 @@ proc ::m::web::site::FillRejected {} {
 
 proc ::m::web::site::FillIndex {} {
     debug.m/web/site {}
+
+    # Copy current state of known stores and remotes from main to site
+    # database. Implemented as `delete all old ; insert all new`.
 
     m site eval { DELETE FROM store_index }
 

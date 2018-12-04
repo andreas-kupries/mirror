@@ -33,7 +33,7 @@ debug prefix db/setup {[debug caller] | }
 
 namespace eval db::setup {
     namespace import ::db::track::it ; rename it track
-    namespace export D C U T T^ I I+ > >+ X <
+    namespace export D C U T T^ I I+ > >+ X < /
 }
 
 namespace eval db {
@@ -128,6 +128,12 @@ proc db::setup::T {table} {
     append def "\n);"
     set thecols {}
     R $def
+    return
+}
+
+proc db::setup::/ {table} {
+    debug.db/setup {}
+    R "DROP TABLE $table"
     return
 }
 

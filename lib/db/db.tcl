@@ -187,9 +187,11 @@ proc ::m::db::SETUP-201810051600 {} {
 }
 
 proc ::m::db::SETUP-201810092200 {} {
+    debug.m/db {}
     # Added github VCS manager
 
     D m::db
+    # - -- --- ----- -------- -------------
     T^ version_control_system
     >+ 'github' 'GitHub'
 
@@ -197,6 +199,7 @@ proc ::m::db::SETUP-201810092200 {} {
 }
 
 proc ::m::db::SETUP-201810111600 {} {
+    debug.m/db {}
     # Added column `created` to `store_times`
     #
     # Notes on the recorded times:
@@ -214,23 +217,26 @@ proc ::m::db::SETUP-201810111600 {} {
     #		created <= changed <= updated
 
     D m::db
+    # - -- --- ----- -------- -------------
     C store    INTEGER  NOT NULL  ^store PRIMARY KEY
     C created  INTEGER  NOT NULL
     C updated  INTEGER  NOT NULL
     C changed  INTEGER  NOT NULL
     < store_times  store updated updated changed
     #                    ^ use last update as fake creation
+
     return
 }
 
 proc ::m::db::SETUP-201810121600 {} {
+    debug.m/db {}
     # Added mail configuration to the general state table
 
     set h {This is a semi-automated mail by @cmd@, on behalf of @sender@.}
 
     D m::db
+    # - -- --- ----- -------- -------------
     T^ state
-
     #                           -- Debugging
     > 'mail-debug'  '0'         ;# Bool. Activates low-level debugging in smtp/mime
 
@@ -252,10 +258,12 @@ proc ::m::db::SETUP-201810121600 {} {
 }
 
 proc ::m::db::SETUP-201810131603 {} {
+    debug.m/db {}
     # Add tables for rejection mail content
     # (submission processing)
 
     D m::db
+    # - -- --- ----- -------- -------------
     I+
     C name      TEXT    NOT NULL UNIQUE
     C automail  INTEGER NOT NULL
@@ -270,14 +278,18 @@ proc ::m::db::SETUP-201810131603 {} {
     >+ 'spam'     0 1 '$sm' ;# default reason
     >+ 'offtopic' 1 0 '$om'
     >+ 'removed'  1 0 '$rm'
+
+    return
 }
 
 proc ::m::db::SETUP-201810141600 {} {
+    debug.m/db {}
     # Add tables for external submissions
     # - submissions
     # - rejected submissions (for easy auto-rejection on replication)
 
     D m::db
+    # - -- --- ----- -------- -------------
     I+
     C url       TEXT NOT NULL UNIQUE
     C email     TEXT NOT NULL
@@ -295,9 +307,11 @@ proc ::m::db::SETUP-201810141600 {} {
 }
 
 proc ::m::db::SETUP-201810311600 {} {
+    debug.m/db {}
     # Added column `size_kb` for store size to `store`.
 
     D m::db
+    # - -- --- ----- -------- -------------
     I+
     C vcs     INTEGER  NOT NULL  ^version_control_system
     C mset    INTEGER  NOT NULL  ^mirror_set
@@ -311,11 +325,12 @@ proc ::m::db::SETUP-201810311600 {} {
 }
 
 proc ::m::db::SETUP-201811152300 {} {
+    debug.m/db {}
     # Added site configuration to the general state table
 
     D m::db
+    # - -- --- ----- -------- -------------
     T^ state
-
     #                           -- Debugging
     > 'site-active'   '0'              ;# Site status (active or not)
     > 'site-store'    '~/.mirror/site' ;# Location where website is generated
@@ -328,20 +343,25 @@ proc ::m::db::SETUP-201811152300 {} {
 }
 
 proc ::m::db::SETUP-201811162301 {} {
+    debug.m/db {}
     # Added more site configuration to the general state table
 
     D m::db
+    # - -- --- ----- -------- -------------
     T^ state
     #                           -- Debugging
     > 'site-logo' '' ;# Path or url to the site logo.
+
     return
 }
 
 proc ::m::db::SETUP-201811202300 {} {
+    debug.m/db {}
     # Added flag 'active' to repository.
     # Default: yes.
 
     D m::db
+    # - -- --- ----- -------- -------------
     I+
     C url    TEXT     NOT NULL  UNIQUE
     C vcs    INTEGER  NOT NULL  ^version_control_system
@@ -354,9 +374,11 @@ proc ::m::db::SETUP-201811202300 {} {
 }
 
 proc ::m::db::SETUP-201811212300 {} {
+    debug.m/db {}
     # Added `hg` to the set of supported VCS.
 
     D m::db
+    # - -- --- ----- -------- -------------
     T^ version_control_system
     >+ 'hg' 'Mercurial'
 
@@ -364,12 +386,14 @@ proc ::m::db::SETUP-201811212300 {} {
 }
 
 proc ::m::db::SETUP-201811272200 {} {
+    debug.m/db {}
     # Added optional columns `vcode` and `description` to the
     # submissions table. Initialized to empty. Further dropped unique
     # requirement from url, allowing multiple submissions of the same,
     # enabling fixing of description, vcode. Added index instead.
 
     D m::db
+    # - -- --- ----- -------- -------------
     I+
     C url         TEXT NOT NULL
     C vcode       TEXT
@@ -385,6 +409,7 @@ proc ::m::db::SETUP-201811272200 {} {
 }
 
 proc ::m::db::SETUP-201811282200 {} {
+    debug.m/db {}
     # Added special column `session` to the submissions
     # table. Initialized to a value the other parts (cli, CGI) will
     # not generate.  Made url + session unique, i.e. primary key.  A
@@ -392,6 +417,7 @@ proc ::m::db::SETUP-201811282200 {} {
     # submissions of other sessions.
 
     D m::db
+    # - -- --- ----- -------- -------------
     I+
     C session     TEXT NOT NULL
     C url         TEXT NOT NULL
@@ -404,6 +430,23 @@ proc ::m::db::SETUP-201811282200 {} {
     < submission  id ':lock:' url vcode description email submitter sdate
     X sdate
     X url
+
+    return
+}
+
+proc ::m::db::SETUP-201811282200 {} {
+    debug.m/db {}
+    # Added sync helper table.
+    # Remember all submissions handled locally (accepted or rejected),
+    # for deletion from the CGI site database on next sync. Note that
+    # we only need the key information, i.e. url + session id.
+
+    D m::db
+    # - -- --- ----- -------- -------------
+    C session     TEXT NOT NULL
+    C url         TEXT NOT NULL
+    U session url
+    T submission_handled
 
     return
 }

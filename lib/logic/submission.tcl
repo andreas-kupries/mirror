@@ -148,7 +148,19 @@ proc ::m::submission::dup {url} {
 
 proc ::m::submission::accept {submission} {
     debug.m/submission {}
-    m db onecolumn {
+    m db eval {
+	-- Phase I. Copy key information of the processed submission
+	--          into the sync helper table
+	INSERT
+	INTO   submission_handled
+	SELECT session
+	,      url
+	FROM   submission
+	WHERE  id = :submission
+	;
+	--
+	-- Phase II. Remove processed submission from the main table
+	--
 	DELETE
 	FROM submission
 	WHERE id = :submission
@@ -164,10 +176,25 @@ proc ::m::submission::reject {submission reason} {
 	WHERE id = :submission
     }]
     m db eval {
+	-- Phase I. Copy key information of the processed submission
+	--          into the sync helper table
+	INSERT
+	INTO   submission_handled
+	SELECT session
+	,      url
+	FROM   submission
+	WHERE  id = :submission
+	;
+	--
+	-- Phase II. Add rejection information to the associated table
+	--
 	INSERT OR REPLACE
 	INTO rejected
 	VALUES ( NULL, :url, :reason )
 	;
+	--
+	-- Phase III.  Remove processed submission from the main table
+	--
 	DELETE
 	FROM  submission
 	WHERE id = :submission

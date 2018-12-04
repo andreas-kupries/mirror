@@ -228,5 +228,15 @@ proc ::m::site::SETUP-201812040100 {} {
     return
 }
 
+proc ::m::site::SETUP-201812041400 {} {
+    debug.m/db {}
+    # Drop table `sync`, not used
+
+    D m::site
+    / sync
+    
+    return
+}
+
 # # ## ### ##### ######## ############# #####################
 return
