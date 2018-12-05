@@ -28,7 +28,7 @@ namespace eval ::m {
 }
 namespace eval ::m::submission {
     namespace export \
-	all add has has^ dup accept reject get known rejected
+	all add has has^ dup accept reject get known rejected drop rejected-url rejected-known
 
     namespace ensemble create
 }
@@ -74,6 +74,20 @@ proc ::m::submission::all {} {
 	FROM   submission
 	ORDER BY sdate DESC, id DESC
     }]
+}
+
+proc ::m::submission::rejected-known {} {
+    debug.m/submission {}
+
+    set map {}
+    m db eval {
+	SELECT id
+	,      url
+	FROM   rejected
+    } {
+	dict set map [string tolower $url] $id
+    }
+    return $map
 }
 
 proc ::m::submission::rejected {} {
@@ -145,25 +159,51 @@ proc ::m::submission::dup {url} {
 	WHERE  url = :url
     }]
 }
+proc ::m::submission::rejected-url {id} {
+    debug.m/submission {}
+
+    return [m db eval {
+	SELECT url
+	FROM   rejected
+	WHERE id = :id
+    }]
+}
+
+proc ::m::submission::drop {rejection} {
+    debug.m/submission {}
+    
+    m db eval {
+	DELETE
+	FROM rejected
+	WHERE id = :rejection
+    }
+    
+    return
+}
 
 proc ::m::submission::accept {submission} {
     debug.m/submission {}
+    set url [m db onecolum {
+	SELECT url
+	FROM  submission
+	WHERE id = :submission
+    }]
     m db eval {
 	-- Phase I. Copy key information of the processed submission
-	--          into the sync helper table
+	--          and duplicates into the sync helper table
 	INSERT
 	INTO   submission_handled
 	SELECT session
 	,      url
 	FROM   submission
-	WHERE  id = :submission
+	WHERE  url = :url
 	;
 	--
 	-- Phase II. Remove processed submission from the main table
 	--
 	DELETE
 	FROM submission
-	WHERE id = :submission
+	WHERE url = :url
     }
     return
 }
@@ -176,14 +216,14 @@ proc ::m::submission::reject {submission reason} {
 	WHERE id = :submission
     }]
     m db eval {
-	-- Phase I. Copy key information of the processed submission
-	--          into the sync helper table
+	-- Phase I. Copy key information of processed submission
+	--          and duplicates into the sync helper table
 	INSERT
 	INTO   submission_handled
 	SELECT session
 	,      url
 	FROM   submission
-	WHERE  id = :submission
+	WHERE  url = :url
 	;
 	--
 	-- Phase II. Add rejection information to the associated table
@@ -193,11 +233,12 @@ proc ::m::submission::reject {submission reason} {
 	VALUES ( NULL, :url, :reason )
 	;
 	--
-	-- Phase III.  Remove processed submission from the main table
+	-- Phase III. Remove processed submission from the main table,
+	--            as well as duplicates (same url).
 	--
 	DELETE
 	FROM  submission
-	WHERE id = :submission
+	WHERE url = :url
     }
     return
 }

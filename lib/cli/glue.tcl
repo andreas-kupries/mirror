@@ -1014,7 +1014,7 @@ proc ::m::glue::cmd_submit {config} {
     package require m::repo
 
     # session id for cli, daily rollover, keyed to host and user
-    set sid "cli.[expr {[clock second] % 86400}]/[info hostname]/$tcl_platform(user)"
+    set sid "cli.[expr {[clock second] % 86400}]/[info hostname]/$::tcl_platform(user)"
     
     m db transaction {
 	set url       [Url $config]
@@ -1168,6 +1168,22 @@ proc ::m::glue::cmd_reject {config} {
 	    m mailer to $email \
 		[m mail generator reply [join $themail \n] $details]
 	    unset themail
+	}
+    }
+    SiteRegen
+    OK
+}
+
+proc ::m::glue::cmd_drop {config} {
+    debug.m/glue {[debug caller] | }
+    package require m::submission
+
+    m db transaction {
+	set rejections [$config @rejections]
+	foreach rejection $rejections {
+	    m msg "  Dropping [color note [m submission rejected-url $rejection]]"
+
+	    m submission drop $rejection
 	}
     }
     SiteRegen
