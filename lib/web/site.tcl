@@ -51,11 +51,21 @@ namespace eval ::m::web {
 }
 
 namespace eval ::m::web::site {
-    namespace export build
+    namespace export build sync
     namespace ensemble create
 }
 
 # # ## ### ##### ######## ############# #####################
+
+proc ::m::web::site::sync {} {
+    debug.m/web/site {}
+
+    m::site transaction {
+	Sync
+    }
+
+    return
+}
 
 proc ::m::web::site::build {{mode verbose}} {
     debug.m/web/site {}
@@ -500,7 +510,7 @@ proc ::m::web::site::GetNewSubmissions {} {
 	    m db eval {
 		UPDATE submission
 		SET vcode       = :vcode
-		,   description = :desc
+		,   description = :description
 		,   email       = :email
 		,   submitter   = :submitter
 		,   sdate       = :when_submitted
@@ -512,7 +522,9 @@ proc ::m::web::site::GetNewSubmissions {} {
 	    m db eval {
 		INSERT
 		INTO submission
-		VALUES ( NULL, :session, :url, :vcode, :desc, :email, :submitter, :when_submitted )
+		VALUES ( NULL, :session, :url, :vcode,
+			 :description, :email, :submitter,
+			 :when_submitted )
 	    }
 	}
     }
@@ -771,8 +783,8 @@ proc ::m::web::site::M {} {
 	Contact        $rootDirPath/contact.html
 	{Content Spec} $rootDirPath/spec.txt
 	Search         $rootDirPath/search
+	Submit         $rootDirPath/submit
     }
-    # Submit         $rootDirPath/submit
     lappend map @-title-@      [m state site-title]
     lappend map @-url-@        $u
     lappend map @-year-@       [clock format [clock seconds] -format %Y]

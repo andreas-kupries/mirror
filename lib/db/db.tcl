@@ -434,7 +434,7 @@ proc ::m::db::SETUP-201811282200 {} {
     return
 }
 
-proc ::m::db::SETUP-201811282200 {} {
+proc ::m::db::SETUP-201812042200 {} {
     debug.m/db {}
     # Added sync helper table.
     # Remember all submissions handled locally (accepted or rejected),

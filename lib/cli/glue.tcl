@@ -448,6 +448,16 @@ proc ::m::glue::cmd_site_on {config} {
     OK
 }
 
+proc ::m::glue::cmd_site_sync {config} {
+    debug.m/glue {[debug caller] | }
+    package require m::web::site
+
+    m db transaction {
+	m web site sync
+    }
+    OK
+}
+
 proc ::m::glue::cmd_store {config} {
     debug.m/glue {[debug caller] | }
     package require m::store

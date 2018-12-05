@@ -679,6 +679,15 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 		Disable site generation and update
 	    }
 	} [m::cmdr::call glue cmd_site_off]
+
+	private sync {
+	    description {
+		Sync main and site databases
+	    }
+	} [m::cmdr::call glue cmd_site_sync]
+
+	# TODO: change description
+	# TODO: change vcs
     }
 
     # # ## ### ##### ######## ############# ######################
