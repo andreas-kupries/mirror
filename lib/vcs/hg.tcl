@@ -19,6 +19,7 @@ package provide m::vcs::hg 0
 ## Requisites
 
 package require Tcl 8.5
+package require cmdr::color
 package require m::futil
 package require m::exec
 package require debug
@@ -37,7 +38,7 @@ namespace eval m::vcs {
     namespace ensemble create
 }
 namespace eval m::vcs::hg {
-    namespace export setup cleanup update check split merge \
+    namespace export setup cleanup update check cleave merge \
 	version detect remotes export name-from-url
     namespace ensemble create
 }
@@ -61,10 +62,8 @@ proc ::m::vcs::hg::detect {url} {
 	![string match *hg.code.sf.net/*          $url] &&
 	![string match *hg.code.sourceforge.net/* $url]
     } return
-    if {[catch {
-	m exec silent hg help
-    }]} {
-	m msg "[color note "hg"] [color warning "not available"]"
+    if {![llength [auto_execok hg]]} {
+	m msg "[cmdr color note "hg"] [cmdr color warning "not available"]"
 	# Fall through
 	return
     }
@@ -77,7 +76,7 @@ proc ::m::vcs::hg::version {iv} {
 	m exec post-hook ;# clear
 
 	set v [m exec get hg version]   ; debug.m/vcs/hg {raw = (($v))}
-	set v [::split $v \n]           ; debug.m/vcs/hg {split    = '$v'}
+	set v [split  $v \n]            ; debug.m/vcs/hg {split    = '$v'}
 	set v [lindex $v 0]             ; debug.m/vcs/hg {sel line = '$v'}
 	set v [lindex $v end]           ; debug.m/vcs/hg {sel col  = '$v'}
 	set v [string trimright $v ")"] ; debug.m/vcs/hg {trim     = '$v'}
@@ -119,7 +118,7 @@ proc ::m::vcs::hg::check {primary other} {
     return 1 ;#[string equal [ProjectCode $primary] [ProjectCode $other]]
 }
 
-proc ::m::vcs::hg::split {origin dst} {
+proc ::m::vcs::hg::cleave {origin dst} {
     debug.m/vcs/hg {}
     return
 }

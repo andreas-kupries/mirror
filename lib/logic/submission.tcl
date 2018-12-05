@@ -28,7 +28,7 @@ namespace eval ::m {
 }
 namespace eval ::m::submission {
     namespace export \
-	list add has dup accept reject get known rejected
+	all add has has^ dup accept reject get known rejected drop rejected-url rejected-known
 
     namespace ensemble create
 }
@@ -60,7 +60,7 @@ proc ::m::submission::known {} {
     return $map
 }
 
-proc ::m::submission::list {} {
+proc ::m::submission::all {} {
     debug.m/submission {}
 
     return [m db eval {
@@ -76,6 +76,20 @@ proc ::m::submission::list {} {
     }]
 }
 
+proc ::m::submission::rejected-known {} {
+    debug.m/submission {}
+
+    set map {}
+    m db eval {
+	SELECT id
+	,      url
+	FROM   rejected
+    } {
+	dict set map [string tolower $url] $id
+    }
+    return $map
+}
+
 proc ::m::submission::rejected {} {
     debug.m/submission {}
 
@@ -87,13 +101,30 @@ proc ::m::submission::rejected {} {
     }]
 }
 
-proc ::m::submission::add {url vcode desc email submitter} {
+proc ::m::submission::add {url session vcode desc email submitter} {
     debug.m/submission {}
     
     set now [clock seconds]
-    m db eval {
-	INSERT INTO submission
-	VALUES ( NULL, :url, :vcode, :desc, :email, :submitter, :now )
+
+    if {[has^ $url $session]} {
+	# Submission exists, for this session => Update/Replace
+	m db eval {
+	    UPDATE submission
+	    SET vcode       = :vcode
+	    ,   description = :desc
+	    ,   email       = :email
+	    ,   submitter   = :submitter
+	    ,   sdate       = :now
+	    WHERE url     = :url
+	    AND   session = :session
+	}
+    } else {
+	# New submission, first for the session => Insert/Add
+	m db eval {
+	    INSERT
+	    INTO submission
+	    VALUES ( NULL, :session, :url, :vcode, :desc, :email, :submitter, :now )
+	}
     }
 
     return [m db last_insert_rowid]
@@ -109,22 +140,70 @@ proc ::m::submission::has {url} {
     }]    
 }
 
+proc ::m::submission::has^ {url session} {
+    debug.m/submission {}
+
+    return [m db onecolumn {
+	SELECT count (*)
+	FROM  submission
+	WHERE url     = :url
+	AND   session = :session
+    }]    
+}
+
 proc ::m::submission::dup {url} {
     debug.m/submission {}
-    m db eval {
+    return [m db onecolumn {
 	SELECT reason
 	FROM   rejected
 	WHERE  url = :url
+    }]
+}
+proc ::m::submission::rejected-url {id} {
+    debug.m/submission {}
+
+    return [m db eval {
+	SELECT url
+	FROM   rejected
+	WHERE id = :id
+    }]
+}
+
+proc ::m::submission::drop {rejection} {
+    debug.m/submission {}
+    
+    m db eval {
+	DELETE
+	FROM rejected
+	WHERE id = :rejection
     }
+    
     return
 }
 
 proc ::m::submission::accept {submission} {
     debug.m/submission {}
-    m db onecolumn {
+    set url [m db onecolum {
+	SELECT url
+	FROM  submission
+	WHERE id = :submission
+    }]
+    m db eval {
+	-- Phase I. Copy key information of the processed submission
+	--          and duplicates into the sync helper table
+	INSERT
+	INTO   submission_handled
+	SELECT session
+	,      url
+	FROM   submission
+	WHERE  url = :url
+	;
+	--
+	-- Phase II. Remove processed submission from the main table
+	--
 	DELETE
 	FROM submission
-	WHERE id = :submission
+	WHERE url = :url
     }
     return
 }
@@ -137,12 +216,29 @@ proc ::m::submission::reject {submission reason} {
 	WHERE id = :submission
     }]
     m db eval {
-	INSERT INTO rejected
+	-- Phase I. Copy key information of processed submission
+	--          and duplicates into the sync helper table
+	INSERT
+	INTO   submission_handled
+	SELECT session
+	,      url
+	FROM   submission
+	WHERE  url = :url
+	;
+	--
+	-- Phase II. Add rejection information to the associated table
+	--
+	INSERT OR REPLACE
+	INTO rejected
 	VALUES ( NULL, :url, :reason )
 	;
+	--
+	-- Phase III. Remove processed submission from the main table,
+	--            as well as duplicates (same url).
+	--
 	DELETE
 	FROM  submission
-	WHERE id = :submission
+	WHERE url = :url
     }
     return
 }

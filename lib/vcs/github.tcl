@@ -37,6 +37,7 @@ package provide m::vcs::github 0
 package require Tcl 8.5
 package require cmdr::color
 package require struct::set
+package require fileutil
 package require m::exec
 package require m::msg
 package require m::futil
@@ -60,11 +61,11 @@ namespace eval m::vcs {
 namespace eval m::vcs::github {
     namespace import ::m::vcs::git::cleanup
     namespace import ::m::vcs::git::check
-    namespace import ::m::vcs::git::split
+    namespace import ::m::vcs::git::cleave
     namespace import ::m::vcs::git::merge
     namespace import ::m::vcs::git::export
 
-    namespace export setup cleanup update check split merge \
+    namespace export setup cleanup update check cleave merge \
 	detect version remotes export name-from-url
     namespace ensemble create
 
@@ -82,19 +83,21 @@ proc ::m::vcs::github::name-from-url {url} {
     set url [string map $map $url]
     lassign [lreverse [file split $url]] repo owner
 
-    set name [m exec get git hub user     $owner | grep ^Name]
-    set desc [m exec get git hub repo-get $owner/$repo description]
+    set uinfo [m exec get git hub user $owner]
+    set name  [lindex [m futil grep Name [split $uinfo \n]] 0]
+    set desc  [m exec get git hub repo-get $owner/$repo description]
 
     if {$desc ne {}} {
 	append n "$desc"
     } else {
-	append n $owner/$repo
+	append n $repo
     }
     if {$name ne {}} {
 	regexp {^([^[:space:]]*[[:space:]]*)(.*)$} $name -> _ name
-	append n " - $name"
+	set name [string trim $name "{}"]
+	append n " - $name - $owner"
     } else {
-	append n @gh
+	append n "@gh - $owner"
     }
 
     return $n
@@ -106,14 +109,12 @@ proc ::m::vcs::github::detect {url} {
     if {[catch {
 	m exec silent git hub help
     }]} {
-	m msg "[color note "git hub"] [color warning "not available"]"
+	m msg "[cmdr color note "git hub"] [cmdr color warning "not available"]"
 	# Fall through
 	return
     }
-    if {[catch {
-	m exec silent git help
-    }]} {
-	m msg "[color note "git"] [color warning "not available"]"
+    if {![llength [auto_execok git]]} {
+	m msg "[cmdr color note "git"] [cmdr color warning "not available"]"
 	# Fall through
 	return
     }
@@ -136,7 +137,7 @@ proc ::m::vcs::github::version {iv} {
     if {!$ok} return
 
     set v [m exec get git hub version]
-    set v [::split $v \n]
+    set v [split $v \n]
     set v [lindex $v 0 end]
     set v [string trim $v ']
     return $v
@@ -160,22 +161,31 @@ proc ::m::vcs::github::setup {path url} {
 proc ::m::vcs::github::update {path urls first} {
     debug.m/vcs/github {}
 
-    set forks [Forks $path]
-    set old   [ForksLoad $path]
+    set forks [ForksRemote $path]
+    set old   [ForksLocal  $path]
+
+    debug.m/vcs/github {Got  [llength $forks]}
+    debug.m/vcs/github {Have [llength $old]}
 
     lassign [struct::set intersect3 $old $forks] _ gone new
 
+    debug.m/vcs/github {Same [llength $_]}
+    debug.m/vcs/github {New  [llength $new]}
+    debug.m/vcs/github {Gone [llength $gone]}
+
     foreach fork $new {
-	lassign [::split $fork /] org repo
+	lassign [split $fork /] org repo
 	set label m-vcs-github-fork-$org
  	set url https://github.com/$fork
+
+	debug.m/vcs/github {Add     $label $url}
 	m::vcs::git::Git remote add $label $url
     }
 
     set git [m::vcs::git::GitOf $path]
 
     foreach fork $gone {
-	lassign [::split $fork /] user repo
+	lassign [split $fork /] user repo
 	set label m-vcs-github-fork-$user
 
 	# Convert all branches defined by this remote (i.e. user or
@@ -189,20 +199,23 @@ proc ::m::vcs::github::update {path urls first} {
 	# remote. Writing the tags however is done through `git`
 	# itself.
 
-	foreach branch [glob -nocomplain -directory $git/refs/remotes/$label *] {
-	    set uuid   [string trim [m futil cat $branch]]
-	    set branch [file tail $branch]
-	    set tag    [Tag $git/refs/tags ${user}/${branch}]
+	if {[file exists $git/refs/remotes/$label]} {
+	    foreach branch [fileutil::find $git/refs/remotes/$label] {
+		if {[file isdirectory $branch]} continue
+		debug.m/vcs/github {Branch $branch}
 
-	    m::vcs::git::Git tag $tag $uuid
+		set uuid   [string trim [m futil cat $branch]]
+		set branch [file tail $branch]
+		set tag    [Tag $git/refs/tags ${user}/${branch}]
+
+		debug.m/vcs/github {Tag    $uuid $tag}
+		m::vcs::git::Git tag $tag $uuid
+	    }
 	}
 
+	debug.m/vcs/github {Remove  $label}
 	m::vcs::git::Git remote remove $label
     }
-
-    # Save fork information for future updates. See above for usage
-    # (change detection).
-    ForksSave $path $forks
 
     return [m vcs git update $path $urls $first]
 }
@@ -210,7 +223,7 @@ proc ::m::vcs::github::update {path urls first} {
 proc ::m::vcs::github::remotes {path} {
     debug.m/vcs/github {}
     set urls {}
-    foreach fork [ForksLoad $path] {
+    foreach fork [ForksLocal $path] {
 	lappend urls https://github.com/$fork
     }
     return [list Forks $urls]
@@ -229,16 +242,20 @@ proc ::m::vcs::github::Tag {path label} {
     }
 }
 
-proc ::m::vcs::github::Forks {path} {
+proc ::m::vcs::github::ForksRemote {path} {
     debug.m/vcs/github {}
     global env
     set env(TERM) xterm
+
+    #puts -nonewline \nFORKS\t ; flush stdout
 
     # Pull the origin to query about forks
     set origin [OriginLoad $path]
 
     set forks {}
     foreach fork [m::vcs::git::Get hub forks --raw $origin] {
+	debug.m/vcs/github {Verify $fork}
+
 	set url https://github.com/$fork
 	# Check if the fork is actually available :: The git hub REST
 	# api reports all forks regardless of status wrt the rest of
@@ -246,13 +263,17 @@ proc ::m::vcs::github::Forks {path} {
 	# is still reported here. Checking against the regular web
 	# interface allows us to filter these out.
 
+	#puts -nonewline . ; flush stdout
 	if {[m url ok $url _]} {
+	    debug.m/vcs/github {    Ok $url}
 	    lappend forks $fork
 	} else {
 	    # report a missing fork
+	    debug.m/vcs/github {  FAIL $url}
 	}
     }
 
+    #puts PULLED
     return $forks
 }
 
@@ -273,16 +294,18 @@ proc ::m::vcs::github::ForksSave {path forks} {
     return
 }
 
-proc ::m::vcs::github::ForksLoad {path} {
+proc ::m::vcs::github::ForksLocal {path} {
     debug.m/vcs/github {}
-    if {[catch {
-	m futil cat $path/forks
-    } forks]} {
-	set forks {}
-    } else {
-	set forks [::split [string trim $forks] \n]
+
+    lassign [m futil grep {\(fetch\)$} \
+		 [split [m::vcs::git::Get remote -v] \n]] forks _
+    set r {}
+    foreach fork $forks {
+	lassign $fork label url _
+	if {![string match m-vcs-github-fork-* $label]} continue
+	lappend r [join [lrange [split $url /] end-1 end] /]
     }
-    return $forks
+    return $r
 }
 
 # # ## ### ##### ######## ############# #####################

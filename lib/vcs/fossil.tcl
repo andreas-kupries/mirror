@@ -19,6 +19,7 @@ package provide m::vcs::fossil 0
 ## Requisites
 
 package require Tcl 8.5
+package require cmdr::color
 package require m::futil
 package require m::exec
 package require debug
@@ -37,7 +38,7 @@ namespace eval m::vcs {
     namespace ensemble create
 }
 namespace eval m::vcs::fossil {
-    namespace export setup cleanup update check split merge \
+    namespace export setup cleanup update check cleave merge \
 	version detect remotes export name-from-url
     namespace ensemble create
 }
@@ -71,10 +72,12 @@ proc ::m::vcs::fossil::name-from-url {url} {
 
 proc ::m::vcs::fossil::detect {url} {
     debug.m/vcs/fossil {}
-    if {[catch {
-	m exec silent fossil help
-    }]} {
-	m msg "[color note "fossil"] [color warning "not available"]"
+    if {![llength [auto_execok fossil]]} {
+	set p "PATH: "
+	puts stderr "fossil = [auto_execok fossil]"
+	puts stderr $p[join [split $::env(PATH) :] \n$p]
+	
+	m msg "[cmdr color note "fossil"] [cmdr color warning "not available"]"
 	# Fall through
 	return
     }
@@ -126,7 +129,7 @@ proc ::m::vcs::fossil::check {primary other} {
     return [string equal [ProjectCode $primary] [ProjectCode $other]]
 }
 
-proc ::m::vcs::fossil::split {origin dst} {
+proc ::m::vcs::fossil::cleave {origin dst} {
     debug.m/vcs/fossil {}
     return
 }
@@ -170,13 +173,13 @@ proc ::m::vcs::fossil::FossilOf {path} {
 proc ::m::vcs::fossil::Count {path} {
     debug.m/vcs/fossil {}
     set f  [FossilOf $path]
-    return [Sel 1 [Grep1 check-ins:* [::split [FossilGet info -R $f] \n]]]
+    return [Sel 1 [Grep1 check-ins:* [split [FossilGet info -R $f] \n]]]
 }
 
 proc ::m::vcs::fossil::ProjectCode {path} {
     debug.m/vcs/fossil {}
     set f  [FossilOf $path]
-    return [Sel 1 [Grep1 project-code:* [::split [FossilGet info -R $f] \n]]]
+    return [Sel 1 [Grep1 project-code:* [split [FossilGet info -R $f] \n]]]
 }
 
 proc ::m::vcs::fossil::Grep1 {pattern lines} {

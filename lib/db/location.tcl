@@ -21,6 +21,7 @@ package provide m::db::location 0
 package require Tcl 8.5
 package require debug
 package require debug::caller
+package require m::futil
 
 # # ## ### ##### ######## ############# ######################
 
@@ -43,7 +44,7 @@ proc ::m::db::location::get {} {
 
 proc ::m::db::location::set {loc} {
     debug.m/db/location {}
-    variable thelocation $loc
+    variable thelocation [m futil norm $loc]
     return
 }
 

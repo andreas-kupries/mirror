@@ -36,11 +36,16 @@ namespace eval ::m {
 }
 
 namespace eval ::m::futil {
-    namespace export cat write append grep m-grep
+    namespace export cat write append grep m-grep norm
     namespace ensemble create
 }
 
 # # ## ### ##### ######## ############# #####################
+
+proc ::m::futil::norm {path} {
+    debug.m/futil {}
+    return [file dirname [file normalize [file join $path ___]]]
+}
 
 proc ::m::futil::cat {path} {
     debug.m/futil {}

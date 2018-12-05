@@ -20,6 +20,7 @@ package provide m::vcs::git 0
 
 package require Tcl 8.5
 package require struct::set
+package require cmdr::color
 package require m::futil
 package require m::exec
 package require debug
@@ -38,7 +39,7 @@ namespace eval m::vcs {
     namespace ensemble create
 }
 namespace eval m::vcs::git {
-    namespace export setup cleanup update check split merge \
+    namespace export setup cleanup update check cleave merge \
 	version detect remotes export name-from-url
     namespace ensemble create
 }
@@ -56,6 +57,7 @@ proc ::m::vcs::git::LogNormalize {o e} {
 	{ -> }
 	{^origin }
 	{^m-vcs-}
+	{warning: redirecting to}
     } $e] out err
 
     if {[llength $out]} { lappend o {*}$out }
@@ -66,7 +68,7 @@ proc ::m::vcs::git::LogNormalize {o e} {
 
 proc ::m::vcs::git::name-from-url {url} {
     debug.m/vcs/git {}
-    
+
     set gl [string match *gitlab* $url]
 
     lappend map "https://"        {}
@@ -85,10 +87,8 @@ proc ::m::vcs::git::name-from-url {url} {
 proc ::m::vcs::git::detect {url} {
     debug.m/vcs/git {}
     if {![string match *git* $url]} return
-    if {[catch {
-	m exec silent git help
-    }]} {
-	m msg "[color note "git"] [color warning "not available"]"
+    if {![llength [auto_execok git]]} {
+	m msg "[cmdr color note "git"] [cmdr color warning "not available"]"
 	# Fall through
 	return
     }
@@ -163,7 +163,7 @@ proc ::m::vcs::git::check {primary other} {
     return true
 }
 
-proc ::m::vcs::git::split {origin dst} {
+proc ::m::vcs::git::cleave {origin dst} {
     debug.m/vcs/git {}
     return
 }

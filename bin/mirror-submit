@@ -1,0 +1,698 @@
+#!/home/aku/Data/My/Web/bin.tcl/tclsh8.6
+## -*- tcl -*-
+# # ## ### ##### ######## ############# ######################
+#!/usr/bin/env tclsh -- Need 8.6
+
+# CGI helper application to manage the submission form of the web site.
+
+# # ## ### ##### ######## ############# ######################
+
+# @@ Meta Begin
+# Application mirror-submit  ?
+# Meta author      {Andreas Kupries}
+# Meta category    ?
+# Meta description ?
+# Meta location    https://core.tcl-lang.org/akupries/????
+# Meta platform    tcl
+# Meta require     m::db
+# Meta require     {Tcl 8.6-}
+# Meta subject     ?
+# Meta summary     ?
+# @@ Meta End
+
+# # ## ### ##### ######## ############# ######################
+#puts stderr [info nameofexecutable]
+package require Tcl 8.6
+package require wapp
+package require m::site
+package require m::db::location
+package require m::format
+package require m::vcs
+package require m::web::bootstrap
+
+proc main {} {
+    global env
+    if {![info exists env(TERM)]} { set env(TERM) xterm }
+    cmdline
+    # Allow for 10 second transactions from the cli or search
+    # helper before giving up.
+    m::site::wait 10
+    #wapp-start -trace
+    wapp-start {}
+}
+
+proc cmdline {} {
+    global argv
+    if {[llength $argv] > 1} usage
+    if {[llength $argv] < 1} return
+
+    lassign $argv config
+
+    # The config file is trusted, as is the database it references,
+    # deploy this only in a secure and controlled environment.
+
+    proc database: {database} {
+	m::db::location set $database
+	return
+    }
+
+    proc stderr: {path} {
+	file mkdir [file dirname $path]
+	close stderr
+	open $path a ;# This is now stderr
+	return
+    }
+
+    source $config
+    rename database: {}
+    return
+}
+
+proc usage {} {
+    global argv0
+    puts stderr "Usage: $argv0 ?config-file?"
+    exit 1
+}
+
+# # ## ### ##### ######## ############# ######################
+
+# Request environment
+proc wapp-page-env {} {
+    wapp-allow-xorigin-params
+    wapp-subst {<h1>Mirror Environment</h1>\n<pre>\n}
+    foreach var [lsort [wapp-param-list]] {
+	if {[string index $var 0]=="."} continue
+	wapp-subst {%html($var) = %html([list [wapp-param $var]])\n}
+    }
+    wapp-subst {</pre>\n}
+}
+
+proc wapp-page-clear {} {
+    append target [wapp-param BASE_URL]
+    append target ?sid=[F sid]
+    append target &email=[F email]
+    append target &submitter=[F submitter]
+    wapp-redirect $target
+}
+
+proc F {n} {
+    wappInt-enc-qp [string trim [wapp-param $n]]
+}
+
+# # ## ### ##### ######## ############# ######################
+
+# Main page. Search form, and list of results.
+# All unknown urls point to the same.
+proc wapp-default {} {
+    EV
+    GetFields
+    try {
+	m site transaction {
+	    set submissions [Submissions]
+	    set rejections  [Rejections]
+	    if {[Mandatory] && [FixUrl]} {
+		FixDescription
+		Submitter
+		Submit
+	    }
+	}
+    } on error {e o} {
+	set id [pid].[clock clicks]
+	dict unset o -errorinfo
+	puts stderr "___ <<$id>> $e"
+	puts stderr "___ $o"
+	puts stderr $::errorInfo
+	M line "Internal error caught, id <<$id>>" error
+	M line "Submission failed" error
+	M line "Apologies for the inconvenience" error
+    }
+    wapp-trim { %unsafe([m web bootstrap header "Submit a repository"]) }
+    wapp-trim { <p> <table> }
+    wapp-trim { <tr valign='top'> <td> }
+    Form
+    wapp-trim { </td> <td> }
+    wapp-trim { &nbsp; </td> <td> }
+    M show
+    wapp-trim { </td> </tr> }
+    wapp-trim { </table> </p> }
+    PendingRef  $submissions
+    RejectedRef $rejections
+    wapp-trim {	%unsafe([m web bootstrap footer]) }
+    return
+}
+
+proc EV {} {
+    set n [clock clicks]
+    puts stderr "\n_ _ __ ___ _____ ________ _____________ $n $::argv0"
+    foreach var [lsort [wapp-param-list]] {
+	#if {[string index $var 0]=="."} continue
+	puts stderr "$var = [list [wapp-param $var]]"
+    }
+    return
+}
+
+proc Submit {} {
+    upvar 1 _edit      edit
+    #
+    upvar 1 _url       url
+    upvar 1 _sid       sid
+    upvar 1 _vcode     vcode
+    upvar 1 _desc      desc
+    upvar 1 _email     email
+    upvar 1 _submitter submitter
+
+    set now [clock seconds]
+    
+    if {$edit} {
+	# Replace existing submission with new data
+	m site eval {
+	    UPDATE submission
+	    SET vcode          = :vcode
+	    ,   description    = :desc
+	    ,   email          = :email
+	    ,   submitter      = :submitter
+	    ,   when_submitted = :now
+	    WHERE url     = :url
+	    AND   session = :sid
+	}
+    } else {
+	# Add new submission
+	m site eval {
+	    INSERT
+	    INTO submission
+	    VALUES ( NULL, :sid, :url, :vcode, :desc, :email, :submitter, :now )
+	}
+    }
+
+    puts stderr OK
+    M line OK ok
+    return
+}
+
+proc Form {} {
+    upvar 1 _url       url
+    upvar 1 _sid       sid
+    upvar 1 _vcode     vcode
+    upvar 1 _desc      desc
+    upvar 1 _email     email
+    upvar 1 _submitter submitter
+    
+    wapp-trim {
+	<form method='GET' action='%url([wapp-param BASE_URL]/clear)'>
+	<button type='submit'> Clear </button>
+	<input type='hidden' name='sid' value='%html($sid)'>
+	<input type='hidden' name='email' value='%html($email)'>
+	<input type='hidden' name='submitter' value='%html($submitter)'>
+	</form><br>
+	<form method='POST' action='%url([wapp-param PATH_HEAD])'>
+	<input type='hidden' name='sid' value='%html($sid)'>
+	<table class='table'>
+	<tr> <td>
+	<select name='vcode'>
+    }
+    # future: vcs logo
+    set codes [linsert [m vcs all] 0 {} (Auto)]
+    foreach {code name} $codes {
+	if {$code eq $vcode} {
+	    wapp-trim { <option selected value='%html($code)'> %html($name) </option> }
+	} else {
+	    wapp-trim { <option value='%html($code)'> %html($name) </option> }
+	}
+    }
+    wapp-trim {
+	</select>
+	</td>
+	<td> <input type='text' name='url'       size=30 value='%html($url)'      > </td>
+	</tr>
+	<tr> <td> Description </td> <td> <input type='text' name='desc'      size=30 value='%html($desc)'     > </td> </tr>
+	<tr> <td> Email       </td> <td> <input type='text' name='email'     size=30 value='%html($email)'    > </td> </tr>
+	<tr> <td> Submitter   </td> <td> <input type='text' name='submitter' size=30 value='%html($submitter)'> </td> </tr>
+	<tr> <td> <input type='image' src='images/submit.svg' alt='Submit'> </td> </tr>
+	</table>
+	</form>
+    }
+    return
+}
+
+proc GetFields {} {
+    upvar 1 _edit      edit      ; set edit      0
+    upvar 1 _url       url       ; set url       [string trim [wapp-param url      ]]
+    upvar 1 _email     email     ; set email     [string trim [wapp-param email    ]]
+    upvar 1 _vcode     vcode     ; set vcode     [string trim [wapp-param vcode    ]]
+    upvar 1 _desc      desc      ; set desc      [string trim [wapp-param desc     ]]
+    upvar 1 _submitter submitter ; set submitter [string trim [wapp-param submitter]]
+    upvar 1 _sid       sid       ; set sid       [string trim [wapp-param sid      ]]
+
+    puts stderr "\n_ __ ___ _____ ________ _____________ SUBMIT [clock format [clock seconds]]"
+    puts stderr "url       ($url)"
+    puts stderr "email     ($email)"
+    puts stderr "vcode     ($vcode)"
+    puts stderr "desc      ($desc)"
+    puts stderr "submitter ($submitter)"
+    puts stderr "sid       ($sid)"
+    
+    if {$sid eq {}} {
+	set sid ([clock clicks])
+	wapp-set-param sid $sid
+	puts stderr "sid'      ($sid)"
+    }
+    return
+}
+
+proc Mandatory {} {
+    upvar 1 _url url _email email
+    set stop 0
+    if {$email eq {}} {
+	puts stderr "no email"
+	M line "Mandatory email is missing" error
+	incr stop
+    }
+    if {$url eq {}} {
+	puts stderr "no url"
+	M line "Mandatory url is missing" error
+	incr stop
+    }
+    if {$stop} { return 0 }
+    return 1
+}
+
+proc FixUrl {} {
+    upvar 1 _url url _sid sid _edit edit _vcode _vcode
+    if {![ValidUrl $url res]} {
+	puts stderr "url not found"
+	M line "Failed to find location" error
+	return
+    }
+    VCSDetect
+
+    set norm [m vcs url-norm $_vcode $res]
+
+    M begin
+    M add "Submitted: "
+    M add $url note
+    M end
+    if {$res ne $url} {
+	M begin
+	M add "Redirected: "
+	M add $res note
+	M end
+
+	puts stderr "url'      ($url)"
+    }
+    if {$norm ne $res} {
+	M begin
+	M add "Normalized: "
+	M add $norm note
+	M end
+
+	puts stderr "url''     ($url)"
+    }
+
+    if {[Known $norm]} {
+	puts stderr "known"
+	M line "Location already known" note
+	return 0
+    }
+
+    if {[IsRejected $norm reason]} {
+	puts stderr "rejected: $reason"
+	M line "Already rejected: $reason" error
+	return 0
+    }
+
+    if {[IsEdit $norm $sid]} {
+	puts stderr "exists/replace"
+	M line "Already submitted, will replace" warn
+	incr edit
+    } else {
+	puts stderr "new/add"
+	# TODO: Here is where we have to add a bayes filter based on past
+	# ham/spam submissions as means of auto-filtering submissions.
+	# Maybe: auto-climb to parent/root of a fork ?
+	#M line "Will add"
+    }
+
+    # Push to state
+    set url $norm
+    wapp-set-param url $url
+
+    return 1
+}
+
+proc ValidUrl {url rv} {
+    upvar 1 $rv res
+
+    if {[CachedValidity $url ok res]} {
+	puts stderr "url valid ? $ok ($res) <cached>"
+	return $ok
+    }
+
+    set ok [m url ok $url res]
+
+    puts stderr "url valid ? $ok ($res)"
+    
+    CacheValid $url $ok $res
+    return $ok
+}
+
+proc CacheValid {url ok res} {
+    set expiry [expr {[clock seconds] + 30*60}]
+    m site eval {
+	INSERT
+	INTO cache_url
+	VALUES ( :expiry, :url, :ok, :res )
+    }
+    return
+}
+
+proc CachedValidity {url vv rv} {
+    upvar 1 $vv ok $rv resolved
+    set now [clock seconds]
+    m site eval {
+	DELETE
+	FROM cache_url
+	WHERE expiry <= :now
+    }
+    m site eval {
+	SELECT ok
+	,      resolved
+	FROM cache_url
+	WHERE url = :url
+    } {
+	return 1
+    }
+    return 0
+}
+
+
+proc VCSDetect {} {
+    upvar 1 _vcode vcode res url
+    M begin
+    M add "VCS: "
+    if {$vcode ne {}} {
+	M add $vcode note
+	M end
+    } else {
+	set vcode [m vcs detect $url]
+	M add $vcode note
+	M add " (auto-detected)"
+
+	puts stderr "vcode'    ($vcode)"
+	
+	wapp-set-param vcode $vcode
+    }
+    M end
+    return
+}
+
+proc Known {url} {
+    # Look for a substring (%foo%), with possible occurences of the
+    # characters special to the LIKE operator escaped.
+    lappend map % \\%
+    lappend map _ \\_
+    lappend map \\ \\\\
+
+    set pattern [string map $map [string tolower $url]]
+    set pa   "$pattern %"
+    set pb "% $pattern %"
+
+    return [m site onecolumn {
+	SELECT count(*)
+	FROM store_index
+	WHERE remotes LIKE :pa ESCAPE '\'
+	OR    remotes LIKE :pb ESCAPE '\'
+    }]
+}
+
+proc IsRejected {url rv} {
+    upvar 1 $rv reason
+    m site eval {
+	SELECT reason
+	FROM   rejected
+	WHERE  url = :url
+    } {
+	return 1
+    }
+    return 0
+}
+
+proc IsEdit {url session} {
+    return [m site onecolumn {
+	SELECT count (*)
+	FROM  submission
+	WHERE url     = :url
+	AND   session = :session
+    }]    
+}
+
+proc FixDescription {} {
+    upvar 1 _desc desc _vcode vcode _url url
+    set generated 0
+
+    if {$desc eq {}} {
+	puts stderr "desc empty, auto-fill"
+	incr generated
+	if {![CachedDesc $url desc]} {
+	    set desc [m vcs name-from-url $vcode $url]
+	    puts stderr "desc'     ($desc)"
+	    CacheDesc $url $desc
+	} else {
+	    puts stderr "desc'     ($desc) <cached>"
+	}
+	wapp-set-param desc $desc
+    }
+    
+    M begin
+    M add "Description: "
+    M add $desc note
+    if {$generated} { M add " (from url)" }
+    M end
+}
+
+proc Submitter {} {
+    upvar 1 _submitter submitter _email email
+    M begin
+    M add "By"
+    if {$submitter ne {}} {
+	M add " "
+	M add $submitter note
+    }
+    M add " <"
+    M add $email note
+    M add >
+    M end
+    return
+}
+
+proc CachedDesc {url dv} {
+    upvar 1 $dv desc
+    set now [clock seconds]
+    m site eval {
+	DELETE
+	FROM cache_desc
+	WHERE expiry <= :now
+    }
+    m site eval {
+	SELECT desc
+	FROM cache_desc
+	WHERE url = :url
+    } {
+	return 1
+    }
+    return 0
+}
+
+proc CacheDesc {url desc} {
+    set expiry [expr {[clock seconds] + 30*60}]
+    m site eval {
+	INSERT
+	INTO cache_desc
+	VALUES ( :expiry, :url, :desc )
+    }
+    return
+}
+
+# # ## ### ##### ######## ############# ###################### GO
+
+namespace eval M {
+    namespace export line begin add end show
+    namespace ensemble create
+    variable ms {}
+}
+proc M::A {args} {
+    variable ms
+    lappend  ms $args
+    return
+}
+proc M::line {message {color {}}} {
+    begin
+    add $message $color
+    end
+}
+proc M::add   {message {color {}}} { A M $message $color }
+proc M::begin {}                   { A S }
+proc M::end   {}                   { A E }
+proc M::show {} {
+    variable ms
+    foreach cmd $ms { {*}$cmd }
+    return
+}
+proc M::S {} { wapp-trim { <p> } }
+proc M::E {} { wapp-trim { </p> } }
+proc M::M {message color} {
+    set c [string map {
+	error red
+	bad   red
+	note  blue
+	ok    green
+	warn  magenta
+    } $color]
+    if {$c ne {}} {
+	wapp-trim { <font color='%html($c)'> %html($message) </font> }
+    } else {
+	wapp-trim { %html($message) }
+    }
+}
+
+proc S {} { upvar 1 __stop stop ; incr stop }
+
+proc H {} {
+    upvar 1 __stop stop
+    if {[info exists stop] && $stop} { return -code return }
+    return
+}
+
+# # ## ### ##### ######## ############# ###################### GO
+
+proc wapp-page-pending {} {
+    m db transaction {
+	set series [Submissions]
+    }
+    wapp-allow-xorigin-params
+    wapp-trim { %unsafe([m web bootstrap header "Pending submissions"]) }
+    Pending $series
+    wapp-trim {	%unsafe([m web bootstrap footer]) }
+    return
+}
+
+proc PendingRef {series} {
+    set n [expr {[llength $series]/4}]
+    wapp-trim {
+	<p> <a href='%url([wapp-param BASE_URL]/pending)'>
+	Pending submissions: %html($n)
+	</a> </p>
+    }
+}
+
+proc Pending {series} {
+    # series is sorted by date descending
+    PendingHeader [expr {[llength $series]/4}]
+    foreach {url vcode description when} $series {
+	set when [m format epoch $when]
+	set logo ../images/logo/${vcode}.svg
+	wapp-trim {
+	    <tr>
+	    <td> %html($when)        </td>
+	    <td> <a target='_blank' href='%url($url)'> %html($url) </a> </td>
+	    <td>
+	    <img height='32' alt='%html($vcode)' src='%url($logo)'>
+	    %html($vcode)
+	    </td>
+	    <td> %html($description) </td>
+	    </tr>
+	}
+    }
+    Footer
+}
+
+proc PendingHeader {n} {
+    wapp-trim {
+	<p> Pending submissions: %html($n) </p>
+	<p> <table class='table'>
+	<tr>
+	<th> When </th>
+	<th> Url  </th>
+	<th> VCS  </th>
+	<th> Name </th>
+	</tr>
+    }
+}
+
+# # ## ### ##### ######## ############# ###################### GO
+
+proc wapp-page-rejected {} {
+    m db transaction {
+	set series [Rejections]
+    }
+    wapp-allow-xorigin-params
+    wapp-trim { %unsafe([m web bootstrap header "Rejected submissions"]) }
+    Rejected $series
+    wapp-trim {	%unsafe([m web bootstrap footer]) }
+    return
+}
+
+proc RejectedRef {series} {
+    set n [expr {[llength $series]/2}]
+    wapp-trim {
+	<p> <a href='%url([wapp-param BASE_URL]/rejected)'>
+	Rejected submissions: %html($n)
+	</a> </p>
+    }
+}
+
+proc Rejected {series} {
+    RejectedHeader [expr {[llength $series]/2}]
+    foreach {url reason} $series {
+	wapp-trim {
+	    <tr>
+	    <td> %html($url)    </td>
+	    <td> %html($reason) </td>
+	    </tr>
+	}
+    }
+    Footer
+}
+
+proc RejectedHeader {n} {
+    wapp-trim {
+	<p> Rejected submissions: %html($n) </p>
+	<p> <table class='table'>
+	<tr>
+	<th> Url     </th>
+	<th> Reason  </th>
+	</tr>
+    }
+}
+
+# # ## ### ##### ######## ############# ###################### GO
+
+proc Footer {} {
+    wapp-trim { </table> </p> }
+}
+
+# # ## ### ##### ######## ############# ###################### GO
+
+proc Submissions {} {
+    return [m site eval {
+	SELECT   url
+	,        vcode
+	,        description
+	,        when_submitted
+	FROM     submission
+	ORDER BY when_submitted DESC
+	,        url            ASC
+    }]
+}
+
+proc Rejections {} {
+    return [m site eval {
+	SELECT   url
+	,        reason
+	FROM     rejected
+	ORDER BY url    ASC
+	,        reason ASC
+    }]
+}
+
+# # ## ### ##### ######## ############# ###################### GO
+main

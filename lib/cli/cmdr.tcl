@@ -240,35 +240,55 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	m msg "[file tail $::argv0] [package present m::cmdr]"
     }]
 
-    private show {
-	description {
-	    Show the configuration
-	}
-	option all {
-	    Show site and mail configuration as well
-	} { presence }
-    } [m::cmdr::call glue cmd_show]
+    # # ## ### ##### ######## ############# ######################
 
-    private store {
+    officer config {
 	description {
-	    Query/change store path. Change implies copying all
-	    existing stores to the new location. Removes all
-	    pre-existing stores in the new location.
+	    Management of the instance configuration.
 	}
-	input path {
-	    New location of the store
-	} { optional ; validate rwpath }
-    } [m::cmdr::call glue cmd_store]
+    
+	private show {
+	    description {
+		Show the configuration
+	    }
+	    option all {
+		Show site and mail configuration as well
+	    } { presence }
+	} [m::cmdr::call glue cmd_show]
+	default
 
-    private take {
-	description {
-	    Query/change the number of mirror sets processed per
-	    update cycle.
-	}
-	input take {
-	    New number of mirror set to process in one update.
-	} { optional ; validate cmdr::validate::posint }
-    } [m::cmdr::call glue cmd_take]
+	private store {
+	    description {
+		Query/change store path. Change implies copying all
+		existing stores to the new location. Removes all
+		pre-existing stores in the new location.
+	    }
+	    input path {
+		New location of the store
+	    } { optional ; validate rwpath }
+	} [m::cmdr::call glue cmd_store]
+
+	private take {
+	    description {
+		Query/change the number of mirror sets processed per
+		update cycle.
+	    }
+	    input take {
+		New number of mirror set to process in one update.
+	    } { optional ; validate cmdr::validate::posint }
+	} [m::cmdr::call glue cmd_take]
+
+	private limit {
+	    description {
+		Query/change default limit for repository listing.
+	    }
+	    input limit {
+		New number of repositories to show by list and rewind.
+	    } { optional ; validate cmdr::validate::posint }
+	} [m::cmdr::call glue cmd_limit]
+    }
+    
+    # # ## ### ##### ######## ############# ######################
 
     private vcs {
 	description {
@@ -486,121 +506,134 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	}
     } [m::cmdr::call glue cmd_rewind]
 
-    private limit {
-	description {
-	    Query/change default limit for repository listing.
-	}
-	input limit {
-	    New number of repositories to show by list and rewind.
-	} { optional ; validate cmdr::validate::posint }
-    } [m::cmdr::call glue cmd_limit]
+    # # ## ### ##### ######## ############# ######################
 
-    private submissions {
+    officer submission {
 	description {
-	    List the submissions waiting for moderation.  Submissions
-	    are shown with a shorthand id for easier reference by accept
-	    or reject.
+	    Management of submissions, i.e. repositories
+	    proposed for mirroring.
 	}
-    } [m::cmdr::call glue cmd_submissions]
+    
+	private list {
+	    description {
+		List the submissions waiting for moderation.  Submissions
+		are shown with a shorthand id for easier reference by accept
+		or reject.
+	    }
+	} [m::cmdr::call glue cmd_submissions]
+	default
 
-    private submit {
-	description {
-	    Manual submission of url to moderate.
-	}
-	input url       {Url to track}    { validate [m::cmdr::vt url] }
-	input email     {Submitter, mail} { validate str }
-	input submitter {Submitter, name} { optional ; validate str }
-	option vcs {
-	    Version control system handling the repository.
-	} {
-	    validate [m::cmdr::vt vcs]
-	    generate [m::cmdr::call glue gen_vcs]
-	}
-	state vcs-code {
-	    Version control system handling the repository.
-	    Internal code, derived from the option value (database id).
-	} {
-	    generate [m::cmdr::call glue gen_vcs_code]
-	}
-	option name {
-	    Name for the future mirror set to hold the submitted repository.
-	} {
-	    alias N
-	    validate str
-	    generate [m::cmdr::call glue gen_name]
-	}
-    } [m::cmdr::call glue cmd_submit]
+	private enter {
+	    description {
+		Manual submission of url to moderate.
+	    }
+	    input url       {Url to track}    { validate [m::cmdr::vt url] }
+	    input email     {Submitter, mail} { validate str }
+	    input submitter {Submitter, name} { optional ; validate str }
+	    option vcs {
+		Version control system handling the repository.
+	    } {
+		validate [m::cmdr::vt vcs]
+		generate [m::cmdr::call glue gen_vcs]
+	    }
+	    state vcs-code {
+		Version control system handling the repository.
+		Internal code, derived from the option value (database id).
+	    } {
+		generate [m::cmdr::call glue gen_vcs_code]
+	    }
+	    option name {
+		Name for the future mirror set to hold the submitted repository.
+	    } {
+		alias N
+		validate str
+		generate [m::cmdr::call glue gen_name]
+	    }
+	} [m::cmdr::call glue cmd_submit]
 
-    private accept {
-	description {
-	    Accept the specified submissions.
-	    Executes `add`, with all that entails.
-	    Sends mail to the specified email addresses to notify them
-	    of the acceptance.
+	private accept {
+	    description {
+		Accept the specified submissions.
+		Executes `add`, with all that entails.
+		Sends mail to the specified email addresses to notify them
+		of the acceptance.
+	    }
+	    input id {
+		Submission to accept
+	    } { validate [m::cmdr::vt submission] }
+	    option vcs {
+		Version control system handling the repository.
+		Override the submission.
+	    } {
+		validate [m::cmdr::vt vcs]
+		generate [m::cmdr::call glue gen_submit_vcs]
 	}
-	input id {
-	    Submission to accept
-	} { validate [m::cmdr::vt submission] }
-	option vcs {
-	    Version control system handling the repository.
-	    Override the submission.
-	} {
-	    validate [m::cmdr::vt vcs]
-	    generate [m::cmdr::call glue gen_submit_vcs]
-	}
-	option nomail {
-	    Disable generation and sending of acceptance mail.
-	} { presence }
-	state vcs-code {
-	    Version control system handling the repository.
-	    Internal code, derived from the option value (database id).
-	} {
-	    generate [m::cmdr::call glue gen_vcs_code]
-	}
-	state url {
-	    Location of the repository. Taken from the submission.
-	} { validate str
-	    generate [m::cmdr::call glue gen_submit_url]
-	}
-	option name {
-	    Name for the mirror set to hold the repository.
-	    Overrides the name from the submission.
-	} {
-	    alias N
-	    validate str
-	    generate [m::cmdr::call glue gen_submit_name]
-	}
-    } [m::cmdr::call glue cmd_accept]
+	    option nomail {
+		Disable generation and sending of acceptance mail.
+	    } { presence }
+	    state vcs-code {
+		Version control system handling the repository.
+		Internal code, derived from the option value (database id).
+	    } {
+		generate [m::cmdr::call glue gen_vcs_code]
+	    }
+	    state url {
+		Location of the repository. Taken from the submission.
+	    } { validate str
+		generate [m::cmdr::call glue gen_submit_url]
+	    }
+	    option name {
+		Name for the mirror set to hold the repository.
+		Overrides the name from the submission.
+	    } {
+		alias N
+		validate str
+		generate [m::cmdr::call glue gen_submit_name]
+	    }
+	} [m::cmdr::call glue cmd_accept]
 
-    private reject {
-	description {
-	    Reject the specified submissions.
-	    Do (not) send mail as directed by the cause.
-	    No need to give your mail address to spammers.
-	    Sending mail can be forced
-	}
-	option mail {
-	    Trigger generation and sending of rejection mail
-	} { alias M }
-	option cause {
-	    Cause of rejection
-	} { alias C ; validate [m::cmdr::vt reply]
-	    generate [m::cmdr::call validate::reply default]
-	}
-	input id {
-	    Submissions to reject
-	} { list ; validate [m::cmdr::vt submission] }
-    } [m::cmdr::call glue cmd_reject]
-    alias decline
+	private reject {
+	    description {
+		Reject the specified submissions.
+		Do (not) send mail as directed by the cause.
+		No need to give your mail address to spammers.
+		Sending mail can be forced
+	    }
+	    option mail {
+		Trigger generation and sending of rejection mail
+	    } { alias M }
+	    option cause {
+		Cause of rejection
+	    } { alias C ; validate [m::cmdr::vt reply]
+		generate [m::cmdr::call validate::reply default]
+	    }
+	    input id {
+		Submissions to reject
+	    } { list ; validate [m::cmdr::vt submission] }
+	} [m::cmdr::call glue cmd_reject]
+	alias decline
 
-    private rejected {
-	description {
-	    Show the table of rejected submissions, with associated
-	    reasons.
-	}
-    } [m::cmdr::call glue cmd_rejected]
-    alias declined
+	private drop {
+	    description {
+		Remove the specified urls from the table of rejections.
+	    }
+	    input rejections {
+		Rejections to drop
+	    } { list ; validate [m::cmdr::vt rejection] }
+	} [m::cmdr::call glue cmd_drop]
 
+	private rejected {
+	    description {
+		Show the table of rejected submissions, with associated
+		reasons.
+	    }
+	} [m::cmdr::call glue cmd_rejected]
+	alias declined
+    }
+    alias submissions = submission list
+    alias rejections  = submission rejected
+    alias submit      = submission enter
+	
     # # ## ### ##### ######## ############# ######################
 
     officer site {
@@ -646,6 +679,15 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 		Disable site generation and update
 	    }
 	} [m::cmdr::call glue cmd_site_off]
+
+	private sync {
+	    description {
+		Sync main and site databases
+	    }
+	} [m::cmdr::call glue cmd_site_sync]
+
+	# TODO: change description
+	# TODO: change vcs
     }
 
     # # ## ### ##### ######## ############# ######################

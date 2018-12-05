@@ -30,7 +30,7 @@ namespace eval ::m {
 }
 namespace eval ::m::mset {
     namespace export \
-	list add remove rename has \
+	all add remove rename has \
 	name used-vcs has-vcs size \
 	stores take-pending pending known \
 	repos spec id count
@@ -48,7 +48,7 @@ proc ::m::mset::spec {} {
     debug.m/mset {}
 
     set lines {}
-    foreach {mset mname} [list] {
+    foreach {mset mname} [all] {
 	foreach repo [repos $mset] {
 	    set ri [m repo get $repo]
 	    dict with ri {}
@@ -58,9 +58,9 @@ proc ::m::mset::spec {} {
 	    #    mset	: mirror set id
 	    #    name	: mirror set name
 	    #    store  : store id, of backing store for
-	    lappend lines [::list R $vcode $url]
+	    lappend lines [list R $vcode $url]
 	}
-	lappend lines [::list M $mname]
+	lappend lines [list M $mname]
     }
     return [join $lines \n]
 }
@@ -117,7 +117,7 @@ proc ::m::mset::known {} {
     return $map
 }
 
-proc ::m::mset::list {} {
+proc ::m::mset::all {} {
     debug.m/mset {}
     return [m db eval {
 	SELECT M.id   AS mset
@@ -326,7 +326,7 @@ proc ::m::mset::take-pending {take} {
 	# Full read. Clear taken, the slow way.  Drop the unwanted
 	# sentinel element from the end of the result.
 	set taken [lreplace [K $taken [unset taken]] end end]
-	m db eval [string map [::list %% [join $taken ,]] {
+	m db eval [string map [list %% [join $taken ,]] {
 	    DELETE
 	    FROM mset_pending
 	    WHERE mset in (%%)

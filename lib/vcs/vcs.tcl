@@ -50,8 +50,8 @@ namespace eval ::m {
 
 namespace eval ::m::vcs {
     namespace export \
-	setup cleanup update check split merge \
-	rename id supported list code name \
+	setup cleanup update check cleave merge \
+	rename id supported all code name \
 	detect url-norm name-from-url version \
 	move size caps remotes export
     namespace ensemble create
@@ -102,15 +102,15 @@ proc ::m::vcs::setup {store vcs name url} {
 	    # Create vcs-specific special resources, if any
 	    $vcode setup  $path $url
 	    # Then update for the first time
-	    $vcode update $path [::list $url] 1
+	    $vcode update $path [list $url] 1
 	}
     } trap {CHILDSTATUS} {e} {
 	# For errors always show captured output.
 	if {![m exec verbose]} {
 	    # TODO: Factor into helper command - Maybe an exec command, hide details
 	    set p "[color bad \u2588\u2588] "
-	    puts stdout $p[join [::split [string trim [m futil cat $path/%stdout]] \n] \n$p]
-	    puts stderr $p[join [::split [string trim [m futil cat $path/%stderr]] \n] \n$p]
+	    puts stdout $p[join [split [string trim [m futil cat $path/%stdout]] \n] \n$p]
+	    puts stderr $p[join [split [string trim [m futil cat $path/%stderr]] \n] \n$p]
 	}
 
 	# Roll back filesystem changes
@@ -222,7 +222,7 @@ proc ::m::vcs::merge {vcs target origin} {
     return
 }
 
-proc ::m::vcs::split {vcs origin dst dstname} {
+proc ::m::vcs::cleave {vcs origin dst dstname} {
     debug.m/vcs {}
     set pdst    [Path $dst]
     set porigin [Path $origin]
@@ -236,7 +236,7 @@ proc ::m::vcs::split {vcs origin dst dstname} {
     m futil write $pdst/%name $dstname
     
     # Split/create vcs specific special resources, if any ...
-    $vcode split $porigin $pdst
+    $vcode cleave $porigin $pdst
     return
 }
 
@@ -334,7 +334,7 @@ proc ::m::vcs::name {id} {
     }]
 }
 
-proc ::m::vcs::list {} {
+proc ::m::vcs::all {} {
     debug.m/vcs {}
     return [m db eval {
 	SELECT code

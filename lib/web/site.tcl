@@ -22,13 +22,15 @@ package require Tcl 8.5
 package require debug
 package require debug::caller
 package require m::asset
+package require m::db
 package require m::exec
-package require m::futil
 package require m::format
-package require m::state
+package require m::futil
 package require m::mset
-package require m::vcs
+package require m::site
+package require m::state
 package require m::store
+package require m::vcs
 
 # # ## ### ##### ######## ############# ######################
 
@@ -49,11 +51,21 @@ namespace eval ::m::web {
 }
 
 namespace eval ::m::web::site {
-    namespace export build
+    namespace export build sync
     namespace ensemble create
 }
 
 # # ## ### ##### ######## ############# #####################
+
+proc ::m::web::site::sync {} {
+    debug.m/web/site {}
+
+    m::site transaction {
+	Sync
+    }
+
+    return
+}
 
 proc ::m::web::site::build {{mode verbose}} {
     debug.m/web/site {}
@@ -104,6 +116,7 @@ proc ::m::web::site::ErrOnly {series} {
 	if {$img eq {}} continue
 	lappend tmp $row
     }
+
     return $tmp
 }
 
@@ -113,21 +126,24 @@ proc ::m::web::site::NameFill {series} {
     set last {}
     foreach row $series {
 	set name [dict get $row mname]
-	if {$name ne {}} { set name $last }
+	if {$name eq {}} { set name $last }
 	dict set row mname $name
 	set last $name
 	lappend tmp $row
     }
+
     return $tmp
 }
 
 proc ::m::web::site::DropSep {series} {
     debug.m/web/site {}
+
     set tmp {}
     foreach row $series {
 	if {[dict get $row created] eq "."} continue
 	lappend tmp $row
     }
+
     return $tmp
 }
 
@@ -145,7 +161,7 @@ proc ::m::web::site::Site {mode action script} {
 
 proc ::m::web::site::Stores {} {
     debug.m/web/site {}
-    foreach {mset mname} [m mset list] {
+    foreach {mset mname} [m mset all] {
 	foreach store [m mset stores $mset] {
 	    Store $mset $mname $store
 	}
@@ -335,12 +351,16 @@ proc ::m::web::site::CGI {app} {
     debug.m/web/site {}
     global argv0
 
-    # app is sibling of site generator and shall use the same database
-    # as the site generator.
+    # With respect to locations
+    # - The CGI apps are siblings of the manager cli.
+    # - The CGI database is a sibling of the main database.
+    #   See `Sync` here for the code keeping it up-to-date.
+    #   However note that `m::site` automaitcally goes for the sibling
+    #   given the path to the main, so we do not do this here.
     
     set bindir [file dirname $argv0]    
     append t "#![file normalize [file join $bindir $app]]" \n
-    append t "database: [file normalize [m::db::location get]]" \n
+    append t "database: [m::db::location get]" \n
     return $t
 }
 
@@ -370,15 +390,282 @@ proc ::m::web::site::Init {} {
     return
 }
 
-proc ::m::web::site::Fin {} {
+proc ::m::web::site::Fin {} { #return
     debug.m/web/site {}
     variable dst
     ! "= SSG build web ..."
     SSG build $dst ${dst}_out
+
+    # dst     = path/web     = site input
+    # dst_out = path/web_out = site stage
+    #           path/site    = site serve
+
+    set stage ${dst}_out
+    set serve [file join [file dirname $dst] site]
+
+    ! "= Sync and flip stage to serve"
+
+    # Allow for 10 second transactions from the CGI helpers before
+    # giving up.
+    m::site::wait 10
+    m::site transaction {
+	Sync
+	file delete -force ${serve}_last
+	if {[file exists $serve]} {
+	    file rename $serve ${serve}_last
+	}
+	file rename $stage $serve
+    }
     return
 }
 
+proc ::m::web::site::Sync {} {
+    debug.m/web/site {}
+
+    # Data flows
+    # - Main
+    #   - mset_pending			local, no sync
+    #   - reply				local, no sync
+    #   - rolodex			local, no sync
+    #   - schema			local, no sync
+    #
+    #   - mirror_set			[1] join/view pushed to site
+    #   - name				[1] store_index, total replacement
+    #   - repository			[1]
+    #   - store				[1]
+    #   - store_times			[1]
+    #   - version_control_system	[1]
+    #
+    #   - rejected			push to site rejected, total replacement
+    #   - submission			pull from site (insert or update)
+    #   - submission_handled		push to site, deletions in submission
+    #
+    # - Site
+    #   - cache_desc	local, no sync
+    #   - cache_url	local, no sync
+    #   - schema	local, no sync
+    #
+    #   - rejected	pulled from main rejected, total replacement
+    #   - store_index	pulled from main [1], total replacement
+    #
+    #   - submission	pulled deletions from main (submission_handled)
+    #			push remaining to main (insert or update)
+    
+    FillIndex
+    FillRejected
+    SyncSubmissions
+    return
+}
+
+proc ::m::web::site::SyncSubmissions {} {
+    debug.m/web/site {}
+
+    # Syncing the submissions is easier than originally
+    # thought. Because the flow is more restricted than thought, due
+    # to the use of sessions.
+
+    # 1. Submissions from CGI flow through site to main. Only
+    #    deletions flow back, as the cli handles them in main.
+    
+    # 2. Submissions done in main, via the cli, have their own format
+    #    for session identifiers which cannot overlap with sessions
+    #    from the CGI. As such there is no need to push them to site,
+    #    CGI will has no use for them when looking for pre-existing
+    #    submissions. Anything needed there comes into site through
+    #    the index and rejection tables.
+    
+    DropHandledSubmissions
+    GetNewSubmissions
+    return
+}
+
+proc ::m::web::site::GetNewSubmissions {} {
+    debug.m/web/site {}
+    
+    # Phase II of syncing submissions between main and site.
+
+    # Iterate over all the submissions in site. Update the entries in
+    # main, or create new entries for them. It is the same logic
+    # mirror-submit uses for the site database to distinguish and
+    # perform add or edit (insert / update). Except this crosses two
+    # databases.
+
+    m site eval {
+	SELECT session
+	,      url
+	,      vcode
+	,      description
+	,      email
+	,      submitter
+	,      when_submitted
+	FROM submission
+    } {
+	if {[m db onecolumn {
+	    SELECT count (*)
+	    FROM  submission
+	    WHERE url     = :url
+	    AND   session = :session
+	}]} {
+	    # exists, update
+	    m db eval {
+		UPDATE submission
+		SET vcode       = :vcode
+		,   description = :description
+		,   email       = :email
+		,   submitter   = :submitter
+		,   sdate       = :when_submitted
+		WHERE url     = :url
+		AND   session = :session
+	    }
+	} else {
+	    # not known, insert
+	    m db eval {
+		INSERT
+		INTO submission
+		VALUES ( NULL, :session, :url, :vcode,
+			 :description, :email, :submitter,
+			 :when_submitted )
+	    }
+	}
+    }
+    
+    return
+}
+
+proc ::m::web::site::DropHandledSubmissions {} {
+    debug.m/web/site {}
+
+    # Phase I of syncing submissions between main and site.
+
+    # Iterate over all the submissions marked as handled in main and
+    # remove them from site. From the main helper table also.
+
+    m db eval {
+	SELECT url
+	,      session
+	FROM submission_handled
+    } {
+	m site eval {
+	    DELETE
+	    FROM submission
+	    WHERE url     = :url
+	    AND   session = :session
+	}
+    }
+
+    m db eval {
+	DELETE
+	FROM submission_handled
+    }
+    
+    return
+}
+
+proc ::m::web::site::FillRejected {} {
+    debug.m/web/site {}
+
+    # Copy current state of url rejections from main to site database.
+    # Implemented as `delete all old ; insert all new`.
+    
+    m site eval { DELETE FROM rejected }
+    
+    m db eval {
+	SELECT url
+	,      reason
+	FROM rejected
+    } {
+	m site eval {
+	    INSERT
+	    INTO rejected
+	    VALUES ( NULL, :url, :reason )
+	}
+    }
+    return
+}
+
+proc ::m::web::site::FillIndex {} {
+    debug.m/web/site {}
+
+    # Copy current state of known stores and remotes from main to site
+    # database. Implemented as `delete all old ; insert all new`.
+
+    m site eval { DELETE FROM store_index }
+
+    # m store search '' (inlined, simply all)
+    m db eval {
+	SELECT S.id      AS store
+	,      N.name    AS mname
+	,      V.code    AS vcode
+	,      T.changed AS changed
+	,      T.updated AS updated
+	,      T.created AS created
+	,      S.size_kb AS size
+	,      (SELECT count (*)
+		FROM  repository R
+		WHERE R.mset = S.mset
+		AND   R.vcs  = S.vcs) AS remote
+	,      (SELECT count (*)
+		FROM  repository R
+		WHERE R.mset = S.mset
+		AND   R.vcs  = S.vcs
+		AND   R.active) AS active
+	FROM store_times            T
+	,    store                  S
+	,    mirror_set             M
+	,    version_control_system V
+	,    name                   N
+	WHERE T.store   = S.id
+	AND   S.mset    = M.id
+	AND   S.vcs     = V.id
+	AND   M.name    = N.id
+    } {
+	# store, mname, vcode, changed, updated, created, size, remote, active
+
+	set page    store_${store}.html
+	set status  [Status $store $active $remote]
+	set remotes [m db eval {
+	    SELECT R.url
+	    FROM repository R
+	    ,    store      S
+	    WHERE S.id   = :store
+	    AND   S.vcs  = R.vcs
+	    AND   S.mset = R.mset
+	}]
+	
+	lappend remotes $mname
+	set remotes [string tolower [join $remotes { }]]
+	# We are using the remotes field for the entire text we can
+	# search over.  Should rename the field, not bothering until
+	# we need a larger schema change it can be folded into.
+
+	m site eval {
+	    INSERT
+	    INTO store_index
+	    VALUES ( NULL,
+		     :mname, :vcode, :page, :remotes, :status,
+		     :size, :changed, :updated, :created )
+	}
+    }
+    return
+}
+
+proc ::m::web::site::Status {store active remote} {
+    debug.m/web/site {}
+
+    set stderr [lindex [m vcs cap $store] 1]
+    if {[string length $stderr]} {
+	return bad.svg
+    } elseif {!$active} {
+	return off.svg
+    } elseif {$active < $remote} {
+	return yellow.svg
+    } else {
+	return {}
+    }
+}
+    
 proc ::m::web::site::SI {stderr} {
+    debug.m/web/site {}
     if {![string length $stderr]} {
 	return {}
 	set status images/ok.svg
@@ -496,8 +783,8 @@ proc ::m::web::site::M {} {
 	Contact        $rootDirPath/contact.html
 	{Content Spec} $rootDirPath/spec.txt
 	Search         $rootDirPath/search
+	Submit         $rootDirPath/submit
     }
-    # Submit         $rootDirPath/submit
     lappend map @-title-@      [m state site-title]
     lappend map @-url-@        $u
     lappend map @-year-@       [clock format [clock seconds] -format %Y]
@@ -566,6 +853,7 @@ comments {
     engine none
     disqusShortname {}
 }
+static/images/submit.svg<svg width='32' height='32' viewBox='0 0 100 100' xmlns="http://www.w3.org/2000/svg"><circle cx='50' cy='50' r='50' fill='green'/><line x1='15' y1='50' x2='85' y2='50' stroke='white' stroke-width='20'/><line x1='50' y1='15' x2='50' y2='85' stroke='white' stroke-width='20'/></svg>
 static/images/logo/git.svg<svg role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Git icon</title><path d="M23.546 10.93L13.067.452c-.604-.603-1.582-.603-2.188 0L8.708 2.627l2.76 2.76c.645-.215 1.379-.07 1.889.441.516.515.658 1.258.438 1.9l2.658 2.66c.645-.223 1.387-.078 1.9.435.721.72.721 1.884 0 2.604-.719.719-1.881.719-2.6 0-.539-.541-.674-1.337-.404-1.996L12.86 8.955v6.525c.176.086.342.203.488.348.713.721.713 1.883 0 2.6-.719.721-1.889.721-2.609 0-.719-.719-.719-1.879 0-2.598.182-.18.387-.316.605-.406V8.835c-.217-.091-.424-.222-.6-.401-.545-.545-.676-1.342-.396-2.009L7.636 3.7.45 10.881c-.6.605-.6 1.584 0 2.189l10.48 10.477c.604.604 1.582.604 2.186 0l10.43-10.43c.605-.603.605-1.582 0-2.187"/></svg>
 static/images/logo/github.svg<svg role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>GitHub icon</title><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
 static/images/logo/hg.svg<?xml version="1.0"?>

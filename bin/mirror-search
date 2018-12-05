@@ -14,7 +14,11 @@
 # Meta description ?
 # Meta location    https://core.tcl-lang.org/akupries/????
 # Meta platform    tcl
-# Meta require     m::db
+# Meta require     m::db::location
+# Meta require     m::site
+# Meta require     m::format
+# Meta require     m::web::bootstrap
+# Meta require     m::wapp
 # Meta require     {Tcl 8.6-}
 # Meta subject     ?
 # Meta summary     ?
@@ -24,14 +28,18 @@
 #puts stderr [info nameofexecutable]
 package require Tcl 8.6
 package require m::db::location
-package require m::db
+package require m::site
 package require m::format
-package require m::store
 package require m::web::bootstrap
 package require wapp
 
 proc main {} {
+    global env
+    if {![info exists env(TERM)]} { set env(TERM) xterm }
     cmdline
+    # Allow for 10 second transactions from the cli or submission
+    # helper before giving up.
+    m::site::wait 10
     #wapp-start -trace
     wapp-start {}
 }
@@ -48,6 +56,13 @@ proc cmdline {} {
 
     proc database: {database} {
 	m::db::location set $database
+	return
+    }
+
+    proc stderr: {path} {
+	file mkdir [file dirname $path]
+	close stderr
+	open $path a ;# This is now stderr
 	return
     }
 
@@ -69,9 +84,23 @@ proc usage {} {
 proc wapp-default {} {
     wapp-allow-xorigin-params
     wapp-trim { %unsafe([m web bootstrap header Search]) }
-    Form
-    # - pattern
-    List {*}[Search]
+
+    set pattern [string trim [wapp-param pattern]]
+    set series  {}
+
+    try {
+	### DB access and transaction here.
+	set series [Search $pattern]
+	###
+    } on error {e} {
+	wapp-trim {
+	    <p> Failed to access database: %html($e) </p>
+	    <p> Please try again in a minute. </p>
+	}
+    }
+
+    Form $pattern
+    List $pattern $series
     wapp-trim {	%unsafe([m web bootstrap footer]) }
     return
 }
@@ -96,33 +125,26 @@ proc List {pattern series} {
     foreach row $series {
 	#puts stderr (($row))
 	dict with row {}
-	# store mname vcode changed updated created size active remote
+	# name vcode page status size changed updated created
 	ListRow \
-	    store_${store}.html \
-	    $mname \
+	    $page \
+	    $name \
 	    $vcode \
 	    [m format epoch $changed] \
 	    [m format epoch $updated] \
 	    [m format epoch $created] \
 	    [m format size  $size] \
-	    {*}[Status $store $active $remote]
+	    $status [Status $status]
     }
 
     ListFooter
     return
 }
 
-proc Sep {} {
-    wapp-trim {
-	<tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-    }
-    return
-}
-
-proc ListRow {slink mname vcode changed updated created size stext simg} {
+proc ListRow {slink mname vcode changed updated created size simg stext} {
     wapp-trim { <tr> <td> }
     if {$stext ne {}} {
-	wapp-trim { <img alt='%html($stext)' src='%url($simg)'> }
+	wapp-trim { <img alt='%html($stext)' src='%url(images/$simg)'> }
     }
     wapp-trim { </td> <td> }
     if {$mname ne {}} {
@@ -163,51 +185,90 @@ proc ListFooter {} {
     wapp-trim { </table> </p> }
 }
 
-proc Status {store active remote} {
-    set stderr [lindex [m vcs cap $store] 1]
-    if {[string length $stderr]} {
-	set status images/bad.svg
-	set stext ATTEND
-    } elseif {!$active} {
-	set status images/off.svg
-	set stext -
-    } elseif {$active < $remote} {
-	set status images/yellow.svg
-	set stext /
-    } else {
-	set status {}
-	set stext {}
-    }
-
-    return [list $stext $status]
+proc Status {icon} {
+    return [dict get {
+	bad.svg    ATTEND
+	off.svg    -
+	yellow.svg /
+	{}         {}
+    } $icon]
 }
 
-proc Form {} {
+proc Form {pattern} {
     # entry field - search term
-    set pattern [string trim [wapp-param pattern]]
     wapp-trim {
 	<form method='POST' action='%url([wapp-param PATH_HEAD])'>
 	<!-- <input type='image' src='images/ok.svg' alt='Search'> -->
 	<input type='text' name='pattern' size=30 value='%html($pattern)'>
 	</form>
     }
+    return $pattern
+}
+
+proc Sep {} {
+    wapp-trim {
+	<tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+    }
     return
 }
 
-proc Search {} {
-    if {![wapp-param-exists pattern]} { return {{} {}} }
+# # ## ### ##### ######## ############# ###################### GO
 
-    # Pattern available in the parameters - self posted return
-    set pattern [string trim [wapp-param pattern]]
-
+proc Search {pattern} {
     # Nothing to search for.
-    if {$pattern eq {}} { return {{} {}} }
+    if {$pattern eq {}} { return {} }
 
-    # Perform search
-    m db transaction {
-	set series [m store search $pattern]
+    # Look for a substring (%foo%), with possible occurences of the
+    # characters special to the LIKE operator escaped.
+    lappend map % \\%
+    lappend map _ \\_
+    lappend map \\ \\\\
+
+    puts stderr \n_________SEARCH
+    #puts stderr MAP_|$map|
+    puts stderr USER|$pattern|
+
+    set pattern %[string map $map [string tolower $pattern]]%
+
+    puts stderr LIKE|$pattern|
+    
+    # Perform search. Short transaction
+    set series {}
+    m site transaction {
+	m site eval {
+	    SELECT name
+	    ,      vcode
+	    ,      page
+	    ,      status
+	    ,      size_kb
+	    ,      changed
+	    ,      updated
+	    ,      created
+	    FROM store_index
+	    --
+	    WHERE remotes LIKE :pattern ESCAPE '\'
+	    --
+	    ORDER BY name    ASC
+	    ,        vcode   ASC
+	    ,        size_kb ASC
+	} {
+	    puts stderr "   ^ $page $name $vcode"
+	    lappend series \
+		[dict create \
+		     name    $name    \
+		     vcode   $vcode   \
+		     page    $page    \
+		     status  $status  \
+		     size    $size_kb \
+		     changed $changed \
+		     created $created \
+		     updated $updated ]
+	}
     }
-    return [list $pattern $series]
+
+    puts stderr LIKE=[llength $series]
+    
+    return $series
 }
 
 # # ## ### ##### ######## ############# ###################### GO
