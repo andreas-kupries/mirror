@@ -89,9 +89,17 @@ proc wapp-page-env {} {
 
 proc wapp-page-clear {} {
     append target [wapp-param BASE_URL]
-    append target ?sid=[F sid]
-    append target &email=[F email]
-    append target &submitter=[F submitter]
+    # Partial clear does not work.
+
+    # Well, it does the partial clear, but the destination then has
+    # these items in the url and they are not removed, leaving the
+    # form stuck at this. Breaking future submission. So, full clear
+    # it now is until I learn to undo things like this in the
+    # destination. Or do it as form auto-post instead of a redirect.
+
+    #append target ?sid=[F sid]
+    #append target &email=[F email]
+    #append target &submitter=[F submitter]
     wapp-redirect $target
 }
 
@@ -281,7 +289,7 @@ proc FixUrl {} {
     if {![ValidUrl $url res]} {
 	puts stderr "url not found"
 	M line "Failed to find location" error
-	return
+	return 0
     }
     VCSDetect
 
