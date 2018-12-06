@@ -85,7 +85,14 @@ proc ::m::vcs::github::name-from-url {url} {
 
     set uinfo [m exec get git hub user $owner]
     set name  [lindex [m futil grep Name [split $uinfo \n]] 0]
-    set desc  [m exec get git hub repo-get $owner/$repo description]
+
+    try {
+	set desc [m exec get git hub repo-get $owner/$repo description]
+    } on error {e o} {
+	set desc {}
+	puts stderr $e
+	puts stderr $o
+    }
 
     if {$desc ne {}} {
 	append n "$desc"
