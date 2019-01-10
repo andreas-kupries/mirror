@@ -219,7 +219,7 @@ proc Form {} {
 	<select name='vcode'>
     }
     # future: vcs logo
-    set codes [linsert [m vcs all] 0 {} (Auto)]
+    set codes [linsert [VCS] 0 {} (Auto)]
     foreach {code name} $codes {
 	if {$code eq $vcode} {
 	    wapp-trim { <option selected value='%html($code)'> %html($name) </option> }
@@ -240,6 +240,15 @@ proc Form {} {
 	</form>
     }
     return
+}
+
+proc VCS {} {
+    return [m site eval {
+	SELECT code
+	,      name
+	FROM   vcs
+	ORDER BY name ASC
+    }]
 }
 
 proc GetFields {} {
@@ -573,7 +582,7 @@ proc H {} {
 # # ## ### ##### ######## ############# ###################### GO
 
 proc wapp-page-pending {} {
-    m db transaction {
+    m site transaction {
 	set series [Submissions]
     }
     wapp-allow-xorigin-params
@@ -629,7 +638,7 @@ proc PendingHeader {n} {
 # # ## ### ##### ######## ############# ###################### GO
 
 proc wapp-page-rejected {} {
-    m db transaction {
+    m site transaction {
 	set series [Rejections]
     }
     wapp-allow-xorigin-params

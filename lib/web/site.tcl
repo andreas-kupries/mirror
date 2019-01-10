@@ -434,7 +434,7 @@ proc ::m::web::site::Sync {} {
     #   - repository			[1]
     #   - store				[1]
     #   - store_times			[1]
-    #   - version_control_system	[1]
+    #   - version_control_system	[1], plus copy to vcs
     #
     #   - rejected			push to site rejected, total replacement
     #   - submission			pull from site (insert or update)
@@ -481,7 +481,8 @@ proc ::m::web::site::SyncSubmissions {} {
 
 proc ::m::web::site::GetNewSubmissions {} {
     debug.m/web/site {}
-    
+    m msg "- Pull new submissions"
+
     # Phase II of syncing submissions between main and site.
 
     # Iterate over all the submissions in site. Update the entries in
@@ -534,6 +535,7 @@ proc ::m::web::site::GetNewSubmissions {} {
 
 proc ::m::web::site::DropHandledSubmissions {} {
     debug.m/web/site {}
+    m msg "- Remove handled submissions"
 
     # Phase I of syncing submissions between main and site.
 
@@ -563,6 +565,7 @@ proc ::m::web::site::DropHandledSubmissions {} {
 
 proc ::m::web::site::FillRejected {} {
     debug.m/web/site {}
+    m msg "- Push rejections"
 
     # Copy current state of url rejections from main to site database.
     # Implemented as `delete all old ; insert all new`.
@@ -585,6 +588,7 @@ proc ::m::web::site::FillRejected {} {
 
 proc ::m::web::site::FillIndex {} {
     debug.m/web/site {}
+    m msg "- Push index"
 
     # Copy current state of known stores and remotes from main to site
     # database. Implemented as `delete all old ; insert all new`.
@@ -644,6 +648,23 @@ proc ::m::web::site::FillIndex {} {
 	    VALUES ( NULL,
 		     :mname, :vcode, :page, :remotes, :status,
 		     :size, :changed, :updated, :created )
+	}
+    }
+
+    # Copy the VCS information
+
+    m site eval { DELETE FROM vcs }
+
+    m db eval {
+	SELECT id
+	,      code
+	,      name
+	FROM version_control_system
+    } {
+	m site eval {
+	    INSERT
+	    INTO vcs
+	    VALUES ( :id, :code, :name )
 	}
     }
     return

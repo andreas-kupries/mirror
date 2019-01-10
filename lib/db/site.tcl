@@ -238,5 +238,21 @@ proc ::m::site::SETUP-201812041400 {} {
     return
 }
 
+proc ::m::site::SETUP-201901092300 {} {
+    debug.m/db {}
+    # Add table for vcs codes.
+
+    D m::site
+    I+
+    C code  TEXT  NOT NULL  UNIQUE ; # Short semi-internal tag
+    C name  TEXT  NOT NULL  UNIQUE ; # Human readable name
+    T vcs
+
+    # No fixed values here. Copy from main table
+    # `version_control_system` on sync.
+    
+    return
+}
+
 # # ## ### ##### ######## ############# #####################
 return

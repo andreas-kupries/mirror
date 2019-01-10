@@ -67,9 +67,14 @@ proc ::m::exec::capture::off {{reset 0}} {
     # Stop capture.
     B $reset
     variable active 0
-    if {!$reset} return
+    if {!$reset} {
+	debug.m/exec { /done}
+	return
+    }
     variable out {}
     variable err {}
+
+    debug.m/exec {/done+reset}
     return
 }
 
@@ -225,6 +230,7 @@ proc ::m::exec::get {cmd args} {
 	# b, d
 	lassign [CAP $args 0 $verbose] oc ec
 	# d - verbose -------^
+	debug.m/exec {==> ($oc)}
 	return $oc
     } elseif {$verbose} {
 	# c
@@ -287,6 +293,7 @@ proc ::m::exec::silent {cmd args} {
 }
 
 proc ::m::exec::CAP {cmd vo ve} {
+    debug.m/exec {}
     # Note: Temp files capture just current execution,
     #       Main capture then extended from these.
 

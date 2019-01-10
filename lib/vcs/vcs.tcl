@@ -137,8 +137,11 @@ proc ::m::vcs::update {store vcs urls} {
     set vcode [code $vcs]
 
     CAP $path {
-	return [$vcode update $path $urls 0]
+	set counts [$vcode update $path $urls 0]
     }
+
+    debug.m/vcs {==> ($counts)}
+    return $counts
 }
 
 proc ::m::vcs::rename {store name} {
@@ -387,9 +390,15 @@ proc ::m::vcs::CAP {path script} {
     try {
 	m exec capture to $path/%stdout $path/%stderr
 	uplevel 1 $script
+    } on error {e o} {
+	debug.m/vcs {Caught}
+	debug.m/vcs {-- $o}
+	debug.m/vcs {M: $e}
+	return {*}$o $e
     } finally {
 	m exec capture off
     }
+    debug.m/vcs {/done}
 }
 
 proc ::m::vcs::Path {dir} {

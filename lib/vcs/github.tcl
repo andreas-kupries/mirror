@@ -179,15 +179,12 @@ proc ::m::vcs::github::update {path urls first} {
     debug.m/vcs/github {Same [llength $_]}
     debug.m/vcs/github {New  [llength $new]}
     debug.m/vcs/github {Gone [llength $gone]}
+    foreach _ $new  { debug.m/vcs/github {New  ($_)} }
+    foreach _ $gone { debug.m/vcs/github {Gone ($_)} }
 
-    foreach fork $new {
-	lassign [split $fork /] org repo
-	set label m-vcs-github-fork-$org
- 	set url https://github.com/$fork
-
-	debug.m/vcs/github {Add     $label $url}
-	m::vcs::git::Git remote add $label $url
-    }
+    # Note about order: Drop removed forks first before adding any
+    # new.  The drop/add may be a rename done by a dev, and in that
+    # case adding first fails as the dev already has a remote.
 
     set git [m::vcs::git::GitOf $path]
 
@@ -222,6 +219,15 @@ proc ::m::vcs::github::update {path urls first} {
 
 	debug.m/vcs/github {Remove  $label}
 	m::vcs::git::Git remote remove $label
+    }
+        
+    foreach fork $new {
+	lassign [split $fork /] org repo
+	set label m-vcs-github-fork-$org
+ 	set url https://github.com/$fork
+
+	debug.m/vcs/github {Add     $label $url}
+	m::vcs::git::Git remote add $label $url
     }
 
     return [m vcs git update $path $urls $first]
@@ -310,7 +316,10 @@ proc ::m::vcs::github::ForksLocal {path} {
     foreach fork $forks {
 	lassign $fork label url _
 	if {![string match m-vcs-github-fork-* $label]} continue
-	lappend r [join [lrange [split $url /] end-1 end] /]
+	set fk [join [lrange [split $url /] end-1 end] /]
+	
+	debug.m/vcs/github {$label = $url => $fk}
+	lappend r $fk
     }
     return $r
 }

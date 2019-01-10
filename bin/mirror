@@ -49,6 +49,8 @@ debug header {[::cmdr color {black bg-cyan} [clock format [clock seconds]]] }
 
 proc main {} {
     global argv
+    global env
+    if {![info exists env(TERM)]} { set env(TERM) xterm }
     debugflags
     
     # # ## ### ##### ######## ############# ######################
