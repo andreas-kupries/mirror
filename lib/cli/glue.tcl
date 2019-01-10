@@ -810,8 +810,10 @@ proc ::m::glue::cmd_update {config} {
 
 		# TODO MAYBE: List the remotes we are pulling from ?
 		# => VCS layer, notification callback ...
+		set now [clock seconds]
+		set counts [m store update $store $nowcycle $now]
+		set deltat [IntervalFormat [expr {[clock seconds] - $now}]]
 
-		set counts [m store update $store $nowcycle [clock seconds]]
 		lassign $counts before after
 		if {$before != $after} {
 		    set delta [expr {$after - $before}]
@@ -822,11 +824,11 @@ proc ::m::glue::cmd_update {config} {
 			set delta +$delta
 		    }
 		    # TODO: Bring delta-rev (and delta-size) into the site.
-		    m msg "[color note Changed] $before $after ([color $mark $delta])"
+		    m msg "[color note Changed] $before $after ([color $mark $delta]), in [color note $deltat]"
 		} elseif {$verbose} {
-		    m msg [color note "No changes"]
+		    m msg "[color note "No changes"], in [color note $deltat]"
 		} else {
-		    m msg "No changes"
+		    m msg "No changes, in $deltat"
 		}
 	    }
 	}
@@ -1263,6 +1265,40 @@ proc ::m::glue::cmd_debug_levels {config} {
 }
 
 # # ## ### ##### ######## ############# ######################
+
+proc ::m::glue::IntervalFormat {seconds} {
+    if {$seconds < 60} {
+	return "${seconds}s"
+    }
+
+    set minutes [expr {$seconds / 60}]
+    set seconds [expr {$seconds % 60}]
+
+    if {$minutes < 60} {
+	append r $minutes m
+	if {$seconds} { append r $seconds s }
+	return $r
+    }
+
+    set hours   [expr {$minutes / 60}]
+    set minutes [expr {$minutes % 60}]
+
+    if {$hours < 24} {
+	append r $hours h
+	if {$minutes} { append r $minutes m }
+	if {$seconds} { append r $seconds s }
+	return $r
+    }
+
+    set days  [expr {$hours / 24}]
+    set hours [expr {$hours % 24}]
+
+    append r $days d
+    if {$hours}   { append r $hours h }
+    if {$minutes} { append r $minutes m }
+    if {$seconds} { append r $seconds s }
+    return $r
+}
 
 proc ::m::glue::MailFooter {mv} {
     debug.m/glue {[debug caller] | }
