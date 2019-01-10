@@ -265,8 +265,14 @@ proc ::m::vcs::github::ForksRemote {path} {
     # Pull the origin to query about forks
     set origin [OriginLoad $path]
 
+    try {
+	set possibleforks [m::vcs::git::Get hub forks --raw $origin]
+    } trap CHILDSTATUS {e o} {
+	set possibleforks {}
+    }
+    
     set forks {}
-    foreach fork [m::vcs::git::Get hub forks --raw $origin] {
+    foreach fork $possibleforks {
 	debug.m/vcs/github {Verify $fork}
 
 	set url https://github.com/$fork

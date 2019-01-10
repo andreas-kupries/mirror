@@ -55,6 +55,7 @@ proc ::m::submission::known {} {
 	dict set map [string tolower $url]         $id
 	dict set map [string tolower $email]       $id
 	dict set map [string tolower $description] $id
+	dict set map %c                            $id
     }
 
     return $map
