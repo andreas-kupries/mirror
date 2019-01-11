@@ -687,7 +687,7 @@ proc ::m::web::site::Status {store active remote} {
     
 proc ::m::web::site::SI {stderr} {
     debug.m/web/site {}
-    if {![string length $stderr]} {
+    if {$stderr eq {}} {
 	return {}
 	set status images/ok.svg
 	set stext  OK

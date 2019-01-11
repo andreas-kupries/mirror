@@ -585,6 +585,98 @@ proc ::m::glue::cmd_remove {config} {
     OK
 }
 
+proc ::m::glue::cmd_details {config} {
+    debug.m/glue {[debug caller] | }
+    package require m::mset
+    package require m::repo
+    package require m::rolodex
+    package require m::store
+
+    m db transaction {
+	set repo [$config @repository]
+	m msg "Details of [color note [m repo name $repo]] ..."
+
+	set rinfo [m repo get $repo]
+	dict with rinfo {}
+	# -> url	: repo url
+	#    vcs	: vcs id
+	#    vcode	: vcs code
+	# *  mset	: mirror set id
+	# *  name	: mirror set name
+	# *  store      : store id, of backing store for the repo
+
+	# Get pieces ...
+	
+	lassign [m store remotes $store] remotes plugin
+	lappend r Remotes $remotes
+	if {[llength $plugin]} {
+	    lappend r {*}$plugin
+	}
+
+	set sd  [m store get $store]
+	dict with sd {}
+	# -> size
+	#    vcs
+	#    vcsname
+	#    created
+	#    changed
+	#    updated
+	lassign [m vcs caps $store] stdout stderr
+
+	set status [SI $stderr]
+	set export [m vcs export $vcs $store]
+
+	[table/d t {
+	    $t add Status $status
+	    $t add VCS    $vcsname
+	    $t add Size   [m format size $size]
+	    if {$export ne {}} {
+		$t add Export $export
+	    }
+	    $t add {Last Check}  [set lc [m format epoch $updated]]
+	    $t add {Last Change} [color note [m format epoch $changed]]
+	    $t add Created       [m format epoch $created]
+
+	    set active 1
+	    foreach {label urls} $r {
+		$t add $label {}		
+		foreach url [lsort -dict $urls] {
+		    incr id
+		    set a "    "
+		    if {$active} {
+			set a [dict get	[m repo get [m repo id $url]] active]
+			if {$a} {
+			    set a "    "
+			} else {
+			    set a "off "
+			}
+		    }
+		    $t add $id "$a$url"
+		}
+		unset -nocomplain id
+		incr active -1
+	    }
+	    
+	    if {$stdout ne {}} {
+		$t add Operation [string trim $stdout]
+	    }
+	    if {$stderr ne {}} {
+		$t add "Notes & Errors" [string trim $stderr]
+	    }
+	}] show
+    }
+    OK
+}
+
+proc ::m::glue::SI {stderr} {
+    if {$stderr eq {}} {
+	return [color good OK]
+    } else {
+	set status images/bad.svg
+	return [color bad ATTEND]
+    }
+}
+
 proc ::m::glue::cmd_enable {flag config} {
     debug.m/glue {[debug caller] | }
     package require m::mset

@@ -296,6 +296,13 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	}
     } [m::cmdr::call glue cmd_vcs]
 
+    private details {
+	description {
+	    Show details of the specified repository, or current.
+	}
+	use .optional-repository
+    } [m::cmdr::call glue cmd_details]
+
     private disable {
 	description {
 	    Disable the specified repository, or current.
