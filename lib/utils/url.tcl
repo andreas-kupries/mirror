@@ -48,13 +48,22 @@ namespace eval ::m::url {
 # # ## ### ##### ######## ############# #####################
 
 proc ::m::url::ok {url rv {follow yes}} {
-    debug.m/url {}
+    debug.m/url {[proc ::http::Log {args} { package require cmdr::color ; puts [cmdr::color magenta [join $args { }]] }]}
     upvar 1 $rv resolved
 
     try {
 	set token [http::geturl $url -validate 1]
     } on error {e o} {
-	debug.m/url {E $e}
+	if {[string match "*software caused connection abort*" $e]} {
+	    # Do nothing, treat as ok. We have no token left however.
+	    # Unable to follow redirections. OTOH with such an abort
+	    # there is no redirection. So return as is.
+	    set resolved $url
+	    return 1
+	}
+	
+	debug.m/url {EM $e}
+	debug.m/url {EO $o}
 	#puts stderr "___ $e [list $o]"
 	#puts stderr $::errorInfo
 	debug.m/url {--> FAIL}
