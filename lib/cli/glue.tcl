@@ -815,7 +815,15 @@ proc ::m::glue::cmd_update {config} {
 		set deltat [IntervalFormat [expr {[clock seconds] - $now}]]
 
 		lassign $counts before after
-		if {$before != $after} {
+
+		if {$before < 0} {
+		    # Highlevel VCS url check failed for this store.
+		    # Results in the stderr log.
+		    lassign [m vcs caps $store] _ e
+		    m msg "[color bad Fail], in [color note $deltat]"
+		    m msg $e
+
+		} elseif {$before != $after} {
 		    set delta [expr {$after - $before}]
 		    if {$delta < 0} {
 			set mark bad

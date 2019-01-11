@@ -28,6 +28,7 @@ package require m::state
 package require m::exec
 package require m::msg
 package require m::futil
+package require m::url
 package require m::vcs::fossil
 package require m::vcs::git
 package require m::vcs::github
@@ -133,9 +134,29 @@ proc ::m::vcs::update {store vcs urls} {
     # store id -> Using for path.
     # vcs   id -> Decode to plugin name
     # urls     -  repo urls to use as sources
+
     set path  [Path $store]
     set vcode [code $vcs]
 
+    # Validate incoming urls to ensure that they are still present. No
+    # need to go for the vcs client when we know that it must
+    # fail. That said, we store our failure as a pseudo error log for
+    # other parts to pick up on.
+
+    m futil write $path/%stderr ""
+    m futil write $path/%stdout "Verifying urls ...\n"
+    set failed 0
+    foreach u $urls {
+	if {[m url ok $u xr]} continue
+	m futil append $path/%stderr "  Bad url: $u\n"
+	set failed 1
+    }
+    if {$failed} {
+	m futil append $path/%stderr "Unable to reach remotes\n"
+	# Fake 'no changes', and error
+	return {-1 -1}
+    }
+    
     CAP $path {
 	set counts [$vcode update $path $urls 0]
     }
