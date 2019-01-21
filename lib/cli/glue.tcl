@@ -708,9 +708,11 @@ proc ::m::glue::cmd_enable {flag config} {
     package require m::rolodex
     package require m::store
 
+    set op [expr {$flag ? "Enabling" : "Disabling"}]
+
     m db transaction {
 	set repo [$config @repository]
-	m msg "Disabling [color note [m repo name $repo]] ..."
+	m msg "$op [color note [m repo name $repo]] ..."
 
 	set rinfo [m repo get $repo]
 	dict with rinfo {}
@@ -930,13 +932,14 @@ proc ::m::glue::cmd_update {config} {
 		set counts [m store update $store $nowcycle $now]
 		set deltat [IntervalFormat [expr {[clock seconds] - $now}]]
 
-		lassign $counts before after
+		lassign $counts before after remotes
+		set prim [lindex $remotes 0]
 
 		if {$before < 0} {
 		    # Highlevel VCS url check failed for this store.
 		    # Results in the stderr log.
 		    lassign [m vcs caps $store] _ e
-		    m msg "[color bad Fail], in [color note $deltat]"
+		    m msg "[color bad Fail], in [color note $deltat] ([color note $prim])"
 		    m msg $e
 
 		} elseif {$before != $after} {
@@ -948,11 +951,11 @@ proc ::m::glue::cmd_update {config} {
 			set delta +$delta
 		    }
 		    # TODO: Bring delta-rev (and delta-size) into the site.
-		    m msg "[color note Changed] $before $after ([color $mark $delta]), in [color note $deltat]"
+		    m msg "[color note Changed] $before $after ([color $mark $delta]), in [color note $deltat] ([color note $prim])"
 		} elseif {$verbose} {
-		    m msg "[color note "No changes"], in [color note $deltat]"
+		    m msg "[color note "No changes"], in [color note $deltat] ([color note $prim])"
 		} else {
-		    m msg "No changes, in $deltat"
+		    m msg "No changes, in $deltat ([color note $prim])"
 		}
 	    }
 	}
