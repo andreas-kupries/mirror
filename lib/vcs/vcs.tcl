@@ -156,9 +156,15 @@ proc ::m::vcs::update {store vcs urls} {
 	# Fake 'no changes', and error
 	return {-1 -1}
     }
-    
-    CAP $path {
-	set counts [$vcode update $path $urls 0]
+
+    try {
+	CAP $path {
+	    set counts [$vcode update $path $urls 0]
+	}
+    } on error {e o} {
+	# Fake 'no changes', and error.
+	# Note, CAP already saved the errorInfo into %stderr
+	return {-1 -1}
     }
 
     debug.m/vcs {==> ($counts)}
@@ -415,6 +421,10 @@ proc ::m::vcs::CAP {path script} {
 	debug.m/vcs {Caught}
 	debug.m/vcs {-- $o}
 	debug.m/vcs {M: $e}
+
+	m exec capture off
+	m futil append $path/%stderr \nCaught:\n\n$::errorInfo\n\n
+
 	return {*}$o $e
     } finally {
 	m exec capture off
