@@ -14,6 +14,7 @@
 # @@ Meta End
 
 # # ## ### ##### ######## ############# ######################
+package provide m::glue 0
 
 package require Tcl 8.5
 package require cmdr::color
@@ -52,6 +53,9 @@ proc ::m::glue::gen_limit {p} {
     package require m::state
 
     set limit [m state limit]
+    if {$limit == 0} {
+	set limit [expr {[$p config @th]-7}]
+    }
 
     debug.m/glue {[debug caller] | [$p config] }
     debug.m/glue {[debug caller] | --> $limit }
@@ -533,7 +537,7 @@ proc ::m::glue::cmd_add {config} {
     m db transaction {
 	Add $config
     }
-    ShowCurrent
+    ShowCurrent $config
     SiteRegen
     OK
 }
@@ -580,9 +584,21 @@ proc ::m::glue::cmd_remove {config} {
 	m rolodex commit
     }
 
-    ShowCurrent
+    ShowCurrent $config
     SiteRegen
     OK
+}
+
+proc ::m::glue::L {text} {
+    upvar 1 w w
+    set r {}
+    foreach line [split $text \n] {
+	if {[string length $line] > $w} {
+	    set line [string range $line 0 ${w}-5]...
+	}
+	lappend r $line
+    }
+    join $r \n
 }
 
 proc ::m::glue::cmd_details {config} {
@@ -591,7 +607,12 @@ proc ::m::glue::cmd_details {config} {
     package require m::repo
     package require m::rolodex
     package require m::store
+    package require linenoise
 
+    set w [$config @tw] ;#linenoise columns
+    # table/d -> 2 columns, 7 overhead, 1st col 14 wide =>
+    set w [expr {$w - 21}] ;# max width for col 2.
+    
     m db transaction {
 	set repo [$config @repository]
 	m msg "Details of [color note [m repo name $repo]] ..."
@@ -639,7 +660,9 @@ proc ::m::glue::cmd_details {config} {
 
 	    set active 1
 	    foreach {label urls} $r {
-		$t add $label {}		
+		$t add $label "\#[llength $urls]"
+		# TODO: options to show all, part, none
+		if {$label eq "Forks"} break
 		foreach url [lsort -dict $urls] {
 		    incr id
 		    set a "    "
@@ -651,17 +674,18 @@ proc ::m::glue::cmd_details {config} {
 			    set a "off "
 			}
 		    }
-		    $t add $id "$a$url"
+		    $t add $id [L "$a$url"]
 		}
 		unset -nocomplain id
 		incr active -1
 	    }
-	    
+
+	    # TODO: Options to show only log size
 	    if {$stdout ne {}} {
-		$t add Operation [string trim $stdout]
+		$t add Operation [L [string trim $stdout]]
 	    }
 	    if {$stderr ne {}} {
-		$t add "Notes & Errors" [string trim $stderr]
+		$t add "Notes & Errors" [L [string trim $stderr]]
 	    }
 	}] show
     }
@@ -706,7 +730,7 @@ proc ::m::glue::cmd_enable {flag config} {
 	# filtering, i.e. exclusion of those without active remotes.
     }
 
-    ShowCurrent
+    ShowCurrent $config
     SiteRegen
     OK
 }
@@ -736,7 +760,7 @@ proc ::m::glue::cmd_rename {config} {
 	Rename $mset $newname
     }
 
-    ShowCurrent
+    ShowCurrent $config
     SiteRegen
     OK
 }
@@ -771,7 +795,7 @@ proc ::m::glue::cmd_merge {config} {
 	}
     }
 
-    ShowCurrent
+    ShowCurrent $config
     SiteRegen
     OK
 }
@@ -833,7 +857,7 @@ proc ::m::glue::cmd_split {config} {
 	}
     }
 
-    ShowCurrent
+    ShowCurrent $config
     SiteRegen
     OK
 }
@@ -841,7 +865,7 @@ proc ::m::glue::cmd_split {config} {
 proc ::m::glue::cmd_current {config} {
     debug.m/glue {[debug caller] | }
 
-    ShowCurrent
+    ShowCurrent $config
     OK
 }
 
@@ -855,7 +879,7 @@ proc ::m::glue::cmd_swap_current {config} {
 	m rolodex commit
     }
 
-    ShowCurrent
+    ShowCurrent $config
     OK
 }
 
@@ -869,7 +893,7 @@ proc ::m::glue::cmd_set_current {config} {
 	m rolodex commit
     }
 
-    ShowCurrent
+    ShowCurrent $config
     OK
 }
 
@@ -944,23 +968,31 @@ proc ::m::glue::cmd_updates {config} {
 
     m db transaction {
 	# TODO: get status (stderr), show - store id
-	set series [m store updates]
-	[table t {{Mirror Set} VCS Size Changed Updated Created} {
-	    foreach row $series {
-		# store mname vcode changed updated created size active remote
-		dict with row {}
-		if {$created eq "."} {
-		    $t add - - - - - -
-		    continue
-		}
-		set size    [m format size  $size]
-		set changed [m format epoch $changed]
-		set updated [m format epoch $updated]
-		set created [m format epoch $created]
-		$t add $mname $vcode $size $changed $updated $created
+	set series {}
+	foreach row [m store updates] {
+	    # store mname vcode changed updated created size active remote
+	    dict with row {}
+	    if {$created eq "."} {
+		lappend series [list - - - - - -]
+		continue
 	    }
-	}] show
+	    set size    [m format size  $size]
+	    set changed [m format epoch $changed]
+	    set updated [m format epoch $updated]
+	    set created [m format epoch $created]
+	    lappend series [list $mname $vcode $size $changed $updated $created]
+	}
     }
+    lassign [TruncW \
+		 {{Mirror Set} VCS Size Changed Updated Created} \
+		 {1 0 0 0 0 0} \
+		 [TruncH $series [$config @th]] [$config @tw]] \
+	titles series
+    [table t $titles {
+	foreach row $series {
+	    $t add {*}$row
+	}
+    }] show
     OK
 }
 
@@ -970,20 +1002,27 @@ proc ::m::glue::cmd_pending {config} {
     package require m::state
 
     m db transaction {
-	set series [m mset pending]
+	set series {}
 	set take   [m state take]
-
-	[table t {{} {Mirror Set} #Repositories} {
-	    foreach {mname numrepo} $series {
-		if {$take} {
-		    $t add * $mname $numrepo
-		    incr take -1
-		} else {
-		    $t add {} $mname $numrepo
-		}
+	foreach {mname numrepo} [m mset pending] {
+	    if {$take} {
+		lappend series [list * $mname $numrepo]
+		incr take -1
+	    } else {
+		lappend series [list {} $mname $numrepo]
 	    }
-	}] show
+	}
     }
+    lassign [TruncW \
+		 {{} {Mirror Set} #Repositories} \
+		 {0 1 0} \
+		 [TruncH $series [$config @th]] [$config @tw]] \
+	titles series
+    [table t $titles {
+	foreach row $series {
+	    $t add {*}$row
+	}
+    }] show
     OK
 }
 
@@ -1012,6 +1051,9 @@ proc ::m::glue::cmd_list {config} {
 		debug.m/glue {from state: $first}
 	    }
 	    set limit [$config @limit]
+	    if {$limit == 0} {
+		set limit [expr {[$p config @th]-7}]
+	    }
 
 	    lassign [m repo get-n $first $limit] next series
 
@@ -1027,27 +1069,36 @@ proc ::m::glue::cmd_list {config} {
 	    m rolodex push [dict get $row id]
 	    incr n
 	}
-
-	# See also ShowCurrent
-	# TODO: extend list with store times ?
-	[table t {Tag {} Repository Set VCS Size} {
-	    set idx -1
-	    foreach row $series {
-		dict with row {}
-		# name url id vcode sizekb active
-		incr idx
-		set url [color note $url]
-		set ix  [m rolodex id $id]
-		set tag {}
-		if {$ix ne {}} { lappend tag @$ix }
-		if {$idx == ($n-2)} { lappend tag @p }
-		if {$idx == ($n-1)} { lappend tag @c }
-		set a [expr {$active ? "A" : "-"}]
-		$t add $tag $a $url $name $vcode [m format size $sizekb]
-	    }
-	}] show
+	
+	set idx -1
+	foreach row $series {
+	    dict with row {}
+	    # name url id vcode sizekb active
+	    incr idx
+	    #set url [color note $url]
+	    set ix  [m rolodex id $id]
+	    set tag {}
+	    if {$ix ne {}} { lappend tag @$ix }
+	    if {$idx == ($n-2)} { lappend tag @p }
+	    if {$idx == ($n-1)} { lappend tag @c }
+	    set a [expr {$active ? "A" : "-"}]
+	    lappend table [list $tag $a $url $name $vcode [m format size $sizekb]]
+	    # ................. 0    1   2    3    4      5
+	}
     }
 
+    # See also ShowCurrent
+    # TODO: extend list with store times ?
+    lassign [TruncW \
+		 {Tag {} Repository Set VCS Size} \
+		 {0 0 1 2 0 0} \
+		 $table [$config @tw]] \
+	titles series
+    [table t $titles {
+	foreach row $series {
+	    $t add {*}[C $row 2 note] ;# 2 => url
+	}
+    }] show
     OK
 }
 
@@ -1083,8 +1134,12 @@ proc ::m::glue::cmd_limit {config} {
 	set n [m state limit]
     }
 
-    set e [expr {$n == 1 ? "entry" : "entries"}]
-    m msg "Per list/rewind, show up to [color note $n] $e"
+    if {$n == 0} {
+	m msg "Per list/rewind, [color note {adjust to terminal height}]"
+    } else {
+	set e [expr {$n == 1 ? "entry" : "entries"}]
+	m msg "Per list/rewind, show up to [color note $n] $e"
+    }
     OK
 }
 
@@ -1094,15 +1149,24 @@ proc ::m::glue::cmd_submissions {config} {
 
     m db transaction {
 	# Dynamic: Description, Submitter
-	[table t {{} When Url VCS Description Email Submitter} {
-	    foreach {id when url vcode desc email submitter} [m submission all] {
-		set id %$id
-		set when [m format epoch $when]
+	set series {}
+	foreach {id when url vcode desc email submitter} [m submission all] {
+	    set id %$id
+	    set when [m format epoch $when]
 
-		$t add $id $when $url $vcode $desc $email $submitter
-	    }
-	}] show
+	    lappend series [list $id $when $url $vcode $desc $email $submitter]
+	}
     }
+    lassign [TruncW \
+		 {{} When Url VCS Description Email Submitter} \
+		 {0 0 2 0 3 0 1} \
+		 $series [$config @tw]] \
+	titles series
+    [table t $titles {
+	foreach row $series {
+	    $t add {*}[C $row 2 note] ;# 2 => url
+	}
+    }] show
     OK
 }
 
@@ -1111,12 +1175,21 @@ proc ::m::glue::cmd_rejected {config} {
     package require m::submission
 
     m db transaction {
-	[table t {Url Reason} {
-	    foreach {url reason} [m submission rejected] {
-		$t add $url $reason
-	    }
-	}] show
+	set series {}
+	foreach {url reason} [m submission rejected] {
+	    lappend series [list $url $reason]
+	}
     }
+    lassign [TruncW \
+		 {Url Reason} \
+		 {1 0} \
+		 $series [$config @tw]] \
+	titles series
+    [table t $titles {
+	foreach row $series {
+	    $t add {*}[C $row 0 note] ;# 0 => url
+	}
+    }] show
     OK
 }
 
@@ -1846,7 +1919,7 @@ proc ::m::glue::Bool {flag} {
     return [expr {$flag ? "[color good on]" : "[color bad off]"}]
 }
 
-proc ::m::glue::ShowCurrent {} {
+proc ::m::glue::ShowCurrent {config} {
     debug.m/glue {[debug caller] | }
     package require m::repo
     package require m::rolodex
@@ -1855,31 +1928,42 @@ proc ::m::glue::ShowCurrent {} {
 	set rolodex [m rolodex get]
 	set n [llength $rolodex]
 	if {$n} {
-	    [table t {Tag Repository Set VCS} {
-		$t borders 0
-		$t headers 0
-		set id -1
-		foreach r $rolodex {
-		    incr id
-		    set rinfo [m repo get $r]
-		    dict with rinfo {}
-		    # -> url	: repo url
-		    #    vcs	: vcs id
-		    #    vcode	: vcs code
-		    #    mset	: mirror set id
-		    #    name	: mirror set name
-		    #    store  : store id, of backing store for the repo
-
-		    set url [color note $url]
-		    lappend tag @$id
-		    if {$id == ($n-2)} { lappend tag @p }
-		    if {$id == ($n-1)} { lappend tag @c }
-		    $t add $tag $url $name $vcode
-		    unset tag
-		}
-	    }] show
+	    set id -1
+	    set series {}
+	    foreach r $rolodex {
+		incr id
+		set rinfo [m repo get $r]
+		dict with rinfo {}
+		# -> url	: repo url
+		#    vcs	: vcs id
+		#    vcode	: vcs code
+		#    mset	: mirror set id
+		#    name	: mirror set name
+		#    store  : store id, of backing store for the repo
+		
+		lappend tag @$id
+		if {$id == ($n-2)} { lappend tag @p }
+		if {$id == ($n-1)} { lappend tag @c }
+		lappend series [list $tag $url $name $vcode]
+		unset tag
+	    }
 	}
     }
+    if {$n} {
+	lassign [TruncW \
+		     {{} {} {} {}} \
+		     {0 1 3 0} \
+		     $series [$config @tw]] \
+	    titles series
+	[table t $titles {
+	    $t borders 0
+	    $t headers 0
+	    foreach row $series {
+		$t add {*}[C $row 1 note] ;# 1 => url
+	    }
+	}] show
+    }
+    return
 }
 
 proc ::m::glue::OK {} {
@@ -2125,6 +2209,220 @@ proc ::m::glue::Ping {text} {
     return
 }
 
+proc ::m::glue::C {row index color} {
+    return [lreplace $row $index $index [color $color [lindex $row $index]]]
+}
+
+proc ::m::glue::W {wv} {
+    upvar 1 $wv wc
+    set cols [lsort -integer [array names wc]]
+    set ww {}
+    foreach c $cols { lappend ww $wc($c) }
+    return $ww
+}
+
+proc ::m::glue::TruncH {series height} {
+    incr height -4 ; # table overhead (header and borders)
+    incr height -3 ; # lines before and after table (prompt with command + OK)
+    if {[llength $series] > $height} {
+	set     series [lrange $series 0 ${height}-2]
+	lappend series [lrepeat [llength [lindex $series 0]] ...]
+    }
+    return $series
+}
+
+##
+## TODO column specific minimum widths
+## TODO column specific shaving (currently all on the right, urls: left better, or middle)
+## TODO column specific shave commands (ex: size rounding)
+## TODO 
+## TODO 
+##
+
+proc ::m::glue::TruncW {titles weights series width} {
+    # series  :: list (row)
+    # row     :: list (0..n-1 str)
+    # weights :: list (0..k-1 int)
+    # titles  :: list (0..n-1 str) - Hard min (for now: include in full width)
+    # width   :: int 'terminal width'
+    #
+    # n < k => Ignore superfluous weights.
+    # n > k => Pad to the right with weight 0.
+
+    set n [llength [lindex $series 0]]
+    set k [llength $weights]
+
+    debug.m/glue { terminal     : $width }
+    debug.m/glue { len(series)  : [llength $series] }
+    debug.m/glue { len(row)     : $n }
+    debug.m/glue { len(weights) : $k ($weights)}
+    
+    if {$n < $k} {
+	set d [expr {$k - $n}]
+	set weights [lreplace $weights end-$d end]
+	# TODO: Check arith (off by x ?)
+    }
+    if {$n > $k} {
+	set d [expr {$n - $k}]
+	lappend weights {*}[lrepeat $d 0]
+    }
+
+    # Remove table border overhead to get usable terminal space
+    set width [expr {$width - (3*$n+1)}]
+
+    debug.m/glue { terminal'    : $width (-[expr {3*$n+1}]) }
+    debug.m/glue { weights'     : ($weights)}
+    
+    # compute series column widths (max len) for all columns.  If the
+    # total width is larger than width we have to shrink by weight.
+    # Note: Min column width after shrinking is 6 (because we want to
+    # show something for each column).  If shrink by weight goes below
+    # this min width bump up to it and remove the needed characters
+    # from the weight 0 columns, but not below min width.
+    set min 6
+
+    while {$k} { incr k -1 ; set wc($k) 0 }
+    
+    foreach row [linsert $series 0 $titles] {
+	set col 0
+	foreach el $row {
+	    set n [string length $el]
+	    if {$n > $wc($col)} { set wc($col) $n }
+	    incr col
+	}
+    }
+
+    debug.m/glue { col.widths  = [W wc] }
+    
+    # max width over all rows.
+
+    set fw 0
+    foreach {_ v} [array get wc] { incr fw $v }
+
+    debug.m/glue { full        = $fw vs terminal $width }
+	
+    # Nothing to do if the table fits already
+    if {$fw <= $width} { return [list $titles $series] }
+
+    # No fit, start shrinking.
+    
+    # Sum of weights to apportion
+    set tw 0
+    foreach w $weights { incr tw $w }
+
+    # Number of characters over the allowed width.
+    set over [expr {$fw - $width}]
+    debug.m/glue { over         : $over }
+    
+    # Shrink columns per weight
+    set col 0 ; set removed 0
+    foreach w $weights {
+	set c $col ; incr col
+	if {!$w} continue
+	set drop [format %.0f [expr {double($over * $w)/$tw}]]
+	incr removed $drop
+	incr wc($c) -$drop
+    }
+    # --assert: removed >= over
+    debug.m/glue { removed      : $removed }
+    # Rounding may cause removed < over, leaving too much chracters behind.
+    # Run a constant shaver, on the weighted cols
+    set over [expr {$over - $removed}]
+    if {$over} { ShaveWeighted wc $weights $over }
+    
+    debug.m/glue { col.widths  = [W wc] }
+
+    # If a weighted column has become to small, i.e. less than the
+    # allowed min, in the above we bump it back to that width and will
+    # shave these then from other columns.
+    set col 0
+    set under 0
+    foreach w $weights {
+	set c $col ; incr col
+	if {!$w || ($wc($c) >= $min)} continue
+	incr under [expr {$min - $wc($c)}]
+	set wc($c) $min
+    }
+
+    debug.m/glue { under        : $under }
+    debug.m/glue { col.widths  = [W wc] }
+    
+    # Claw back the added characters from other columns now, as much
+    # as we can.  We try to shrink other weighted columns first before
+    # goign for the unweighted, i.e. strongly fixed ones.
+    if {$under} { set under [ShaveWeighted   wc $weights $under] }
+    if {$under} { set under [ShaveUnweighted wc $weights $under] }
+
+    debug.m/glue { col.widths  = [W wc] }
+    
+    # At last, truncate the series elements to the chosen column
+    # widths. Same for the titles.
+    set new {}
+    foreach row $series {
+	set col 0
+	set newrow {}
+	foreach el $row {
+	    if {[string length $el] > $wc($col)} {
+		set el [string range $el 0 $wc($col)-1]
+	    }
+	    lappend newrow $el
+	    incr col
+	}
+	lappend new $newrow
+    }
+
+    set col 0
+    set newtitles {}
+    foreach el $titles {
+	if {[string length $el] > $wc($col)} {
+	    set el [string range $el 0 $wc($col)-1]
+	}
+	lappend newtitles $el
+	incr col
+    }
+    
+    return [list $newtitles $new]
+}
+
+proc ::m::glue::ShaveWeighted {wv weights shave} {
+    set min 6 ;# todo place in common
+    upvar 1 $wv wc
+    set changed 1
+    while {$changed} {
+	set changed 0
+	set col 0
+	foreach w $weights {
+	    set c $col ; incr col
+	    if {$w} continue
+	    if {$wc($c) <= $min} continue
+	    incr wc($c) -1
+	    incr shave -1
+	    set changed 1
+	    if {!$shave} { return 0 }
+	}
+    }
+    return $shave
+}
+
+proc ::m::glue::ShaveUnweighted {wv weights shave} {
+    set min 6 ;# todo place in common
+    upvar 1 $wv wc
+    set changed 1
+    while {$changed} {
+	set changed 0
+	set col 0
+	foreach w $weights {
+	    set c $col ; incr col
+	    if {!$w} continue
+	    if {$wc($c) <= $min} continue
+	    incr wc($c) -1
+	    incr shave -1
+	    set changed 1
+	    if {!$shave} { return 0 }
+	}
+    }
+    return $shave
+}
+
 # # ## ### ##### ######## ############# ######################
-package provide m::glue 0
 return

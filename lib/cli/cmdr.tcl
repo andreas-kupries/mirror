@@ -299,7 +299,8 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	    }
 	    input limit {
 		New number of repositories to show by list and rewind.
-	    } { optional ; validate cmdr::validate::posint }
+		"auto" by default, adjusting itself to the terminal height.
+	    } { optional ; validate [m::cmdr::vt limit] }
 	} [m::cmdr::call glue cmd_limit]
     }
     
@@ -533,7 +534,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	    Defaults to the `limit`.
 	} {
 	    alias L
-	    validate cmdr::validate::posint
+	    validate [m::cmdr::vt limit]
 	    generate [m::cmdr::call glue gen_limit]
 	}
 	input pattern {

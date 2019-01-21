@@ -74,7 +74,9 @@ proc ::m::rolodex::next {} {
 proc ::m::rolodex::size {} {
     debug.m/rolodex {}
     Load ; variable current
-    return [expr {min([m state limit],[llength $current])}]
+    set limit [m state limit]
+    if {!$limit} { set limit 25 }
+    return [expr {min($limit,[llength $current])}]
 }
 
 proc ::m::rolodex::push {repo} {
@@ -202,6 +204,7 @@ proc ::m::rolodex::Save {} {
     variable current
 
     set limit [m state limit]
+    if {!$limit} { set limit 25 }
     if {[llength $current] > $limit} {
 	# limit => end-(limit-1)
 	# Ex: 2 => end-1
