@@ -58,6 +58,8 @@ proc ::m::vcs::git::LogNormalize {o e} {
 	{^origin }
 	{^m-vcs-}
 	{warning: redirecting to}
+	{Auto packing}
+	{manual housekeeping}
     } $e] out err
 
     if {[llength $out]} { lappend o {*}$out }
