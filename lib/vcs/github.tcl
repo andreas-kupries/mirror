@@ -270,7 +270,9 @@ proc ::m::vcs::github::ForksRemote {path} {
     } trap CHILDSTATUS {e o} {
 	set possibleforks {}
     }
-    
+
+    ForksSave $path -remote-unverified $possibleforks
+
     set forks {}
     foreach fork $possibleforks {
 	debug.m/vcs/github {Verify $fork}
@@ -293,6 +295,7 @@ proc ::m::vcs::github::ForksRemote {path} {
     }
 
     #puts PULLED
+    ForksSave $path -remote $forks
     return $forks
 }
 
@@ -307,9 +310,9 @@ proc ::m::vcs::github::OriginLoad {path} {
     return [string trim [m futil cat $path/origin]]
 }
 
-proc ::m::vcs::github::ForksSave {path forks} {
+proc ::m::vcs::github::ForksSave {path suffix forks} {
     debug.m/vcs/github {}
-    m futil write $path/forks [join $forks \n]
+    m futil write $path/forks$suffix [join $forks \n]
     return
 }
 
@@ -327,6 +330,8 @@ proc ::m::vcs::github::ForksLocal {path} {
 	debug.m/vcs/github {$label = $url => $fk}
 	lappend r $fk
     }
+
+    ForksSave $path -local $r
     return $r
 }
 
