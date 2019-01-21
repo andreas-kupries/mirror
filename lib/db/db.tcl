@@ -451,5 +451,26 @@ proc ::m::db::SETUP-201812042200 {} {
     return
 }
 
+proc ::m::db::SETUP-201901112300 {} {
+    debug.m/db {}
+    # Added column `attend` to `store_times`.
+    # Column records presence of issues in the
+    # last update for the store.
+
+    D m::db
+    # - -- --- ----- -------- -------------
+    C store    INTEGER  NOT NULL  ^store PRIMARY KEY
+    C created  INTEGER  NOT NULL
+    C updated  INTEGER  NOT NULL
+    C changed  INTEGER  NOT NULL
+    C attend   INTEGER  NOT NULL
+    < store_times  store updated updated changed '0'
+    # fake "no issues" during creation ...........^
+
+    package require m::store
+    m::store::InitialIssues
+    return
+}
+
 # # ## ### ##### ######## ############# #####################
 return

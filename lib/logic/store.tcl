@@ -35,7 +35,7 @@ namespace eval ::m::store {
     namespace export \
 	add remove move rename merge split update has check \
 	id vcs-name updates by-name by-size by-vcs move-location \
-	get remotes total-size count search
+	get remotes total-size count search issues
     namespace ensemble create
 }
 
@@ -104,6 +104,8 @@ proc ::m::store::update {store cycle now} {
 
     set remotes [Remotes $store]
     set counts  [m vcs update $store $vcs $remotes]
+
+    Attend $store
     lassign $counts before after
     if {$after != $before} {
 	m db eval {
@@ -120,7 +122,7 @@ proc ::m::store::update {store cycle now} {
 	    WHERE store = :store
 	}
     }
-    return $counts
+    return [linsert $counts end $remotes]
 }
 
 proc ::m::store::move {store msetnew} {
@@ -174,6 +176,7 @@ proc ::m::store::get {store} {
     debug.m/store {}
     m db eval {
 	SELECT 'size'    , S.size_kb
+	,      'mset'    , S.mset
 	,      'vcs'     , S.vcs
 	,      'vcsname' , V.name
 	,      'updated' , T.updated
@@ -260,6 +263,45 @@ proc ::m::store::search {substring} {
 	if {
 	    [string first $sub [string tolower $mname]] < 0
 	} continue
+	Srow series ;# upvar column variables
+    }
+    return $series
+}
+
+proc ::m::store::issues {} {
+    debug.m/store {}
+
+    set series {}
+    set last {}
+    m db eval {
+	SELECT S.id      AS store
+	,      N.name    AS mname
+	,      V.code    AS vcode
+	,      T.changed AS changed
+	,      T.updated AS updated
+	,      T.created AS created
+	,      S.size_kb AS size
+	,      (SELECT count (*)
+		FROM  repository R
+		WHERE R.mset = S.mset
+		AND   R.vcs  = S.vcs) AS remote
+	,      (SELECT count (*)
+		FROM  repository R
+		WHERE R.mset = S.mset
+		AND   R.vcs  = S.vcs
+		AND   R.active) AS active
+	FROM store_times            T
+	,    store                  S
+	,    mirror_set             M
+	,    version_control_system V
+	,    name                   N
+	WHERE T.store   = S.id
+	AND   T.attend  = 1    -- Flag for issues
+	AND   S.mset    = M.id
+	AND   S.vcs     = V.id
+	AND   M.name    = N.id
+	ORDER BY mname ASC, vcode ASC, size ASC
+    } {
 	Srow series ;# upvar column variables
     }
     return $series
@@ -534,6 +576,18 @@ proc ::m::store::Size {store} {
     return
 }
 
+proc ::m::store::Attend {store} {
+    debug.m/store {}
+
+    set attend [expr {[lindex [m vcs caps $store] 1] ne {}}]
+    m db eval {
+	UPDATE store_times
+	SET    attend = :attend
+	WHERE  store  = :store
+    }
+    return
+}
+
 proc ::m::store::Add {vcs mset} {
     debug.m/store {}
     m db eval {
@@ -548,7 +602,12 @@ proc ::m::store::Add {vcs mset} {
     m db eval {
 	INSERT
 	INTO   store_times
-	VALUES ( :store, :now, :now, :now )
+	VALUES ( :store -- ^store
+	,	 :now   -- created
+	,	 :now   -- updated
+	,	 :now   -- changed
+	,	 0      -- attend
+	)
     }
     return $store
 }
@@ -580,6 +639,17 @@ proc ::m::store::InitialSizes {} {
 	FROM   store
     } {
 	Size $id
+    }
+    return
+}
+
+proc ::m::store::InitialIssues {} {
+    debug.m/store {}
+    m db eval {
+	SELECT id
+	FROM   store
+    } {
+	Attend $id
     }
     return
 }

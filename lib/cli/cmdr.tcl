@@ -518,6 +518,13 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	}
     } [m::cmdr::call glue cmd_pending]
 
+    private issues {
+	use .cms.in
+	description {
+	    Show list of mirror sets / stores with issues.
+	}
+    } [m::cmdr::call glue cmd_issues]
+
     private list {
 	use .cms.nav
 	description {

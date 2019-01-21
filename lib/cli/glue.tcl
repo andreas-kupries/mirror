@@ -1029,6 +1029,56 @@ proc ::m::glue::cmd_pending {config} {
     OK
 }
 
+proc ::m::glue::cmd_issues {config} {
+    debug.m/glue {[debug caller] | }
+    package require m::mset
+    package require m::repo
+    package require m::rolodex
+    package require m::store
+
+    m db transaction {
+	set series {}
+	foreach row [m store issues] {
+	    dict with row {}
+	    # store mname vcode changed updated created size active remote
+	    set size [m format size $size]
+
+	    # urls of repos associated with the store
+	    set urls [lindex [m store remotes $store] 0]
+		
+	    foreach url $urls {
+		set rid [m repo id $url]
+		lappend series [list $rid $url $mname $vcode $size]
+		m rolodex push $rid
+	    }
+	}
+	m rolodex commit
+	set n [llength $series]
+
+	set table {}
+	foreach row $series {
+	    incr n -1
+	    set row [lassign $row rid]
+	    set dex [m rolodex id $rid]
+	    set tag @$dex
+	    if {$n == 1} { lappend tag @p }
+	    if {$n == 0} { lappend tag @c }
+	    lappend table [list $tag {*}$row]
+	}
+    }
+    lassign [TruncW \
+		 {Tag Repository Set VCS Size} \
+		 {0 1 3 0 0} \
+		 $table [$config @tw]] \
+	titles series
+    [table t $titles {
+	foreach row $series {
+	    $t add {*}[C $row 1 note] ;# 1 => url
+	}
+    }] show
+    OK
+}
+
 proc ::m::glue::cmd_list {config} {
     debug.m/glue {[debug caller] | }
     package require m::repo

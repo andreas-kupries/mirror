@@ -82,7 +82,7 @@ proc ::m::web::site::build {{mode verbose}} {
 	set byname [m store by-name]
 	set bysize [m store by-size]
 	set byvcs  [m store by-vcs]
-	set issues [ErrOnly [NameFill [DropSep $byname]]]
+	set issues [m store issues]
 
 	dict set stats issues  [set n [llength $issues]]
 	dict set stats size    [m store total-size]
@@ -90,14 +90,11 @@ proc ::m::web::site::build {{mode verbose}} {
 	dict set stats nmsets  [m mset count]
 	dict set stats nstores [m store count]
 
-	List "By Last Change"     index.md      $bytime $stats
-	List "By Name, VCS, Size" index_name.md $byname $stats
-	List "By Size, Name, VCS" index_size.md $bysize $stats
-	List "By VCS, Name, Size" index_vcs.md  $byvcs  $stats
-
-	if {$n} {
-	    List "Issues by Name" index_issues.md $issues $stats
-	}
+	List "By Last Change"     index.md        $bytime $stats
+	List "By Name, VCS, Size" index_name.md   $byname $stats
+	List "By Size, Name, VCS" index_size.md   $bysize $stats
+	List "By VCS, Name, Size" index_vcs.md    $byvcs  $stats
+	List "Issues by Name"     index_issues.md $issues $stats
 
 	# + TODO: submissions pending, submission responses, past rejections
 
@@ -107,45 +104,6 @@ proc ::m::web::site::build {{mode verbose}} {
 }
 
 # # ## ### ##### ######## ############# #####################
-
-proc ::m::web::site::ErrOnly {series} {
-    debug.m/web/site {}
-    set tmp {}
-    foreach row $series {
-	set img [SI [lindex [m vcs caps [dict get $row store]] 1]]
-	if {$img eq {}} continue
-	lappend tmp $row
-    }
-
-    return $tmp
-}
-
-proc ::m::web::site::NameFill {series} {
-    debug.m/web/site {}
-    set tmp {}
-    set last {}
-    foreach row $series {
-	set name [dict get $row mname]
-	if {$name eq {}} { set name $last }
-	dict set row mname $name
-	set last $name
-	lappend tmp $row
-    }
-
-    return $tmp
-}
-
-proc ::m::web::site::DropSep {series} {
-    debug.m/web/site {}
-
-    set tmp {}
-    foreach row $series {
-	if {[dict get $row created] eq "."} continue
-	lappend tmp $row
-    }
-
-    return $tmp
-}
 
 proc ::m::web::site::Site {mode action script} {
     debug.m/web/site {}
@@ -203,7 +161,6 @@ proc ::m::web::site::Store {mset mname store} {
     # Assemble page ...
 
     append text [H $mname]
-
     append text |||| \n
     append text |---|---|---| \n
 
@@ -271,12 +228,7 @@ proc ::m::web::site::List {suffix page series stats} {
     set hsize  [L index_size.html   Size         ]
     set hname  [L index_name.html   {Mirror Set} ]
     set hchan  [L index.html        Changed      ]
-
-    if {$issues} {
-	set issues [L index_issues.html "Issues: $issues" ]
-    } else {
-	set issues {}
-    }
+    set issues [L index_issues.html "Issues: $issues" ]
 
     append text "Sets: $nmsets"
     append text " Repos: $nrepos"
