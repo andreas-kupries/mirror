@@ -193,6 +193,18 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	}]
     }
 
+    state tw {
+	Terminal Width. Auto supplied to all commands.
+    } { generate [lambda {args} {
+	linenoise columns
+    }] }
+
+    state th {
+	Terminal Height. Auto supplied to all commands.
+    } { generate [lambda {args} {
+	linenoise lines
+    }] }
+
     common .optional-mirror-set {
 	input mirror-set {
 	    The mirror set to operate on.
