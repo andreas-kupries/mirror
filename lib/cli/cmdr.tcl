@@ -246,10 +246,13 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	description {
 	    Management of the instance configuration.
 	}
+	common *all* -extend {
+	    section Instance Configuration
+	}
     
 	private show {
 	    description {
-		Show the configuration
+		Show the instance configuration (default)
 	    }
 	    option all {
 		Show site and mail configuration as well
@@ -289,14 +292,28 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
     }
     
     # # ## ### ##### ######## ############# ######################
+    common .cms {
+	section Instance Content
+    }
+    common .cms.in {
+	section Instance Content Inspection
+    }
+    common .cms.nav {
+	section Instance Content Navigation
+    }
+    common .cms.ex {
+	section Instance Content Exchange
+    }
 
     private vcs {
+	use .cms.in
 	description {
 	    List supported version control systems
 	}
     } [m::cmdr::call glue cmd_vcs]
 
     private details {
+	use .cms.in
 	description {
 	    Show details of the specified repository, or current.
 	}
@@ -304,6 +321,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
     } [m::cmdr::call glue cmd_details]
 
     private disable {
+	use .cms
 	description {
 	    Disable the specified repository, or current.
 	}
@@ -311,6 +329,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
     } [m::cmdr::call glue cmd_enable 0]
 
     private enable {
+	use .cms
 	description {
 	    Enable the specified repository, or current.
 	}
@@ -318,6 +337,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
     } [m::cmdr::call glue cmd_enable 1]
 
     private remove {
+	use .cms
 	description {
 	    Removes specified repository, or current.
 	}
@@ -325,6 +345,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
     } [m::cmdr::call glue cmd_remove]
 
     private add {
+	use .cms
 	description {
 	    Add repository. The new repository is placed into its own
 	    mirror set. Command tries to auto-detect vcs type if not
@@ -356,6 +377,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
     } [m::cmdr::call glue cmd_add]
 
     private rename {
+	use .cms
 	description {
 	    Change the name of the specified mirror set, or the mirror
 	    set indicated by the current repository.
@@ -369,6 +391,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
     } [m::cmdr::call glue cmd_rename]
 
     private merge {
+	use .cms
 	description {
 	    Merges the specified mirror sets into a single mirror
 	    set. When only one mirror set is specified the set of the
@@ -386,6 +409,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
     } [m::cmdr::call glue cmd_merge]
 
     private split {
+	use .cms
 	description {
 	    Split the specified or current repository from its mirror
 	    set. Generates a new mirror set for the repository. The
@@ -399,6 +423,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
     } [m::cmdr::call glue cmd_split]
 
     private current {
+	use .cms.nav
 	description {
 	    Shows the rolodex.
 	}
@@ -406,6 +431,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
     alias @
 
     private export {
+	use .cms.ex
 	description {
 	    Write the known set of repositories and mirror sets to
 	    stdout, in a form suitable for (re)import.
@@ -413,6 +439,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
     } [m::cmdr::call glue cmd_export]
 
     private import {
+	use .cms.ex
 	description {
 	    Read a set of repositories and mirror sets from the
 	    specified file, or stdin, and add them here. Ignores known
@@ -432,6 +459,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
     } [m::cmdr::call glue cmd_import]
 
     private set-current {
+	use .cms.nav
 	description {
 	    Makes the specified repository current.
 	}
@@ -441,12 +469,14 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
     alias go
 
     private swap {
+	use .cms.nav
 	description {
 	    Swap current and previous repository
 	}
     } [m::cmdr::call glue cmd_swap_current]
 
     private update {
+	use .cms
 	description {
 	    Runs an update cycle on the specified mirror sets. When no
 	    mirror sets are specified use the next `take` number of
@@ -458,6 +488,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
     } [m::cmdr::call glue cmd_update]
 
     private updates {
+	use .cms.in
 	description {
 	    Show compressed history of past updates.
 	    Sorted by last changed, updated, created.
@@ -466,6 +497,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
     } [m::cmdr::call glue cmd_updates]
 
     private pending {
+	use .cms.in
 	description {
 	    Show list of currently pending mirror sets. I.e mirror
 	    sets waiting for an update.  Order shown is the order they
@@ -474,6 +506,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
     } [m::cmdr::call glue cmd_pending]
 
     private list {
+	use .cms.nav
 	description {
 	    Show (partial) list of the known repositories.
 	}
@@ -502,12 +535,14 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
     } [m::cmdr::call glue cmd_list]
 
     private reset {
+	use .cms.nav
 	description {
 	    Reset list state to first entry.
 	}
     } [m::cmdr::call glue cmd_reset]
 
     private rewind {
+	use .cms.nav
 	description {
 	    Like list, going backward through the set of repositories.
 	}
@@ -517,20 +552,27 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 
     officer submission {
 	description {
-	    Management of submissions, i.e. repositories
+	    Management of submissions, that is repositories
 	    proposed for mirroring.
+	}
+	common .cms.sub {
+	    section Submissions
+	}
+	common .cms.sub.in {
+	    section Submissions Inspection
 	}
     
 	private list {
+	    use .cms.sub.in
 	    description {
 		List the submissions waiting for moderation.  Submissions
 		are shown with a shorthand id for easier reference by accept
 		or reject.
 	    }
 	} [m::cmdr::call glue cmd_submissions]
-	default
 
 	private enter {
+	    use .cms.sub
 	    description {
 		Manual submission of url to moderate.
 	    }
@@ -559,6 +601,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	} [m::cmdr::call glue cmd_submit]
 
 	private accept {
+	    use .cms.sub
 	    description {
 		Accept the specified submissions.
 		Executes `add`, with all that entails.
@@ -600,6 +643,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	} [m::cmdr::call glue cmd_accept]
 
 	private reject {
+	    use .cms.sub
 	    description {
 		Reject the specified submissions.
 		Do (not) send mail as directed by the cause.
@@ -621,6 +665,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	alias decline
 
 	private drop {
+	    use .cms.sub
 	    description {
 		Remove the specified urls from the table of rejections.
 	    }
@@ -630,6 +675,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	} [m::cmdr::call glue cmd_drop]
 
 	private rejected {
+	    use .cms.sub.in
 	    description {
 		Show the table of rejected submissions, with associated
 		reasons.
@@ -645,13 +691,18 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 
     officer site {
 	description {
-	    Access to the site configuration
+	    Access to the site configuration, and site management
+	}
+
+	common .site {
+	    section Website
 	}
 
 	private show {
 	    description {
-		Show the entire site configuration
+		Show the entire site configuration (default).
 	    }
+	    section Website Configuration
 	} [m::cmdr::call glue cmd_siteconfig_show]
 	default
 
@@ -664,12 +715,14 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	    logo     site-logo     str    {path or url to site logo image}
 	} {
      	    private $cmd [string map [list V $v K $k D $d] {
+		section Website Configuration
 		description { Set or query D }
 		input value { The D } { optional ; validate V }
 	    }] [m::cmdr::call glue cmd_siteconfig $k $d]
 	}
 
 	private on {
+	    use .site
 	    description {
 		Activate site generation and update. This actions fails
 		if the site configuration is incomplete. On success it
@@ -682,12 +735,14 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	alias make
 
 	private off {
+	    use .site
 	    description {
 		Disable site generation and update
 	    }
 	} [m::cmdr::call glue cmd_site_off]
 
 	private sync {
+	    use .site
 	    description {
 		Sync main and site databases
 	    }
@@ -706,8 +761,9 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 
 	private show {
 	    description {
-		Show the entire mail configuration
+		Show the entire mail configuration (default).
 	    }
+	    section Submissions Mail Configuration
 	} [m::cmdr::call glue cmd_mailconfig_show]
 	default
 
@@ -718,11 +774,12 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	    pass   str                    {credentials for the mail account}
 	    tls    boolean                {TLS use to secure SMTP}
 	    sender str                    {nominal sender of all mail}
-	    header str                    {header text before generated content}
-	    footer str                    {footer text after generated content}
+	    header str                    {header text placed before generated content}
+	    footer str                    {footer text placed after generated content}
 	} {
      	    private $k [string map [list V $v K $k D $d] {
 		description { Set or query D }
+		section Submissions Mail Configuration
 		input value { The D } { optional ; validate V }
 	    }] [m::cmdr::call glue cmd_mailconfig mail-$k $d]
 	}
@@ -732,6 +789,10 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 		Manage the templates used in mail replies.
 		This is all about the different reasons for
 		rejecting a submission.
+	    }
+
+	    common *all* -extend {
+		section Submissions Mail Responses
 	    }
 
 	    common .reply {
@@ -751,12 +812,11 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 		} { validate str }
 	    }
 
-	    private show {
+	    private list {
 		description {
 		    Show the known reply templates.
 		}
 	    } [m::cmdr::call glue cmd_reply_show]
-	    default
 
 	    private add {
 		description {
@@ -781,7 +841,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 
 	    private change {
 		description {
-		    Change the text for known template
+		    Change the text for known reply template
 		}
 		use .reply
 		use .text
@@ -794,6 +854,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 		use .reply
 	    } [m::cmdr::call glue cmd_reply_default]
 	}
+	alias replies = reply list
     }
 
     # # ## ### ##### ######## ############# ######################
