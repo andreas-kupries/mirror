@@ -634,7 +634,8 @@ proc ::m::glue::cmd_details {config} {
 	    lappend r {*}$plugin
 	}
 
-	set sd  [m store get $store]
+	set path [m store path $store]
+	set sd   [m store get $store]
 	dict with sd {}
 	# -> size
 	#    vcs
@@ -649,6 +650,7 @@ proc ::m::glue::cmd_details {config} {
 
 	[table/d t {
 	    $t add Status $status
+	    $t add Store  $path
 	    $t add VCS    $vcsname
 	    $t add Size   [m format size $size]
 	    if {$export ne {}} {
@@ -1472,6 +1474,16 @@ proc ::m::glue::cmd_drop {config} {
     }
     SiteRegen
     OK
+}
+
+proc ::m::glue::cmd_test_mail_config {config} {
+    debug.m/glue {[debug caller] | }
+    package require m::mailer
+    package require m::mail::generator
+
+    m mailer to [$config @destination] \
+	[m mail generator test]
+    OK    
 }
 
 proc ::m::glue::cmd_test_vt_repository {config} {

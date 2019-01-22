@@ -897,6 +897,16 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	    section Advanced Debugging
 	}
 
+	private mail-setup {
+	    description {
+		Generate a test mail and send it using the current
+		mail configuration.
+	    }
+	    input destination {
+		The destination address to send the test mail to.
+	    } { }
+	} [m::cmdr::call glue cmd_test_mail_config]
+
 	private test-vt-repo {
 	    description {
 		Show the knowledge map used by the repository validator.
