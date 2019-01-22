@@ -35,7 +35,7 @@ namespace eval ::m::store {
     namespace export \
 	add remove move rename merge split update has check \
 	id vcs-name updates by-name by-size by-vcs move-location \
-	get remotes total-size count search issues
+	get remotes total-size count search issues disabled
     namespace ensemble create
 }
 
@@ -182,6 +182,16 @@ proc ::m::store::get {store} {
 	,      'updated' , T.updated
 	,      'changed' , T.changed
 	,      'created' , T.created
+	,      'attend'  , T.attend
+	,      'remote'  , (SELECT count (*)
+		FROM  repository R
+		WHERE R.mset = S.mset
+		AND   R.vcs  = S.vcs) AS remote
+	,      'active'  , (SELECT count (*)
+		FROM  repository R
+		WHERE R.mset = S.mset
+		AND   R.vcs  = S.vcs
+		AND   R.active) AS active
 	FROM   store                  S
 	,      store_times            T
 	,      version_control_system V
@@ -239,6 +249,7 @@ proc ::m::store::search {substring} {
 	,      T.changed AS changed
 	,      T.updated AS updated
 	,      T.created AS created
+	,      T.attend  AS attend
 	,      S.size_kb AS size
 	,      (SELECT count (*)
 		FROM  repository R
@@ -280,6 +291,7 @@ proc ::m::store::issues {} {
 	,      T.changed AS changed
 	,      T.updated AS updated
 	,      T.created AS created
+	,      T.attend  AS attend
 	,      S.size_kb AS size
 	,      (SELECT count (*)
 		FROM  repository R
@@ -296,10 +308,49 @@ proc ::m::store::issues {} {
 	,    version_control_system V
 	,    name                   N
 	WHERE T.store   = S.id
-	AND   T.attend  = 1    -- Flag for issues
+	AND   T.attend  = 1    -- Flag for "has issues"
+	AND   active    > 0    -- Flag for "not completely disabled"
 	AND   S.mset    = M.id
 	AND   S.vcs     = V.id
 	AND   M.name    = N.id
+	ORDER BY mname ASC, vcode ASC, size ASC
+    } {
+	Srow series ;# upvar column variables
+    }
+    return $series
+}
+
+proc ::m::store::disabled {} {
+    debug.m/store {}
+
+    set series {}
+    set last {}
+    m db eval {
+	SELECT S.id      AS store
+	,      N.name    AS mname
+	,      V.code    AS vcode
+	,      T.changed AS changed
+	,      T.updated AS updated
+	,      T.created AS created
+	,      T.attend  AS attend
+	,      S.size_kb AS size
+	,      1         AS remote
+	,      0         AS active
+	,      R.id      AS rid
+	,      R.url     AS url
+	FROM store_times            T
+	,    store                  S
+	,    mirror_set             M
+	,    version_control_system V
+	,    name                   N
+	,    repository             R
+	WHERE T.store   = S.id
+	AND   R.active  = 0    -- Flag for disabled
+	AND   S.mset    = M.id
+	AND   S.vcs     = V.id
+	AND   M.name    = N.id
+	AND   R.mset    = S.mset
+	AND   R.vcs     = S.vcs
 	ORDER BY mname ASC, vcode ASC, size ASC
     } {
 	Srow series ;# upvar column variables
@@ -319,6 +370,7 @@ proc ::m::store::by-name {} {
 	,      T.changed AS changed
 	,      T.updated AS updated
 	,      T.created AS created
+	,      T.attend  AS attend
 	,      S.size_kb AS size
 	,      (SELECT count (*)
 		FROM  repository R
@@ -362,6 +414,7 @@ proc ::m::store::by-vcs {} {
 	,      T.changed AS changed
 	,      T.updated AS updated
 	,      T.created AS created
+	,      T.attend  AS attend
 	,      S.size_kb AS size
 	,      (SELECT count (*)
 		FROM  repository R
@@ -399,6 +452,7 @@ proc ::m::store::by-size {} {
 	,      T.changed AS changed
 	,      T.updated AS updated
 	,      T.created AS created
+	,      T.attend  AS attend
 	,      S.size_kb AS size
 	,      (SELECT count (*)
 		FROM  repository R
@@ -445,6 +499,7 @@ proc ::m::store::updates {} {
 	,      T.changed AS changed
 	,      T.updated AS updated
 	,      T.created AS created
+	,      T.attend  AS attend
 	,      S.size_kb AS size
 	,      (SELECT count (*)
 		FROM  repository R
@@ -485,6 +540,7 @@ proc ::m::store::updates {} {
 	,      T.changed AS changed
 	,      T.updated AS updated
 	,      T.created AS created
+	,      T.attend  AS attend
 	,      S.size_kb AS size
 	,      (SELECT count (*)
 		FROM  repository R
@@ -526,10 +582,15 @@ proc ::m::store::move-location {newpath} {
 # # ## ### ##### ######## ############# ######################
 
 proc ::m::store::Srow {sv} {
+    debug.m/store {}
     upvar 1 $sv series store store mname mname vcode vcode \
 	changed changed updated updated created created \
-	size size active active remote remote
-    lappend series [dict create \
+	size size active active remote remote attend attend \
+	rid rid url url
+
+    debug.m/store {s=$store, m=$mname, v=$vcode, ch=$changed, up=$updated, cr=$created, sz=$size, r=$remote/$active, trouble=$attend}
+    
+    set row [dict create \
 		store   $store \
 		mname   $mname \
 		vcode   $vcode \
@@ -538,16 +599,21 @@ proc ::m::store::Srow {sv} {
 		created $created \
 		size    $size \
 		remote  $remote \
-		active  $active]
+		active  $active \
+		attend  $attend]
+    if {[info exists rid]} { dict set row rid $rid }
+    if {[info exists url]} { dict set row url $url }
+    lappend series $row
     return
 }
 
 proc ::m::store::Sep {sv} {
+    debug.m/store {}
     upvar 1 $sv series
     lappend series {
 	store   . mname   . vcode . changed .
 	updated . created . size  . active  .
-	remote  .
+	remote  . attend .  rid   . url     .
     }
     return
 }

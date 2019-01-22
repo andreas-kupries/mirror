@@ -711,25 +711,27 @@ proc ::m::glue::cmd_enable {flag config} {
     set op [expr {$flag ? "Enabling" : "Disabling"}]
 
     m db transaction {
-	set repo [$config @repository]
-	m msg "$op [color note [m repo name $repo]] ..."
+	foreach repo [$config @repositories] {
+	    m msg "$op [color note [m repo name $repo]] ..."
 
-	set rinfo [m repo get $repo]
-	dict with rinfo {}
-	# -> url	: repo url
-	#    vcs	: vcs id
-	#    vcode	: vcs code
-	#    mset	: mirror set id
-	#    name	: mirror set name
-	#    store      : store id, of backing store for the repo
+	    set rinfo [m repo get $repo]
+	    dict with rinfo {}
+	    # -> url	: repo url
+	    #    vcs	: vcs id
+	    #    vcode	: vcs code
+	    #    mset	: mirror set id
+	    #    name	: mirror set name
+	    #    store  : store id, of backing store for the repo
+	    
+	    m repo enable $repo $flag
 
-	m repo enable $repo $flag
-
-	# Note: We do not manipulate `mset_pending`. An existing
-	# mirror set is always in `mset_pending`, even if all its
-	# remotes are inactive. The commands to retrieve the pending
-	# msets (all, or taken for update) is where we do the
-	# filtering, i.e. exclusion of those without active remotes.
+	    # Note: We do not manipulate `mset_pending`. An existing
+	    # mirror set is always in `mset_pending`, even if all its
+	    # remotes are inactive. The commands to retrieve the
+	    # pending msets (all, or taken for update) is where we do
+	    # the filtering, i.e. exclusion of those without active
+	    # remotes.
+	}
     }
 
     ShowCurrent $config
@@ -1051,6 +1053,50 @@ proc ::m::glue::cmd_issues {config} {
 		lappend series [list $rid $url $mname $vcode $size]
 		m rolodex push $rid
 	    }
+	}
+	m rolodex commit
+	set n [llength $series]
+
+	set table {}
+	foreach row $series {
+	    incr n -1
+	    set row [lassign $row rid]
+	    set dex [m rolodex id $rid]
+	    set tag @$dex
+	    if {$n == 1} { lappend tag @p }
+	    if {$n == 0} { lappend tag @c }
+	    lappend table [list $tag {*}$row]
+	}
+    }
+    lassign [TruncW \
+		 {Tag Repository Set VCS Size} \
+		 {0 1 3 0 0} \
+		 $table [$config @tw]] \
+	titles series
+    [table t $titles {
+	foreach row $series {
+	    $t add {*}[C $row 1 note] ;# 1 => url
+	}
+    }] show
+    OK
+}
+
+proc ::m::glue::cmd_disabled {config} {
+    debug.m/glue {[debug caller] | }
+    package require m::mset
+    package require m::repo
+    package require m::rolodex
+    package require m::store
+
+    m db transaction {
+	set series {}
+	foreach row [m store disabled] {
+	    dict with row {}
+	    # store mname vcode changed updated created size active remote attend rid url
+	    set size [m format size $size]
+
+	    lappend series [list $rid $url $mname $vcode $size]
+	    m rolodex push $rid
 	}
 	m rolodex commit
 	set n [llength $series]

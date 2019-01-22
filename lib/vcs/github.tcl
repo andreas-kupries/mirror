@@ -266,7 +266,7 @@ proc ::m::vcs::github::ForksRemote {path} {
     set origin [OriginLoad $path]
 
     try {
-	set possibleforks [m::vcs::git::Get hub forks --raw $origin]
+	set possibleforks [lsort -dict [m::vcs::git::Get hub forks --raw $origin]]
     } trap CHILDSTATUS {e o} {
 	set possibleforks {}
     }
@@ -322,7 +322,7 @@ proc ::m::vcs::github::ForksLocal {path} {
     lassign [m futil grep {\(fetch\)$} \
 		 [split [m::vcs::git::Get remote -v] \n]] forks _
     set r {}
-    foreach fork $forks {
+    foreach fork [lsort -dict $forks] {
 	lassign $fork label url _
 	if {![string match m-vcs-github-fork-* $label]} continue
 	set fk [join [lrange [split $url /] end-1 end] /]

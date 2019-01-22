@@ -338,7 +338,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	description {
 	    Disable the specified repository, or current.
 	}
-	use .optional-repository
+	use .list-optional-repository
     } [m::cmdr::call glue cmd_enable 0]
 
     private enable {
@@ -346,7 +346,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	description {
 	    Enable the specified repository, or current.
 	}
-	use .optional-repository
+	use .list-optional-repository
     } [m::cmdr::call glue cmd_enable 1]
 
     private remove {
@@ -521,9 +521,17 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
     private issues {
 	use .cms.in
 	description {
-	    Show list of mirror sets / stores with issues.
+	    Show list of active stores with issues.
+	    Disabled stores with issues are not shown.
 	}
     } [m::cmdr::call glue cmd_issues]
+
+    private disabled {
+	use .cms.in
+	description {
+	    Show list of disabled repositories.
+	}
+    } [m::cmdr::call glue cmd_disabled]
 
     private list {
 	use .cms.nav

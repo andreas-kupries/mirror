@@ -78,25 +78,26 @@ proc ::m::web::site::build {{mode verbose}} {
 	Submit
 	Stores
 
-	set bytime [m store updates]
-	set byname [m store by-name]
-	set bysize [m store by-size]
-	set byvcs  [m store by-vcs]
-	set issues [m store issues]
+	set bytime   [m store updates]
+	set byname   [m store by-name]
+	set bysize   [m store by-size]
+	set byvcs    [m store by-vcs]
+	set issues   [m store issues] ;# excludes disabled
+	set disabled [m store disabled]
 
-	dict set stats issues  [set n [llength $issues]]
-	dict set stats size    [m store total-size]
-	dict set stats nrepos  [m repo count]
-	dict set stats nmsets  [m mset count]
-	dict set stats nstores [m store count]
+	dict set stats issues   [llength $issues]
+	dict set stats disabled [llength $disabled]
+	dict set stats size     [m store total-size]
+	dict set stats nrepos   [m repo count]
+	dict set stats nmsets   [m mset count]
+	dict set stats nstores  [m store count]
 
-	List "By Last Change"     index.md        $bytime $stats
-	List "By Name, VCS, Size" index_name.md   $byname $stats
-	List "By Size, Name, VCS" index_size.md   $bysize $stats
-	List "By VCS, Name, Size" index_vcs.md    $byvcs  $stats
-	List "Issues by Name"     index_issues.md $issues $stats
-
-	# + TODO: submissions pending, submission responses, past rejections
+	List "By Last Change"     index.md          $bytime   $stats
+	List "By Name, VCS, Size" index_name.md     $byname   $stats
+	List "By Size, Name, VCS" index_size.md     $bysize   $stats
+	List "By VCS, Name, Size" index_vcs.md      $byvcs    $stats
+	List "Issues by Name"     index_issues.md   $issues   $stats
+	List "Disabled by Name"   index_disabled.md $disabled $stats
 
 	Fin
     }
@@ -146,10 +147,14 @@ proc ::m::web::site::Store {mset mname store} {
     #    created
     #    changed
     #    updated
+    #    attend
+    #    active
+    #    remote
+    set simg [StatusRefs $attend $active $remote]
+
     lassign [m vcs caps $store] stdout stderr
     set logo [T "Operation" $stdout]
     set loge [T "Notes & Errors" $stderr]
-    set simg [SI $stderr]
 
     set export [m vcs export $vcs $store]
     if {$export ne {}} {
@@ -217,6 +222,7 @@ proc ::m::web::site::List {suffix page series stats} {
 
     dict with stats {}
     # issues
+    # disabled
     # size
     # nrepos
     # nmsets
@@ -224,17 +230,19 @@ proc ::m::web::site::List {suffix page series stats} {
 
     append text [H "Index ($suffix)"]
 
-    set hvcs   [L index_vcs.html    VCS          ]
-    set hsize  [L index_size.html   Size         ]
-    set hname  [L index_name.html   {Mirror Set} ]
-    set hchan  [L index.html        Changed      ]
-    set issues [L index_issues.html "Issues: $issues" ]
+    set hvcs     [L index_vcs.html      VCS          ]
+    set hsize    [L index_size.html     Size         ]
+    set hname    [L index_name.html     {Mirror Set} ]
+    set hchan    [L index.html          Changed      ]
+    set issues   [L index_issues.html   "Issues: $issues" ]
+    set disabled [L index_disabled.html "Disabled: $disabled" ]
 
     append text "Sets: $nmsets"
     append text " Repos: $nrepos"
     append text " Stores: $nstores"
     append text " Size: [m format size $size]"
     append text " $issues" \n
+    append text " $disabled" \n
     append text \n
 
     append text "||$hname|$hvcs|$hsize|$hchan|Updated|Created|" \n
@@ -244,22 +252,14 @@ proc ::m::web::site::List {suffix page series stats} {
     set last {}
     foreach row $series {
 	dict with row {}
-	# store mname vcode changed updated created size active remote
+	# store mname vcode changed updated created size active remote attend
 
 	if {$created eq "."} {
 	    append text "||||||||" \n
 	    continue
 	}
 
-	set img [SI [lindex [m vcs caps $store] 1]]
-	if {$img eq {}} {
-	    if {!$active} {
-		set img [I images/off.svg "-"]
-	    } elseif {$active < $remote} {
-		set img [I images/yellow.svg "/"]
-	    }
-	}
-
+	set img     [StatusRefs $attend $active $remote]
 	set size    [m format size $size]
 	set changed [m format epoch $changed]
 	set updated [m format epoch $updated]
@@ -555,6 +555,7 @@ proc ::m::web::site::FillIndex {} {
 	,      T.changed AS changed
 	,      T.updated AS updated
 	,      T.created AS created
+	,      T.attend  AS attend
 	,      S.size_kb AS size
 	,      (SELECT count (*)
 		FROM  repository R
@@ -575,10 +576,10 @@ proc ::m::web::site::FillIndex {} {
 	AND   S.vcs     = V.id
 	AND   M.name    = N.id
     } {
-	# store, mname, vcode, changed, updated, created, size, remote, active
+	# store, mname, vcode, changed, updated, created, size, remote, active, attend
 
 	set page    store_${store}.html
-	set status  [Status $store $active $remote]
+	set status  [StatusIcons $attend $active $remote]
 	set remotes [m db eval {
 	    SELECT R.url
 	    FROM repository R
@@ -622,32 +623,35 @@ proc ::m::web::site::FillIndex {} {
     return
 }
 
-proc ::m::web::site::Status {store active remote} {
+proc ::m::web::site::StatusIcons {attend active remote} {
     debug.m/web/site {}
-
-    set stderr [lindex [m vcs cap $store] 1]
-    if {[string length $stderr]} {
-	return bad.svg
-    } elseif {!$active} {
-	return off.svg
+    set icons {}
+    if {!$active} {
+	lappend icons off.svg
     } elseif {$active < $remote} {
-	return yellow.svg
-    } else {
-	return {}
+	lappend icons yellow.svg
+    } 
+    if {$attend} {
+	lappend icons bad.svg
     }
+    return $icons
 }
     
-proc ::m::web::site::SI {stderr} {
+proc ::m::web::site::StatusRefs {attend active remote} {
     debug.m/web/site {}
-    if {$stderr eq {}} {
-	return {}
-	set status images/ok.svg
-	set stext  OK
-    } else {
-	set status images/bad.svg
-	set stext  ATTEND
+    set img {}
+
+    if {!$active} {
+	append img [I images/off.svg "-"]
+    } elseif {$active < $remote} {
+	append img [I images/yellow.svg "/"]
     }
-    return [I $status $stext]
+    if {$attend} {
+	append img [I images/bad.svg "ATTEND"]
+    }
+    return $img
+    #set status images/ok.svg
+    #set stext  OK
 }
 
 proc ::m::web::site::I {url {alt {}}} {
