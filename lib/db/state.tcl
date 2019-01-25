@@ -57,6 +57,8 @@ namespace eval ::m::state {
 	    site-store
 	    site-title
 	    site-url
+
+	    store-window-size
 	} {
 	    dict set map $k [list ::m::state::Process $k]
 	}

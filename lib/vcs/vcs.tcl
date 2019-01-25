@@ -54,7 +54,7 @@ namespace eval ::m::vcs {
 	setup cleanup update check cleave merge \
 	rename id supported all code name \
 	detect url-norm name-from-url version \
-	move size caps remotes export
+	move size caps remotes export path revs
     namespace ensemble create
 
     namespace import ::cmdr::color
@@ -82,6 +82,16 @@ proc ::m::vcs::size {store} {
     return $kb
 }
 
+proc ::m::vcs::revs {store vcs} {
+    debug.m/vcs {}
+    # store id -> Using for path.
+    # vcs   id -> Decode to plugin name
+
+    set path  [Path $store]
+    set vcode [code $vcs]
+    return [$vcode revs $path]
+}
+
 proc ::m::vcs::setup {store vcs name url} {
     debug.m/vcs {}
     # store id -> Using for path.
@@ -103,7 +113,7 @@ proc ::m::vcs::setup {store vcs name url} {
 	    # Create vcs-specific special resources, if any
 	    $vcode setup  $path $url
 	    # Then update for the first time
-	    $vcode update $path [list $url] 1
+	    set counts [$vcode update $path [list $url] 1]
 	}
     } trap {CHILDSTATUS} {e} {
 	# For errors always show captured output.
@@ -126,7 +136,7 @@ proc ::m::vcs::setup {store vcs name url} {
 	puts [color bad $o]
 	puts [color bad ////////////////////////////////////////]
     }
-    return
+    return $counts
 }
 
 proc ::m::vcs::update {store vcs urls} {
@@ -268,6 +278,11 @@ proc ::m::vcs::cleave {vcs origin dst dstname} {
     # Split/create vcs specific special resources, if any ...
     $vcode cleave $porigin $pdst
     return
+}
+
+proc ::m::vcs::path {store} {
+    debug.m/vcs {}
+    return [Path $store]
 }
 
 proc ::m::vcs::remotes {vcs store} {

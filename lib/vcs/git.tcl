@@ -40,7 +40,7 @@ namespace eval m::vcs {
 }
 namespace eval m::vcs::git {
     namespace export setup cleanup update check cleave merge \
-	version detect remotes export name-from-url
+	version detect remotes export name-from-url revs
     namespace ensemble create
 }
 
@@ -124,6 +124,15 @@ proc ::m::vcs::git::cleanup {path} {
     debug.m/vcs/git {}
     # Nothing special. No op.
     return
+}
+
+proc ::m::vcs::git::revs {path} {
+    debug.m/vcs/git {}
+    if {[catch {
+	return [Count $path]
+    }]} {
+	return 0
+    }
 }
 
 proc ::m::vcs::git::update {path urls first} {
@@ -217,7 +226,9 @@ proc ::m::vcs::git::Remotes {path} {
 proc ::m::vcs::git::Count {path} {
     debug.m/vcs/git {}
     m exec post-hook ::m::vcs::git::LogNormalize
-    return [string trim [m exec get git --git-dir [GitOf $path] rev-list --all --count]]
+    set count [string trim [m exec get git --git-dir [GitOf $path] rev-list --all --count]]
+    debug.m/vcs/git {==> $count}
+    return $count
 }
 
 proc ::m::vcs::git::Owned {remote} {

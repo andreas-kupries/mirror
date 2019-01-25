@@ -21,6 +21,7 @@
 
 package require Tcl 8.5
 package require m::db
+package require m::state
 package require m::vcs
 package require debug
 package require debug::caller
@@ -35,7 +36,7 @@ namespace eval ::m::store {
     namespace export \
 	add remove move rename merge split update has check \
 	id vcs-name updates by-name by-size by-vcs move-location \
-	get remotes total-size count search issues disabled
+	get remotes total-size count search issues disabled path
     namespace ensemble create
 }
 
@@ -51,10 +52,19 @@ proc ::m::store::add {vcs mset name url} {
 
     set store [Add $vcs $mset]
 
-    m vcs setup $store $vcs $name $url
-    Size $store
+    set started [clock seconds]
+    set counts  [m vcs setup $store $vcs $name $url]
+    set spent   [expr {[clock seconds] - $started}]
+    lassign $counts _ after forks
 
-    return $store
+    Spent   $store $spent
+    Size    $store
+    Commits $store $after
+    if {$forks ne {}} {
+	ForksSetNew $store [llength $forks]
+    }
+
+    return [list $store $spent $forks]
 }
 
 proc ::m::store::remove {store} {
@@ -103,10 +113,21 @@ proc ::m::store::update {store cycle now} {
     # then feed everything to the vcs layer.
 
     set remotes [Remotes $store]
-    set counts  [m vcs update $store $vcs $remotes]
 
-    Attend $store
-    lassign $counts before after
+    set started [clock seconds]
+    set counts  [m vcs update $store $vcs $remotes]
+    set spent   [expr {[clock seconds] - $started}]
+
+    lassign $counts before after forks
+
+    Attend  $store
+    Spent   $store $spent
+    Size    $store
+    Commits $store $after
+    if {$forks ne {}} {
+	ForksSet $store [llength $forks]
+    }
+
     if {$after != $before} {
 	m db eval {
 	    UPDATE store_times
@@ -114,7 +135,6 @@ proc ::m::store::update {store cycle now} {
 	    ,   changed = :now
 	    WHERE store = :store
 	}
-	Size $store
     } else {
 	m db eval {
 	    UPDATE store_times
@@ -122,7 +142,7 @@ proc ::m::store::update {store cycle now} {
 	    WHERE store = :store
 	}
     }
-    return [linsert $counts end $remotes]
+    return [linsert $counts end $remotes $spent]
 }
 
 proc ::m::store::move {store msetnew} {
@@ -172,17 +192,28 @@ proc ::m::store::id {vcs mset} {
     }]
 }
 
+proc ::m::store::path {store} {
+    debug.m/store {}
+    return [m vcs path $store]
+}
+
 proc ::m::store::get {store} {
     debug.m/store {}
     m db eval {
 	SELECT 'size'    , S.size_kb
 	,      'mset'    , S.mset
 	,      'vcs'     , S.vcs
+	,      'sizep'   , S.size_previous
+	,      'commits' , S.commits_current
+	,      'commitp' , S.commits_previous
 	,      'vcsname' , V.name
 	,      'updated' , T.updated
 	,      'changed' , T.changed
 	,      'created' , T.created
 	,      'attend'  , T.attend
+	,      'min_sec' , T.min_seconds
+	,      'max_sec' , T.max_seconds
+	,      'win_sec' , T.window_seconds
 	,      'remote'  , (SELECT count (*)
 		FROM  repository R
 		WHERE R.mset = S.mset
@@ -353,7 +384,7 @@ proc ::m::store::disabled {} {
 	AND   R.vcs     = S.vcs
 	ORDER BY mname ASC, vcode ASC, size ASC
     } {
-	Srow series ;# upvar column variables
+	Srow+rid+url series ;# upvar column variables
     }
     return $series
 }
@@ -510,6 +541,12 @@ proc ::m::store::updates {} {
 		WHERE R.mset = S.mset
 		AND   R.vcs  = S.vcs
 		AND   R.active) AS active
+	,      T.min_seconds      AS mins
+	,      T.max_seconds      AS maxs
+	,      T.window_seconds   AS lastn
+	,      S.size_previous    AS sizep
+	,      S.commits_current  AS commits
+	,      S.commits_previous AS commitp
 	FROM store_times            T
 	,    store                  S
 	,    mirror_set             M
@@ -525,10 +562,11 @@ proc ::m::store::updates {} {
 	if {($last ne {}) && ($last != $updated)} {
 	    Sep series
 	}
-	Srow series
+	Srow+delta series
 	set last $updated
     }
 
+    debug.m/store {f/[llength $series]}
     set first [llength $series]
 
     # Block 2: All unchanged stores, creation order descending,
@@ -551,6 +589,12 @@ proc ::m::store::updates {} {
 		WHERE R.mset = S.mset
 		AND   R.vcs  = S.vcs
 		AND   R.active) AS active
+	,      T.min_seconds      AS mins
+	,      T.max_seconds      AS maxs
+	,      T.window_seconds   AS lastn
+	,      S.size_previous    AS sizep
+	,      S.commits_current  AS commits
+	,      S.commits_previous AS commitp
 	FROM store_times            T
 	,    store                  S
 	,    mirror_set             M
@@ -566,10 +610,11 @@ proc ::m::store::updates {} {
 	if {$first} { Sep series }
 	set changed {}
 	set updated {}
-	Srow series
+	Srow+delta series
 	set first 0
     }
 
+    debug.m/store {r/[llength $series]}
     return $series
 }
 
@@ -583,7 +628,65 @@ proc ::m::store::move-location {newpath} {
 
 proc ::m::store::Srow {sv} {
     debug.m/store {}
-    upvar 1 $sv series store store mname mname vcode vcode \
+    upvar 1 \
+	$sv series store store mname mname vcode vcode \
+	changed changed updated updated created created \
+	size size active active remote remote attend attend
+
+    debug.m/store {s=$store, m=$mname, v=$vcode, ch=$changed, up=$updated, cr=$created, sz=$size, r=$remote/$active, trouble=$attend}
+    
+    set row [dict create \
+		store   $store \
+		mname   $mname \
+		vcode   $vcode \
+		changed $changed \
+		updated $updated \
+		created $created \
+		size    $size \
+		remote  $remote \
+		active  $active \
+		attend  $attend]
+    lappend series $row
+    return
+}
+
+proc ::m::store::Srow+delta {sv} {
+    debug.m/store {}
+    upvar 1 \
+	$sv series store store mname mname vcode vcode \
+	changed changed updated updated created created \
+	size size active active remote remote attend attend \
+	sizep sizep commits commits commitp commitp mins mins \
+	maxs maxs lastn lastn
+
+    debug.m/store {s=$store, m=$mname, v=$vcode, ch=$changed, up=$updated, cr=$created, sz=$size, r=$remote/$active, trouble=$attend}
+    
+    set row [dict create \
+		store   $store \
+		mname   $mname \
+		vcode   $vcode \
+		changed $changed \
+		updated $updated \
+		created $created \
+		size    $size \
+		sizep   $sizep \
+		remote  $remote \
+		active  $active \
+		attend  $attend \
+		mins    $mins \
+		maxs    $maxs \
+		lastn   $lastn \
+		commits $commits \
+		commitp $commitp \
+		]
+    lappend series $row
+    return
+}
+
+proc ::m::store::Srow+rid+url {sv} {
+    debug.m/store {}
+    upvar 1 \
+	$sv series store store mname mname vcode vcode \
 	changed changed updated updated created created \
 	size size active active remote remote attend attend \
 	rid rid url url
@@ -600,9 +703,9 @@ proc ::m::store::Srow {sv} {
 		size    $size \
 		remote  $remote \
 		active  $active \
-		attend  $attend]
-    if {[info exists rid]} { dict set row rid $rid }
-    if {[info exists url]} { dict set row url $url }
+		attend  $attend \
+		rid     $rid \
+		url     $url	]
     lappend series $row
     return
 }
@@ -613,7 +716,9 @@ proc ::m::store::Sep {sv} {
     lappend series {
 	store   . mname   . vcode . changed .
 	updated . created . size  . active  .
-	remote  . attend .  rid   . url     .
+	remote  . attend  . rid   . url     .
+	mins    . maxs    . lastn . sizep   .
+	commits . commitp .
     }
     return
 }
@@ -633,12 +738,93 @@ proc ::m::store::Remotes {store} {
 proc ::m::store::Size {store} {
     debug.m/store {}
 
-    set kb [m vcs size $store]
+    set new     [m vcs size $store]
+    set current [m db onecolumn {
+	SELECT size_kb
+	FROM   store
+	WHERE  id = :store
+    }]
+
+    if {$new == $current} return
+
     m db eval {
 	UPDATE store
-	SET    size_kb = :kb
-	WHERE  id      = :store
+	SET    size_previous = size_kb -- Parallel assignment
+	,      size_kb       = :new    -- Shift values.
+	WHERE  id            = :store
     }
+    return
+}
+
+proc ::m::store::InitialCommit {store} {
+    debug.m/store {}
+
+    set vcs  [VCS $store]
+    set revs [m vcs revs $store $vcs]
+    m db eval {
+	UPDATE store
+	SET    commits_current  = :revs
+	,      commits_previous = :revs
+	WHERE  id               = :store
+    }
+    return
+}
+
+proc ::m::store::Commits {store new} {
+    debug.m/store {}
+
+    set current [m db onecolumn {
+	SELECT commits_current
+	FROM   store
+	WHERE  id = :store
+    }]
+
+    if {$new == $current} return
+    
+    m db eval {
+	UPDATE store
+	SET    commits_previous = commits_current -- Parallel assignment
+	,      commits_current  = :new            -- Shift values.
+	WHERE  id               = :store
+    }
+    return
+}
+
+proc ::m::store::Spent {store new} {
+    debug.m/store {}
+
+    m db eval {
+	SELECT min_seconds    AS mins
+	,      max_seconds    AS maxs
+	,      window_seconds AS window
+	FROM   store_times
+	WHERE  store = :store
+    } {}
+
+    if {($mins < 0) || ($new < $mins)} { set mins $new }
+    if {                $new > $maxs}  { set maxs $new }
+
+    set window [::split [string trim $window ,] ,]
+    if {[llength $window]} {
+	lappend window $new
+	set maxlen [m state store-window-size]
+	set len    [llength $window]
+	if {$len > $maxlen} {
+	    set over   [expr {$len - $maxlen}]
+	    set window [lreplace $window 0 ${over}-1]
+	}
+	set window [join $window ,]
+    }
+    set window ,${new},
+    
+    m db eval {
+	UPDATE store_times
+	SET    min_seconds    = :mins
+	,      max_seconds    = :maxs
+	,      window_seconds = :window
+	WHERE  store          = :store
+    }
+
     return
 }
 
@@ -659,7 +845,14 @@ proc ::m::store::Add {vcs mset} {
     m db eval {
 	INSERT
 	INTO   store
-	VALUES ( NULL, :vcs, :mset, 0 )
+	VALUES ( NULL  -- id
+	,	 :vcs  -- vcs
+	,        :mset -- mset
+	,	 0     -- size_kb
+	,	 0     -- size_previous
+	,	 0     -- commits_current
+	,	 0     -- commits_previous
+	)
     }
 
     set store [m db last_insert_rowid]
@@ -673,6 +866,9 @@ proc ::m::store::Add {vcs mset} {
 	,	 :now   -- updated
 	,	 :now   -- changed
 	,	 0      -- attend
+	,	 -1     -- min_seconds (+Infinity)
+	,	 0      -- max_seconds
+	,	 ''     -- window_seconds
 	)
     }
     return $store
@@ -698,6 +894,17 @@ proc ::m::store::MSName {mset} {
     }]
 }
 
+proc ::m::store::InitialCommits {} {
+    debug.m/store {}
+    m db eval {
+	SELECT id
+	FROM   store
+    } {
+	InitialCommit $id
+    }
+    return
+}
+
 proc ::m::store::InitialSizes {} {
     debug.m/store {}
     m db eval {
@@ -716,6 +923,56 @@ proc ::m::store::InitialIssues {} {
 	FROM   store
     } {
 	Attend $id
+    }
+    return
+}
+
+proc ::m::store::InitialForks {} {
+    debug.m/store {}
+    m db eval {
+	SELECT S.id AS store
+	FROM   store                  S
+	,      version_control_system V
+	WHERE  S.vcs  = V.id
+	AND    V.code = 'github'
+    } {
+	ForksFor $store
+    }
+    return
+}
+
+proc ::m::store::ForksFor {store} {
+    debug.m/store {}
+    # assert: vcs == github
+    set forks [llength [lindex [m vcs github remotes [m vcs path $store]] 1]]
+    m db eval {
+	INSERT
+	INTO store_github_forks
+	VALUES ( :store
+	       , :forks )
+    }
+    return
+}
+
+proc ::m::store::ForksSetNew {store forks} {
+    debug.m/store {}
+    # assert: vcs == github
+    m db eval {
+	INSERT
+	INTO store_github_forks
+	VALUES ( :store
+	       , :forks )
+    }
+    return
+}
+
+proc ::m::store::ForksSet {store forks} {
+    debug.m/store {}
+    # assert: vcs == github
+    m db eval {
+	UPDATE store_github_forks
+	SET    nforks = :forks
+	WHERE  store  = :store
     }
     return
 }

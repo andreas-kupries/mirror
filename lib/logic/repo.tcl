@@ -17,6 +17,7 @@
 #
 # :: list (dict ...)
 # :: dict ( name, url, id, vcode, sizekb, active -> value )
+#         ( sizep, commits, commitp, mins, maxs, lastn )
 
 # # ## ### ##### ######## ############# ######################
 
@@ -188,22 +189,30 @@ proc ::m::repo::search {substring} {
     set sub [string tolower $substring]
     set series {}
     m db eval {
-	SELECT N.name    AS name
-	,      R.url     AS url
-	,      R.id      AS rid
-	,      V.code    AS vcode
-	,      S.size_kb AS sizekb
-	,      R.active  AS active
+	SELECT N.name             AS name
+	,      R.url              AS url
+	,      R.id               AS rid
+	,      V.code             AS vcode
+	,      S.size_kb          AS sizekb
+	,      R.active           AS active
+	,      T.min_seconds      AS mins
+	,      T.max_seconds      AS maxs
+	,      T.window_seconds   AS lastn
+	,      S.size_previous    AS sizep
+	,      S.commits_current  AS commits
+	,      S.commits_previous AS commitp
 	FROM   repository             R
 	,      mirror_set             M
 	,      name                   N
 	,      version_control_system V
 	,      store                  S
+	,      store_times            T
 	WHERE  M.id   = R.mset
 	AND    N.id   = M.name
 	AND    V.id   = R.vcs
 	AND    S.mset = R.mset
 	AND    S.vcs  = R.vcs
+	AND    S.id   = T.store
 	ORDER BY N.name ASC
 	,        R.url  ASC
     } {
@@ -212,12 +221,18 @@ proc ::m::repo::search {substring} {
 	    ([string first $sub [string tolower $url ]] < 0)
 	} continue
 	lappend series [dict create \
-		name   $name \
-		url    $url \
-		id     $rid \
-		vcode  $vcode \
-	        sizekb $sizekb \
-		active $active]
+		name    $name \
+		url     $url \
+		id      $rid \
+		vcode   $vcode \
+	        sizekb  $sizekb \
+		active  $active \
+		sizep   $sizep \
+		commits $commits \
+		commitp $commitp \
+		mins    $mins \
+		maxs    $maxs \
+		lastn   $lastn]
     }
     return $series
 }
@@ -241,22 +256,30 @@ proc ::m::repo::get-n {first n} {
     set lim [expr {$n + 1}]
     set replist {}
     m db eval {
-	SELECT N.name    AS name
-	,      R.url     AS url
-	,      R.id      AS rid
-	,      V.code    AS vcode
-	,      S.size_kb AS sizekb
-	,      R.active  AS active
+	SELECT N.name             AS name
+	,      R.url              AS url
+	,      R.id               AS rid
+	,      V.code             AS vcode
+	,      S.size_kb          AS sizekb
+	,      R.active           AS active
+	,      T.min_seconds      AS mins
+	,      T.max_seconds      AS maxs
+	,      T.window_seconds   AS lastn
+	,      S.size_previous    AS sizep
+	,      S.commits_current  AS commits
+	,      S.commits_previous AS commitp
 	FROM   repository             R
 	,      mirror_set             M
 	,      name                   N
 	,      version_control_system V
 	,      store                  S
+	,      store_times            T
 	WHERE  M.id   = R.mset
 	AND    N.id   = M.name
 	AND    V.id   = R.vcs
 	AND    S.mset = R.mset
 	AND    S.vcs  = R.vcs
+	AND    S.id   = T.store
 	-- cursor start clause ...
 	AND ((N.name > :mname) OR
 	     ((N.name = :mname) AND
@@ -266,12 +289,18 @@ proc ::m::repo::get-n {first n} {
 	LIMIT :lim
     } {
 	lappend replist [dict create \
-		name   $name \
-		url    $url \
-		id     $rid \
-		vcode  $vcode \
-		sizekb $sizekb \
-		active $active]
+		name    $name \
+		url     $url \
+		id      $rid \
+		vcode   $vcode \
+		sizekb  $sizekb \
+		active  $active \
+		sizep   $sizep \
+		commits $commits \
+		commitp $commitp \
+		mins    $mins \
+		maxs    $maxs \
+		lastn   $lastn]
     }
 
     debug.m/repo {reps = (($replist))}

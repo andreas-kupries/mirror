@@ -289,9 +289,19 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 		update cycle.
 	    }
 	    input take {
-		New number of mirror set to process in one update.
+		New number of mirror sets to process in one update.
 	    } { optional ; validate cmdr::validate::posint }
 	} [m::cmdr::call glue cmd_take]
+
+	private window {
+	    description {
+		Query/change the size of the window for the moving
+		average of time spent on updates of a repository.
+	    }
+	    input window {
+		New size of the window
+	    } { optional ; validate cmdr::validate::posint }
+	} [m::cmdr::call glue cmd_window]
 
 	private limit {
 	    description {
@@ -331,6 +341,9 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	    Show details of the specified repository, or current.
 	}
 	use .optional-repository
+	option full {
+	    Show the recorded logs, not just their length
+	} { presence }
     } [m::cmdr::call glue cmd_details]
 
     private disable {

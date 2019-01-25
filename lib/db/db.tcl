@@ -65,7 +65,7 @@ proc ::m::db {args} {
     # Under narrative tracing intercept sql commands.
     debug.m/db {Intercept[rename ::m::db ::m::dbx][proc ::m::db {args} {
 	debug.m/db {}
-	#puts <<<[info level 0]>>>
+	puts <<<[info level 0]>>>
 	uplevel 1 [list ::m::dbx {*}$args]
     }]}
 
@@ -469,6 +469,65 @@ proc ::m::db::SETUP-201901112300 {} {
 
     package require m::store
     m::store::InitialIssues
+    return
+}
+
+proc ::m::db::SETUP-201901222300 {} {
+    debug.m/db {}
+
+    # Extended the tables `store` and `store_times` with columns to
+    # track size changes (KB, #revisions) and time statistics for
+    # updates.
+
+    D m::db
+    # - -- --- ----- -------- -------------
+    C store          INTEGER  NOT NULL  ^store PRIMARY KEY
+    C created        INTEGER  NOT NULL
+    C updated        INTEGER  NOT NULL
+    C changed        INTEGER  NOT NULL
+    C attend         INTEGER  NOT NULL
+    C min_seconds    INTEGER  NOT NULL ;# overall minimum time spent on update
+    C max_seconds    INTEGER  NOT NULL ;# overall maximum time spent on update
+    C window_seconds STRING   NOT NULL ;# time spent on last N updates (list of int)
+    < store_times  store updated updated changed attend '-1' '0' ''
+
+    # Note: A min_seconds value of -1 represents +Infinity.
+    
+    T^ state
+    > 'store-window-size' '10' ;# Window size for `store.window_seconds`
+
+    I+
+    C vcs              INTEGER  NOT NULL  ^version_control_system
+    C mset             INTEGER  NOT NULL  ^mirror_set
+    C size_kb          INTEGER  NOT NULL
+    C size_previous    INTEGER  NOT NULL
+    C commits_current  INTEGER  NOT NULL
+    C commits_previous INTEGER  NOT NULL
+    U vcs mset
+    < store  id vcs mset size_kb size_kb '0' '0'
+
+    package require m::store
+    m::store::InitialCommits
+    return
+}
+
+proc ::m::db::SETUP-201901242300 {} {
+    debug.m/db {}
+
+    # New table `store_github_forks`. Adjunct to table `store`, like
+    # `store_times`. Difference: Not general, specific to github
+    # stores. Tracks the number of forks. Primary source is the local
+    # git repository, the information in the table is derived. Used for
+    # easier access to statistics (size x forks ~?~ update time).
+
+    D m::db
+    # - -- --- ----- -------- -------------
+    C store          INTEGER  NOT NULL  ^store PRIMARY KEY
+    C nforks         INTEGER  NOT NULL
+    T store_github_forks
+
+    package require m::store
+    m::store::InitialForks
     return
 }
 

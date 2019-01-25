@@ -501,6 +501,23 @@ proc ::m::glue::cmd_take {config} {
     OK
 }
 
+proc ::m::glue::cmd_window {config} {
+    debug.m/glue {[debug caller] | }
+    package require m::state
+
+    m db transaction {
+	if {[$config @window set?]} {
+	    m state store-window-size [$config @window]
+	}
+
+	set n [m state store-window-size]
+    }
+
+    set g [expr {$n == 1 ? "time" : "times"}]
+    m msg "Keep [color note $n] update $g per repository for the moving average"
+    OK
+}
+
 proc ::m::glue::cmd_vcs {config} {
     debug.m/glue {[debug caller] | }
     package require m::vcs
@@ -606,6 +623,7 @@ proc ::m::glue::cmd_details {config} {
     package require m::mset
     package require m::repo
     package require m::rolodex
+    package require m::state
     package require m::store
     package require linenoise
 
@@ -614,6 +632,7 @@ proc ::m::glue::cmd_details {config} {
     set w [expr {$w - 21}] ;# max width for col 2.
     
     m db transaction {
+	set full [$config @full]
 	set repo [$config @repository]
 	m msg "Details of [color note [m repo name $repo]] ..."
 
@@ -637,28 +656,43 @@ proc ::m::glue::cmd_details {config} {
 	set path [m store path $store]
 	set sd   [m store get $store]
 	dict with sd {}
-	# -> size
+	# -> size, sizep
+	#    commits, commitp
 	#    vcs
 	#    vcsname
 	#    created
 	#    changed
 	#    updated
+	#    min_sec, max_sec, win_sec
+
+	set spent [StatsTime $min_sec $max_sec $win_sec]
+	
 	lassign [m vcs caps $store] stdout stderr
+	set stdout [string trim $stdout]
+	set stderr [string trim $stderr]
 
-	set status [SI $stderr]
-	set export [m vcs export $vcs $store]
-
+	set status  [SI $stderr]
+	set export  [m vcs export $vcs $store]
+	set dcommit [DeltaCommitFull $commits $commitp]
+	set dsize   [DeltaSizeFull $size $sizep]
+	set changed [color note [m format epoch $changed]]
+	set updated [m format epoch $updated]
+	set created [m format epoch $created]
+	
 	[table/d t {
-	    $t add Status $status
-	    $t add Store  $path
-	    $t add VCS    $vcsname
-	    $t add Size   [m format size $size]
+	    $t add Status        $status
+	    $t add {Mirror Set}  $name
+	    $t add VCS           $vcsname
+	    $t add {Local Store} $path
+	    $t add Size          $dsize
+	    $t add Commits       $dcommit
 	    if {$export ne {}} {
 		$t add Export $export
 	    }
-	    $t add {Last Check}  [set lc [m format epoch $updated]]
-	    $t add {Last Change} [color note [m format epoch $changed]]
-	    $t add Created       [m format epoch $created]
+	    $t add {Update Stats} $spent
+	    $t add {Last Change}  $changed
+	    $t add {Last Check}   $updated
+	    $t add Created        $created
 
 	    set active 1
 	    foreach {label urls} $r {
@@ -682,12 +716,19 @@ proc ::m::glue::cmd_details {config} {
 		incr active -1
 	    }
 
-	    # TODO: Options to show only log size
-	    if {$stdout ne {}} {
-		$t add Operation [L [string trim $stdout]]
-	    }
-	    if {$stderr ne {}} {
-		$t add "Notes & Errors" [L [string trim $stderr]]
+	    if {!$full} {
+		set nelines #[llength [split $stderr \n]]
+		set nllines #[llength [split $stdout \n]]
+
+		$t add Operation $nllines
+		if {$stderr ne {}} {
+		    $t add "Notes & Errors" [color bad $nelines]
+		} else {
+		    $t add "Notes & Errors" $nelines
+		}
+	    } else {
+		if {$stdout ne {}} { $t add Operation        [L $stdout] }
+		if {$stderr ne {}} { $t add "Notes & Errors" [L $stderr] }
 	    }
 	}] show
     }
@@ -932,18 +973,21 @@ proc ::m::glue::cmd_update {config} {
 
 		# TODO MAYBE: List the remotes we are pulling from ?
 		# => VCS layer, notification callback ...
-		set now [clock seconds]
-		set counts [m store update $store $nowcycle $now]
-		set deltat [IntervalFormat [expr {[clock seconds] - $now}]]
+		set counts [m store update $store $nowcycle [clock seconds]]
+		lassign $counts before after forks remotes spent
 
-		lassign $counts before after remotes
-		set prim [lindex $remotes 0]
+		set    suffix ""
+		append suffix ", in " [color note [m format interval $spent]]
+		append suffix " ("    [color note [lindex $remotes 0]] ")"
+		if {$forks ne {}} {
+		    append suffix \n "  Github: Currently tracking [color note [llength $forks]] additional forks"
+		}
 
 		if {$before < 0} {
 		    # Highlevel VCS url check failed for this store.
 		    # Results in the stderr log.
 		    lassign [m vcs caps $store] _ e
-		    m msg "[color bad Fail], in [color note $deltat] ([color note $prim])"
+		    m msg "[color bad Fail]$suffix"
 		    m msg $e
 
 		} elseif {$before != $after} {
@@ -954,12 +998,11 @@ proc ::m::glue::cmd_update {config} {
 			set mark note
 			set delta +$delta
 		    }
-		    # TODO: Bring delta-rev (and delta-size) into the site.
-		    m msg "[color note Changed] $before $after ([color $mark $delta]), in [color note $deltat] ([color note $prim])"
+		    m msg "[color note Changed] $before $after ([color $mark $delta])$suffix"
 		} elseif {$verbose} {
-		    m msg "[color note "No changes"], in [color note $deltat] ([color note $prim])"
+		    m msg "[color note "No changes"]$suffix"
 		} else {
-		    m msg "No changes, in $deltat ([color note $prim])"
+		    m msg "No changes$suffix"
 		}
 	    }
 	}
@@ -976,24 +1019,33 @@ proc ::m::glue::cmd_updates {config} {
     m db transaction {
 	# TODO: get status (stderr), show - store id
 	set series {}
-	foreach row [m store updates] {
-	    # store mname vcode changed updated created size active remote
-	    dict with row {}
-	    if {$created eq "."} {
-		lappend series [list - - - - - -]
+	foreach row [TruncH [m store updates] [$config @th]] {
+	    if {[lindex $row 0] eq "..."} {
+		lappend series [list ... {} {} {} {} {} {}]
 		continue
 	    }
-	    set size    [m format size  $size]
+	    # store mname vcode changed updated created size active remote
+	    # sizep commits commitp mins maxs lastn
+	    dict with row {}
+	    if {$created eq "."} {
+		lappend series [list - - - - - - -]
+		continue
+	    }
+	    
 	    set changed [m format epoch $changed]
 	    set updated [m format epoch $updated]
 	    set created [m format epoch $created]
-	    lappend series [list $mname $vcode $size $changed $updated $created]
+	    set dsize   [DeltaSize $size $sizep]
+	    set dcommit [DeltaCommit $commits $commitp]
+	    set lastn   [LastTime $lastn]
+
+	    lappend series [list $mname $vcode $dsize $dcommit $lastn $changed $updated $created]
 	}
     }
     lassign [TruncW \
-		 {{Mirror Set} VCS Size Changed Updated Created} \
-		 {1 0 0 0 0 0} \
-		 [TruncH $series [$config @th]] [$config @tw]] \
+		 {{Mirror Set} VCS Size Commits Time Changed Updated Created} \
+		 {1 0 0 0 0 0 0 0} \
+		 $series [$config @tw]] \
 	titles series
     [table t $titles {
 	foreach row $series {
@@ -1161,7 +1213,7 @@ proc ::m::glue::cmd_list {config} {
 	    debug.m/glue {next   ($next)}
 	    m state top $next
 	}
-	# series = list (dict (mset url rid vcode sizekb active))
+	# series = list (dict (mset url rid vcode sizekb active sizep commits commitp mins maxs lastn))
 
 	debug.m/glue {series ($series)}
 
@@ -1172,27 +1224,33 @@ proc ::m::glue::cmd_list {config} {
 	}
 	
 	set idx -1
+	set table {}
 	foreach row $series {
 	    dict with row {}
-	    # name url id vcode sizekb active
+	    # name url id vcode sizekb active sizep commits commitp mins maxs lastn
 	    incr idx
 	    #set url [color note $url]
 	    set ix  [m rolodex id $id]
 	    set tag {}
-	    if {$ix ne {}} { lappend tag @$ix }
+	    if {$ix  ne {}}     { lappend tag @$ix }
 	    if {$idx == ($n-2)} { lappend tag @p }
 	    if {$idx == ($n-1)} { lappend tag @c }
 	    set a [expr {$active ? "A" : "-"}]
-	    lappend table [list $tag $a $url $name $vcode [m format size $sizekb]]
-	    # ................. 0    1   2    3    4      5
+
+	    set dsize   [DeltaSize $sizekb $sizep]
+	    set dcommit [DeltaCommit $commits $commitp]
+	    set lastn   [LastTime $lastn]
+	    
+	    lappend table [list $tag $a $url $name $vcode $dsize $dcommit $lastn]
+	    # ................. 0    1   2    3    4      5      6        7
 	}
     }
 
     # See also ShowCurrent
     # TODO: extend list with store times ?
     lassign [TruncW \
-		 {Tag {} Repository Set VCS Size} \
-		 {0 0 1 2 0 0} \
+		 {Tag {} Repository Set VCS Size Commits Time} \
+		 {0 0 1 2 0 -1 -1 0} \
 		 $table [$config @tw]] \
 	titles series
     [table t $titles {
@@ -1549,40 +1607,6 @@ proc ::m::glue::cmd_debug_levels {config} {
 }
 
 # # ## ### ##### ######## ############# ######################
-
-proc ::m::glue::IntervalFormat {seconds} {
-    if {$seconds < 60} {
-	return "${seconds}s"
-    }
-
-    set minutes [expr {$seconds / 60}]
-    set seconds [expr {$seconds % 60}]
-
-    if {$minutes < 60} {
-	append r $minutes m
-	if {$seconds} { append r $seconds s }
-	return $r
-    }
-
-    set hours   [expr {$minutes / 60}]
-    set minutes [expr {$minutes % 60}]
-
-    if {$hours < 24} {
-	append r $hours h
-	if {$minutes} { append r $minutes m }
-	if {$seconds} { append r $seconds s }
-	return $r
-    }
-
-    set days  [expr {$hours / 24}]
-    set hours [expr {$hours % 24}]
-
-    append r $days d
-    if {$hours}   { append r $hours h }
-    if {$minutes} { append r $minutes m }
-    if {$seconds} { append r $seconds s }
-    return $r
-}
 
 proc ::m::glue::MailFooter {mv} {
     debug.m/glue {[debug caller] | }
@@ -1960,8 +1984,14 @@ proc ::m::glue::ImportMake1 {vcode url base} {
     m rolodex push [m repo add $vcs $mset $url]
 
     m msg "  Setting up the $vcode store for [color note $url] ..."
-    set store [m store add $vcs $mset $tmpname $url]
-    m msg "  [color note Done]"
+    lassign [m store add $vcs $mset $tmpname $url] store spent forks
+    m msg "  [color note Done] in [color note [m format interval $spent]]"
+    if {$forks ne {}} {
+	m msg "  Github: Currently tracking [color note [llength $forks]] additional forks"
+	foreach f $forks {
+	    m msg "  - [color note $f]"
+	}
+    }
 
     return [list $vcs $mset $store]
 }
@@ -2003,10 +2033,16 @@ proc ::m::glue::Add {config} {
     m rolodex push [m repo add $vcs $mset $url]
 
     m msg "  Setting up the $vcode store ..."
-    m store add $vcs $mset $name $url
-
+    lassign [m store add $vcs $mset $name $url] _ spent forks
+    
     m rolodex commit
-    m msg "  [color note Done]"
+    m msg "  [color note Done] in [color note [m format interval $spent]]"
+    if {$forks ne {}} {
+	m msg "  Github: Currently tracking [color note [llength $forks]] additional forks"
+	foreach f $forks {
+	    m msg "  - [color note $f]"
+	}
+    }
     return
 }
 
@@ -2333,6 +2369,7 @@ proc ::m::glue::W {wv} {
 }
 
 proc ::m::glue::TruncH {series height} {
+    debug.m/glue {[debug caller] | }
     incr height -4 ; # table overhead (header and borders)
     incr height -3 ; # lines before and after table (prompt with command + OK)
     if {[llength $series] > $height} {
@@ -2359,6 +2396,8 @@ proc ::m::glue::TruncW {titles weights series width} {
     #
     # n < k => Ignore superfluous weights.
     # n > k => Pad to the right with weight 0.
+    #
+    # weight -1: Do not touch at all. (Colorized?!)
 
     set n [llength [lindex $series 0]]
     set k [llength $weights]
@@ -2419,7 +2458,7 @@ proc ::m::glue::TruncW {titles weights series width} {
     
     # Sum of weights to apportion
     set tw 0
-    foreach w $weights { incr tw $w }
+    foreach w $weights { if {$w <= 0} continue ; incr tw $w }
 
     # Number of characters over the allowed width.
     set over [expr {$fw - $width}]
@@ -2429,7 +2468,7 @@ proc ::m::glue::TruncW {titles weights series width} {
     set col 0 ; set removed 0
     foreach w $weights {
 	set c $col ; incr col
-	if {!$w} continue
+	if {$w <= 0} continue
 	set drop [format %.0f [expr {double($over * $w)/$tw}]]
 	incr removed $drop
 	incr wc($c) -$drop
@@ -2450,7 +2489,7 @@ proc ::m::glue::TruncW {titles weights series width} {
     set under 0
     foreach w $weights {
 	set c $col ; incr col
-	if {!$w || ($wc($c) >= $min)} continue
+	if {($w <= 0) || ($wc($c) >= $min)} continue
 	incr under [expr {$min - $wc($c)}]
 	set wc($c) $min
     }
@@ -2504,7 +2543,7 @@ proc ::m::glue::ShaveWeighted {wv weights shave} {
 	set col 0
 	foreach w $weights {
 	    set c $col ; incr col
-	    if {$w} continue
+	    if {$w <= 0} continue
 	    if {$wc($c) <= $min} continue
 	    incr wc($c) -1
 	    incr shave -1
@@ -2524,7 +2563,7 @@ proc ::m::glue::ShaveUnweighted {wv weights shave} {
 	set col 0
 	foreach w $weights {
 	    set c $col ; incr col
-	    if {!$w} continue
+	    if {$w != 0} continue
 	    if {$wc($c) <= $min} continue
 	    incr wc($c) -1
 	    incr shave -1
@@ -2533,6 +2572,107 @@ proc ::m::glue::ShaveUnweighted {wv weights shave} {
 	}
     }
     return $shave
+}
+
+# # ## ### ##### ######## ############# ######################
+## Delta formatting, various kinds (size, commits, time spent)
+## With and without previous. Always current and delta.
+
+proc ::m::glue::LastTime {lastn} {
+    return [m format interval [lindex [split [string trim $lastn ,] ,] end]]
+}
+
+proc ::m::glue::StatsTime {mins maxs lastn} {
+    set mins [expr {$mins < 0 ? "+Inf" : [m format interval $mins]}]
+    set maxs [m format interval $maxs]
+
+    append text "$mins ... $maxs"
+
+    set lastn [split [string trim $lastn ,] ,]
+    set n     [llength $lastn]
+
+    if {!$n} { return $text }
+    
+    set maxn [m state store-window-size]
+    if {$n > $maxn} {
+	set over    [expr {$n - $maxn}]
+	set lastn [lreplace $lastn 0 ${over}-1]
+    }
+    set n       [llength $lastn]
+    set total   [expr [join $lastn +]]
+    set avg     [m format interval [format %.0f [expr {double($total)/$n}]]]
+    
+    append text " ($avg * $n)"
+    return $text
+}
+
+proc ::m::glue::DeltaSizeFull {current previous} {
+    append text [m format size $current]
+    if {$previous != $current} {
+	if {$current < $previous} {
+	    # shrink
+	    set color bad
+	    set delta -[m format size [expr {$previous - $current}]]
+	} else {
+	    # grow
+	    set color note
+	    set delta +[m format size [expr {$current - $previous}]]
+	}
+	set dprev [m format size $previous]
+	append text " (" [color $color "$dprev ($delta)"] ")"
+    }
+
+    return $text
+}
+
+proc ::m::glue::DeltaSize {current previous} {
+    append text [m format size $current]
+    if {$previous != $current} {
+	if {$current < $previous} {
+	    # shrink
+	    set color bad
+	    set delta -[m format size [expr {$previous - $current}]]
+	} else {
+	    # grow
+	    set color note
+	    set delta +[m format size [expr {$current - $previous}]]
+	}
+	append text " (" [color $color "$delta"] ")"
+    }
+
+    return $text
+}
+
+proc ::m::glue::DeltaCommitFull {current previous} {
+    if {$previous == $current} { return $current }
+
+    set delta [expr {$current - $previous}]
+    if {$delta < 0} {
+	set color bad
+    } else {
+	# delta > 0
+	set color note
+	set delta +$delta
+    }
+    
+    append text $current " (" [color $color "$previous ($delta)"] ")"
+    return $text
+}
+
+proc ::m::glue::DeltaCommit {current previous} {
+    if {$previous == $current} { return $current }
+
+    set delta [expr {$current - $previous}]
+    if {$delta < 0} {
+	set color bad
+    } else {
+	# delta > 0
+	set color note
+	set delta +$delta
+    }
+    
+    append text $current " (" [color $color "$delta"] ")"
+    return $text
 }
 
 # # ## ### ##### ######## ############# ######################

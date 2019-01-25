@@ -39,7 +39,7 @@ namespace eval m::vcs {
 }
 namespace eval m::vcs::hg {
     namespace export setup cleanup update check cleave merge \
-	version detect remotes export name-from-url
+	version detect remotes export name-from-url revs
     namespace ensemble create
 }
 
@@ -99,6 +99,11 @@ proc ::m::vcs::hg::setup {path url} {
 proc ::m::vcs::hg::cleanup {path} {
     debug.m/vcs/hg {}
     return
+}
+
+proc ::m::vcs::hg::revs {path} {
+    debug.m/vcs/hg {}
+    return [Count $path]
 }
 
 proc ::m::vcs::hg::update {path urls first} {

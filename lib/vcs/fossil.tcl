@@ -39,7 +39,7 @@ namespace eval m::vcs {
 }
 namespace eval m::vcs::fossil {
     namespace export setup cleanup update check cleave merge \
-	version detect remotes export name-from-url
+	version detect remotes export name-from-url revs
     namespace ensemble create
 }
 
@@ -108,6 +108,11 @@ proc ::m::vcs::fossil::setup {path url} {
 proc ::m::vcs::fossil::cleanup {path} {
     debug.m/vcs/fossil {}
     return
+}
+
+proc ::m::vcs::fossil::revs {path} {
+    debug.m/vcs/fossil {}
+    return [Count $path]
 }
 
 proc ::m::vcs::fossil::update {path urls first} {

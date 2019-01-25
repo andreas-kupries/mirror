@@ -141,7 +141,8 @@ proc ::m::web::site::Store {mset mname store} {
 
     set sd  [m store get $store]
     dict with sd {}
-    # -> size
+    # -> size, sizep
+    #    commits, commitp
     #    vcs
     #    vcsname
     #    created
@@ -150,11 +151,52 @@ proc ::m::web::site::Store {mset mname store} {
     #    attend
     #    active
     #    remote
+    #    min_sec, max_sec, win_sec
+
+    set min_sec [expr {$min_sec < 0 ? "+Inf" : [m format interval $min_sec]}]
+    set max_sec [m format interval $max_sec]
+    set win_sec [split [string trim $win_sec ,] ,]
+    set n       [llength $win_sec]
+    if {$n} {
+	set maxn [m state store-window-size]
+	if {$n > $maxn} {
+	    set over    [expr {$n - $maxn}]
+	    set win_sec [lreplace $win_sec 0 ${over}-1]
+	    set n       [llength $win_sec]
+	}
+	set total [expr [join $win_sec +]]
+	set avg   [m format interval [format %.0f [expr {double($total)/$n}]]]
+	set spent "$min_sec ... $max_sec | $avg * $n"
+    } else {
+	set spent "$min_sec ... $max_sec"
+    }
+    
     set simg [StatusRefs $attend $active $remote]
 
     lassign [m vcs caps $store] stdout stderr
     set logo [T "Operation" $stdout]
     set loge [T "Notes & Errors" $stderr]
+
+    if {$commitp != $commits} {
+	set delta [expr {$commits - $commitp}]
+	if {$delta > 0} {
+	    set delta +$delta
+	}
+	append commits " ($commitp ($delta))"
+    }
+
+    set dsize [m format size $size]
+    if {$sizep != $size} {
+	set dsizep [m format size $sizep]
+	if {$size < $sizep} {
+	    # shrink
+	    set delta -[m format size [expr {$sizep - $size}]]
+	} else {
+	    # grow
+	    set delta +[m format size [expr {$size - $sizep}]]
+	}
+	append dsize " ($dsizep ($delta))"
+    }
 
     set export [m vcs export $vcs $store]
     if {$export ne {}} {
@@ -170,13 +212,15 @@ proc ::m::web::site::Store {mset mname store} {
     append text |---|---|---| \n
 
     R $simg   {} "[IH 32 images/logo/[m vcs code $vcs].svg $vcsname] $vcsname"
-    R Size    {} [m format size $size]
+    R Size    {} $dsize
+    R Commits {} $commits
     if {$export ne {}} {
 	R {} {} $export
     }
-    R {Last Check}  {} [set lc [m format epoch $updated]]
-    R {Last Change} {} [m format epoch $changed]
-    R Created       {} [m format epoch $created]
+    R {Update Stats} {} $spent
+    R {Last Change}  {} [m format epoch $changed]
+    R {Last Check}   {} [set lc [m format epoch $updated]]
+    R Created        {} [m format epoch $created]
 
     set active 1
     foreach {label urls} $r {

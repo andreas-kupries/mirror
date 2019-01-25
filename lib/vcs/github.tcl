@@ -60,13 +60,14 @@ namespace eval m::vcs {
 }
 namespace eval m::vcs::github {
     namespace import ::m::vcs::git::cleanup
+    namespace import ::m::vcs::git::revs
     namespace import ::m::vcs::git::check
     namespace import ::m::vcs::git::cleave
     namespace import ::m::vcs::git::merge
     namespace import ::m::vcs::git::export
 
     namespace export setup cleanup update check cleave merge \
-	detect version remotes export name-from-url
+	detect version remotes export name-from-url revs
     namespace ensemble create
 
     namespace import ::cmdr::color
@@ -162,13 +163,32 @@ proc ::m::vcs::github::setup {path url} {
 	[join [lrange [file split $url] end-1 end] /]
 
     m vcs git setup $path $url
+
+    set forks [llength [ForksRemote $path 0 0]] ;# unverified estimate (saved)
+
+    # TODO: Make the fork warn/error thresholds configurable.
+    # TODO: Implement --force'd operation.
+    if {$forks > 1000} {
+	m msg "  Estimated [cmdr color bad $forks] forks to track."
+	m msg "  [cmdr color warning "This will be very slow to setup and update."]"
+	return -code error -errorcode {M VCS GITHUB FORKS TOOMANY} \
+	    "Too slow for sensible operation. You may --force us"
+    }
+    if {$forks > 500} {
+	m msg "  Estimated [cmdr color bad $forks] forks to track."
+	m msg [cmdr color warning "This will be slow to setup and update."]
+	m msg "  Continuing ..."
+    } else {
+	m msg "  Estimated [cmdr color note $forks] forks to track."
+    }
+
     return
 }
 
 proc ::m::vcs::github::update {path urls first} {
     debug.m/vcs/github {}
 
-    set forks [ForksRemote $path]
+    set forks [ForksRemote $path $first] ;# first => skip query
     set old   [ForksLocal  $path]
 
     debug.m/vcs/github {Got  [llength $forks]}
@@ -230,7 +250,8 @@ proc ::m::vcs::github::update {path urls first} {
 	m::vcs::git::Git remote add $label $url
     }
 
-    return [m vcs git update $path $urls $first]
+    set counts [m vcs git update $path $urls $first]
+    return [linsert $counts end $forks]
 }
 
 proc ::m::vcs::github::remotes {path} {
@@ -255,24 +276,52 @@ proc ::m::vcs::github::Tag {path label} {
     }
 }
 
-proc ::m::vcs::github::ForksRemote {path} {
+proc ::m::vcs::github::OriginSave {path origin} {
     debug.m/vcs/github {}
-    global env
-    set env(TERM) xterm
+    m futil write $path/origin $origin
+    return
+}
 
-    #puts -nonewline \nFORKS\t ; flush stdout
+proc ::m::vcs::github::OriginLoad {path} {
+    debug.m/vcs/github {}
+    return [string trim [m futil cat $path/origin]]
+}
 
-    # Pull the origin to query about forks
-    set origin [OriginLoad $path]
+proc ::m::vcs::github::ForksSave {path suffix forks} {
+    debug.m/vcs/github {}
+    m futil write $path/forks$suffix [join $forks \n]\n
+    return
+}
 
-    try {
-	set possibleforks [lsort -dict [m::vcs::git::Get hub forks --raw $origin]]
-    } trap CHILDSTATUS {e o} {
-	set possibleforks {}
+proc ::m::vcs::github::ForksLoad {path suffix} {
+    debug.m/vcs/github {}
+    return [split [string trim [m futil cat $path/forks$suffix]] \n]
+}
+
+proc ::m::vcs::github::ForksRemote {path {skip 0} {verified 1}} {
+    debug.m/vcs/github {}
+
+    if {!$skip} {
+	global env
+	set env(TERM) xterm
+	#puts -nonewline \nFORKS\t ; flush stdout
+
+	# Pull the origin to query about forks
+	set origin [OriginLoad $path]
+
+	try {
+	    set possibleforks [lsort -dict [m::vcs::git::Get hub forks --raw $origin]]
+	} trap CHILDSTATUS {e o} {
+	    set possibleforks {}
+	}
+
+	ForksSave $path -remote-unverified $possibleforks
+    } else {
+	set possibleforks [ForksLoad $path -remote-unverified]
     }
 
-    ForksSave $path -remote-unverified $possibleforks
-
+    if {!$verified} { return $possibleforks }
+    
     set forks {}
     foreach fork $possibleforks {
 	debug.m/vcs/github {Verify $fork}
@@ -299,28 +348,13 @@ proc ::m::vcs::github::ForksRemote {path} {
     return $forks
 }
 
-proc ::m::vcs::github::OriginSave {path origin} {
-    debug.m/vcs/github {}
-    m futil write $path/origin $origin
-    return
-}
-
-proc ::m::vcs::github::OriginLoad {path} {
-    debug.m/vcs/github {}
-    return [string trim [m futil cat $path/origin]]
-}
-
-proc ::m::vcs::github::ForksSave {path suffix forks} {
-    debug.m/vcs/github {}
-    m futil write $path/forks$suffix [join $forks \n]
-    return
-}
-
 proc ::m::vcs::github::ForksLocal {path} {
     debug.m/vcs/github {}
 
     lassign [m futil grep {\(fetch\)$} \
-		 [split [m::vcs::git::Get remote -v] \n]] forks _
+		 [split [m::vcs::git::Get remote -v] \n]] \
+	forks _
+
     set r {}
     foreach fork [lsort -dict $forks] {
 	lassign $fork label url _
