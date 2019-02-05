@@ -801,10 +801,17 @@ proc ::m::store::Spent {store new} {
 	WHERE  store = :store
     } {}
 
+    debug.m/store {mins  = $mins}
+    debug.m/store {maxs  = $maxs}
+    debug.m/store {lastn = ($window)}
+    
     if {($mins < 0) || ($new < $mins)} { set mins $new }
     if {                $new > $maxs}  { set maxs $new }
 
     set window [::split [string trim $window ,] ,]
+
+    debug.m/store {lastn'= ($window)}
+    
     if {[llength $window]} {
 	lappend window $new
 	set maxlen [m state store-window-size]
@@ -813,10 +820,12 @@ proc ::m::store::Spent {store new} {
 	    set over   [expr {$len - $maxlen}]
 	    set window [lreplace $window 0 ${over}-1]
 	}
-	set window [join $window ,]
+	set new [join $window ,]
     }
     set window ,${new},
-    
+
+    debug.m/store {lastn.= ($window)}
+
     m db eval {
 	UPDATE store_times
 	SET    min_seconds    = :mins
