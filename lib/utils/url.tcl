@@ -87,6 +87,15 @@ proc ::m::url::ok {url rv {follow yes}} {
     set ncode [lindex [dict get $state http] 1]
     debug.m/url {Code: $ncode}
 
+    if {($ncode == 404) &&
+	([string match {https://git.code.sf.net/p/*}          $url] ||
+	 [string match {https://git.code.sourceforge.net/p/*} $url])
+    } {
+	# Fake out SourceForge. It reports 404 for its git repository
+	# urls yet git itself works fine (seems to ignore this).
+	set ncode 200
+    }
+    
     if {$ncode != 200} {
 	set resolved {}
 	debug.m/url {--> FAIL}
