@@ -291,7 +291,7 @@ proc ::m::mset::pending {} {
     }]
 }
 
-proc ::m::mset::take-pending {take} {
+proc ::m::mset::take-pending {take args} {
     debug.m/mset {}
 
     # Ask for one more than actually request. This will cause a
@@ -321,6 +321,16 @@ proc ::m::mset::take-pending {take} {
 	    INTO   mset_pending
 	    SELECT id
 	    FROM   mirror_set
+	}
+
+	if {[llength $args]} {
+	    # Invoke callback to report that the overall cycle just
+	    # came around and started anew.
+	    try {
+		uplevel 1 $args
+	    } on error {e o} {
+		# TODO -- Report (internal) error, but do not crash.
+	    }
 	}
     } else {
 	# Full read. Clear taken, the slow way.  Drop the unwanted

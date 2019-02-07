@@ -4,6 +4,7 @@ echo ___________________________________________ "$@"
 #MIRROR_DEBUG=
 #MIRROR_DEBUG=${MIRROR_DEBUG},m/db
 #MIRROR_DEBUG=${MIRROR_DEBUG},m/glue
+#MIRROR_DEBUG=${MIRROR_DEBUG},m/store
 #MIRROR_DEBUG=${MIRROR_DEBUG},m/mailer
 #MIRROR_DEBUG=${MIRROR_DEBUG},m/match
 #MIRROR_DEBUG=${MIRROR_DEBUG},m/repo
@@ -13,4 +14,6 @@ echo ___________________________________________ "$@"
 #MIRROR_DEBUG=${MIRROR_DEBUG},m/vcs/fossil
 #MIRROR_DEBUG=${MIRROR_DEBUG},m/vcs/git
 #MIRROR_DEBUG=${MIRROR_DEBUG},m/vcs/github
+#MIRROR_DEBUG=${MIRROR_DEBUG},m/vcs/hg
+#MIRROR_DEBUG=${MIRROR_DEBUG},m/vcs/svn
 ./bin/mirror "$@"

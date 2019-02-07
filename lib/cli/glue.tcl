@@ -358,9 +358,14 @@ proc ::m::glue::cmd_show {config} {
 
     m db transaction {
 	[table/d t {
-	    $t add Store [m state store]
-	    $t add Limit [m state limit]
-	    $t add Take  [m state take]
+	    $t add Store         [m state store]
+	    $t add Limit         [m state limit]
+	    $t add Take          [m state take]
+	    $t add Window        [m state store-window-size]
+	    $t add {Report To}   [m state report-mail-destination]
+	    $t add {-} {}
+	    $t add {Cycle, Last} [m format epoch [m state start-of-previous-cycle]]
+	    $t add {Cycle, Now}  [m format epoch [m state start-of-current-cycle]]
 
 	    if {$all} {
 		package require m::db
@@ -481,6 +486,22 @@ proc ::m::glue::cmd_store {config} {
 
     m msg "$prefix Store at [color note $value]"
     if {$prefix eq "New"} SiteRegen
+    OK
+}
+
+proc ::m::glue::cmd_report2 {config} {
+    debug.m/glue {[debug caller] | }
+    package require m::state
+
+    m db transaction {
+	if {[$config @mail set?]} {
+	    m state report-mail-destination [$config @mail]
+	}
+
+	set mail [m state report-mail-destination]
+    }
+
+    m msg "Send report mails to [color note $mail]"
     OK
 }
 
@@ -950,10 +971,11 @@ proc ::m::glue::cmd_update {config} {
     package require m::state
     package require m::store
 
+    set nowcycle [clock seconds]
+
     m db transaction {
 	set verbose  [$config @verbose]
-	set nowcycle [clock seconds]
-	set msets    [UpdateSets [$config @mirror-sets]]
+	set msets    [UpdateSets $nowcycle [$config @mirror-sets]]
 	debug.m/glue {msets = ($msets)}
 
 	foreach mset $msets {
@@ -975,7 +997,8 @@ proc ::m::glue::cmd_update {config} {
 		# => VCS layer, notification callback ...
 		set counts [m store update $store $nowcycle [clock seconds]]
 		lassign $counts before after forks remotes spent
-
+		debug.m/glue {update = ($counts)}
+		
 		set    suffix ""
 		append suffix ", in " [color note [m format interval $spent]]
 		append suffix " ("    [color note [lindex $remotes 0]] ")"
@@ -1019,7 +1042,7 @@ proc ::m::glue::cmd_updates {config} {
     m db transaction {
 	# TODO: get status (stderr), show - store id
 	set series {}
-	foreach row [TruncH [m store updates] [$config @th]] {
+	foreach row [TruncH [m store updates] [expr {[$config @th]-1}]] {
 	    if {[lindex $row 0] eq "..."} {
 		lappend series [list ... {} {} {} {} {} {}]
 		continue
@@ -1047,6 +1070,7 @@ proc ::m::glue::cmd_updates {config} {
 		 {1 0 0 0 0 0 0 0} \
 		 $series [$config @tw]] \
 	titles series
+    m msg "Cycles: [m format epoch [m state start-of-previous-cycle]] ... [m format epoch [m state start-of-current-cycle]] ..."
     [table t $titles {
 	foreach row $series {
 	    $t add {*}$row
@@ -1532,6 +1556,17 @@ proc ::m::glue::cmd_drop {config} {
     }
     SiteRegen
     OK
+}
+
+proc ::m::glue::cmd_test_cycle_mail {config} {
+    debug.m/glue {[debug caller] | }
+    package require m::db
+    package require m::state
+
+    m db transaction {
+	m msg [ComeAroundMail [m state start-of-current-cycle] [clock seconds]]
+    }
+    OK    
 }
 
 proc ::m::glue::cmd_test_mail_config {config} {
@@ -2127,14 +2162,87 @@ proc ::m::glue::MakeName {prefix} {
     return "${prefix}#$n"
 }
 
-proc ::m::glue::UpdateSets {msets} {
+proc ::m::glue::ComeAroundMail {current newcycle} {
+    debug.m/glue {[debug caller] | }
+    package require m::db
+    package require m::state
+    package require m::store
+    package require m::format
+
+    lappend mail "\[[info hostname]\] Cycle Report."
+    lappend mail "The cycle\nfrom [clock format $current]\nto   [clock format $newcycle]"
+
+    set n 0
+    table t {Changed Time Size Commits VCS {Mirror Set}} {
+	foreach row [m store updates] {
+	    dict with row {}
+	    # store mname vcode changed updated created size active remote
+	    # sizep commits commitp mins maxs lastn
+	    if {$created eq "."} continue ;# ignore separations
+	    if {$changed < $current} continue ;# older cycle
+
+	    # This row is for the cycle which justed ended. Put into the mail.
+	
+	    if {!$n} {
+		lappend mail "found @/n/@ changed repositories:\n"
+	    }
+	    incr n
+
+	    set dcommit [DeltaCommitFull $commits $commitp]
+	    set dsize   [DeltaSizeFull $size $sizep]
+	    set changed [m format epoch $changed]
+	    set spent   [StatsTime $mins $maxs $lastn]
+
+	    $t add $changed $spent $dsize $dcommit $vcode $mname
+	}
+    }
+
+    if {!$n} {
+	# No changes found
+	lappend mail "found no changes."
+    } else {
+	# Add the table ito the mail
+	lappend mail [$t show return]
+	# Note: The `return` prempts the show from destroying the table.
+    }
+    $t destroy
+    MailFooter mail
+
+    return [string map [list @/n/@ $n] [join $mail \n]]
+}
+
+proc ::m::glue::ComeAround {newcycle} {
+    debug.m/glue {[debug caller] | }
+    # Called when the update cycle comes around back to the start.
+    # Creates a mail reporting on all the mirror sets which where
+    # changed in the previous cycle.
+
+    set current [m state start-of-current-cycle]
+    m state start-of-previous-cycle $current
+    m state start-of-current-cycle  $newcycle
+    
+    set email [m state report-mail-destination]
+
+    if {$email eq {}} {
+	debug.m/glue {[debug caller] | Skipping report without destination}
+	# Nobody to report to, skipping report
+	return
+    }
+
+    m mailer to $email \
+	[m mail generator reply [ComeAroundMail $current $newcycle] {}]
+    return
+}
+
+proc ::m::glue::UpdateSets {now msets} {
     debug.m/glue {[debug caller] | }
 
     set n [llength $msets]
     if {!$n} {
 	# No repositories specified.
 	# Pull mirror sets directly from pending
-	return [m mset take-pending [m state take]]
+	return [m mset take-pending [m state take] \
+		    ::m::glue::ComeAround $now]
     }
 
     return $msets

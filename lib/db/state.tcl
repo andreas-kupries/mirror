@@ -39,6 +39,8 @@ namespace eval ::m::state {
     namespace ensemble create -map [apply {{} {
 	foreach k {
 	    take store limit top
+	    store-window-size
+	    report-mail-destination
 
 	    mail-debug
 	    mail-footer
@@ -58,7 +60,8 @@ namespace eval ::m::state {
 	    site-title
 	    site-url
 
-	    store-window-size
+	    start-of-current-cycle
+	    start-of-previous-cycle
 	} {
 	    dict set map $k [list ::m::state::Process $k]
 	}

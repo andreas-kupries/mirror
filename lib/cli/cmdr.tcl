@@ -293,6 +293,16 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	    } { optional ; validate cmdr::validate::posint }
 	} [m::cmdr::call glue cmd_take]
 
+	private report {
+	    description {
+		Query/change the email address to send reports to.
+	    }
+	    input mail {
+		Address to send report emails to.
+		An empty address disables reporting.
+	    } { optional ; validate cmdr::validate::str }
+	} [m::cmdr::call glue cmd_report]
+
 	private window {
 	    description {
 		Query/change the size of the window for the moving
@@ -909,6 +919,13 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	common *all* -extend {
 	    section Advanced Debugging
 	}
+
+	private cycle-mail {
+	    description {
+		Show the mail which would be generated if the update
+		cycle turned around now.
+	    }
+	} [m::cmdr::call glue cmd_test_cycle_mail]
 
 	private mail-setup {
 	    description {

@@ -531,5 +531,47 @@ proc ::m::db::SETUP-201901242300 {} {
     return
 }
 
+proc ::m::db::SETUP-201901252300 {} {
+    debug.m/db {}
+    # Added more state, start of the current cycle.
+
+    D m::db
+    # - -- --- ----- -------- -------------
+    T^ state
+
+    > 'start-of-current-cycle' '[clock seconds]' ;# As epoch
+    #  Fake start for now, self corrects when it comes around.
+    
+    return
+}
+
+proc ::m::db::SETUP-201901252301 {} {
+    debug.m/db {}
+    # And (local) email address for reporting
+
+    D m::db
+    # - -- --- ----- -------- -------------
+    T^ state
+
+    > 'report-mail-destination' ''
+    return
+}
+
+proc ::m::db::SETUP-201902052300 {} {
+    debug.m/db {}
+    # Added more state, start of the previous cycle.
+    # Compare with current for rough length.
+
+    D m::db
+    # - -- --- ----- -------- -------------
+    T^ state
+
+    > 'start-of-previous-cycle' '[clock seconds]' ;# As epoch
+    #  Fake start for now, self corrects when it comes around
+    #  next time.
+    
+    return
+}
+
 # # ## ### ##### ######## ############# #####################
 return

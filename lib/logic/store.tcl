@@ -119,6 +119,7 @@ proc ::m::store::update {store cycle now} {
     set spent   [expr {[clock seconds] - $started}]
 
     lassign $counts before after forks
+    debug.m/store {update = ($counts)}
 
     Attend  $store
     Spent   $store $spent

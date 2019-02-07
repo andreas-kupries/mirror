@@ -91,6 +91,8 @@ proc ::m::web::site::build {{mode verbose}} {
 	dict set stats nrepos   [m repo count]
 	dict set stats nmsets   [m mset count]
 	dict set stats nstores  [m store count]
+	dict set stats ccycle   [m state start-of-current-cycle]
+	dict set stats pcycle   [m state start-of-previous-cycle]
 
 	List "By Last Change"     index.md          $bytime   $stats
 	List "By Name, VCS, Size" index_name.md     $byname   $stats
@@ -155,6 +157,9 @@ proc ::m::web::site::Store {mset mname store} {
 
     set min_sec [expr {$min_sec < 0 ? "+Inf" : [m format interval $min_sec]}]
     set max_sec [m format interval $max_sec]
+
+    set spent "$min_sec ... $max_sec"
+
     set win_sec [split [string trim $win_sec ,] ,]
     set n       [llength $win_sec]
     if {$n} {
@@ -166,9 +171,7 @@ proc ::m::web::site::Store {mset mname store} {
 	}
 	set total [expr [join $win_sec +]]
 	set avg   [m format interval [format %.0f [expr {double($total)/$n}]]]
-	set spent "$min_sec ... $max_sec | $avg * $n"
-    } else {
-	set spent "$min_sec ... $max_sec"
+	append spent " ($avg * $n)"
     }
     
     set simg [StatusRefs $attend $active $remote]
@@ -271,6 +274,8 @@ proc ::m::web::site::List {suffix page series stats} {
     # nrepos
     # nmsets
     # nstores
+    # ccycle
+    # pcycle
 
     append text [H "Index ($suffix)"]
 
@@ -281,17 +286,30 @@ proc ::m::web::site::List {suffix page series stats} {
     set issues   [L index_issues.html   "Issues: $issues" ]
     set disabled [L index_disabled.html "Disabled: $disabled" ]
 
-    append text "Sets: $nmsets"
-    append text " Repos: $nrepos"
-    append text " Stores: $nstores"
-    append text " Size: [m format size $size]"
-    append text " $issues" \n
-    append text " $disabled" \n
-    append text \n
+    set ccf [m format epoch $ccycle]
+    set pcf [m format epoch $pcycle]
+    set dt  [expr {$ccycle - $pcycle}]
+    set dtf [m format interval $dt]
 
+    append text  "Sets: " $nmsets ,
+    append text " Repos: " $nrepos ,
+    append text " Stores: " $nstores ,
+    append text " Size: " [m format size $size] ,
+    append text " " $issues , \n
+    append text " " $disabled \n
+    append text \n
+    append text "Cycles: Current began __" $ccf "__, "
+    append text            "Last began __" $pcf "__, taking __" $dtf "__" \n
+    append text \n
     append text "||$hname|$hvcs|$hsize|$hchan|Updated|Created|" \n
     append text "|---|---|---|---:|---|---|---|" \n
 
+    # Disable insertion of cycle flags for all tables but sorted by change.
+    if {$page eq "index.md"} {
+	set pcycle -1
+	set ccycle -1
+    }
+    
     set mname {}
     set last {}
     foreach row $series {
@@ -301,6 +319,15 @@ proc ::m::web::site::List {suffix page series stats} {
 	if {$created eq "."} {
 	    append text "||||||||" \n
 	    continue
+	}
+
+	if {$changed < $ccycle} {
+	    append text "||__$ccf Start Of Current Cycle__||||||" \n
+	    set ccycle -1 ;# Prevent further triggers
+	}
+	if {$changed < $pcycle} {
+	    append text "||__$pcf Start Of Last Cycle__||||||" \n
+	    set pcycle -1 ;# Prevent further triggers
 	}
 
 	set img     [StatusRefs $attend $active $remote]
