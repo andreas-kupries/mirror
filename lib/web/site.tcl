@@ -305,7 +305,7 @@ proc ::m::web::site::List {suffix page series stats} {
     append text "|---|---|---|---:|---|---|---|" \n
 
     # Disable insertion of cycle flags for all tables but sorted by change.
-    if {$page eq "index.md"} {
+    if {$page ne "index.md"} {
 	set pcycle -1
 	set ccycle -1
     }
@@ -321,13 +321,15 @@ proc ::m::web::site::List {suffix page series stats} {
 	    continue
 	}
 
-	if {$changed < $ccycle} {
-	    append text "||__$ccf Start Of Current Cycle__||||||" \n
-	    set ccycle -1 ;# Prevent further triggers
-	}
-	if {$changed < $pcycle} {
-	    append text "||__$pcf Start Of Last Cycle__||||||" \n
-	    set pcycle -1 ;# Prevent further triggers
+	if {$changed ne {}} {
+	    if {$changed < $ccycle} {
+		append text "||__$ccf Start Of Current Cycle__||||||" \n
+		set ccycle -1 ;# Prevent further triggers
+	    }
+	    if {$changed < $pcycle} {
+		append text "||__$pcf Start Of Last Cycle__||||||" \n
+		set pcycle -1 ;# Prevent further triggers
+	    }
 	}
 
 	set img     [StatusRefs $attend $active $remote]
