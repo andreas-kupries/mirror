@@ -4,13 +4,13 @@
 
 MM is a tool to ease backing up a large number of repositories.
 
-It currently supports fossil, git(hub) and mercurial (hg)
-repositories.
+It currently supports `fossil`, `git(hub)`, `mercurial` (`hg`), and
+`subversion` (`svn`) repositories.
 
 Its operation is made easier by these DVCS all having replication and
 synchronization protocols baked into them and their clients. Because
 of that MM did not have to invent anything new, it gets by just by
-invoking the existing tools (`fossil`, `hg`, `git`, `git hub`).
+invoking the existing tools (`fossil`, `hg`, `git`, `git hub`, `svn`).
 
 All management is done through a command line application with
 integrated help, called `mirror`.
@@ -63,6 +63,8 @@ employed heuristics (.i.e url patterns), are, in order:
 |`*git*`			|git	|Requires `git`	       		|
 |`*hg.code.sf.net*`		|hg	|Requires `hg`			|
 |`*hg.code.sourceforge.net*`	|hg	|S.a.				|
+|`*svn.code.sf.net*`		|svn	|Requires `svn`			|
+|`*svn.code.sourceforge.net*`	|svn	|S.a.				|
 |`*`				|fossil	|Requires `fossil`		|
 
 As can be seen, the order does matter, and `fossil` is the catch-all
