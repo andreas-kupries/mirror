@@ -573,5 +573,17 @@ proc ::m::db::SETUP-201902052300 {} {
     return
 }
 
+proc ::m::db::SETUP-201902052301 {} {
+    debug.m/db {}
+    # Added `svn` to the set of supported VCS.
+
+    D m::db
+    # - -- --- ----- -------- -------------
+    T^ version_control_system
+    >+ 'svn' 'Subversion'
+
+    return
+}
+
 # # ## ### ##### ######## ############# #####################
 return

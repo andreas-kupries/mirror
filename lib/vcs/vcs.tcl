@@ -33,6 +33,7 @@ package require m::vcs::fossil
 package require m::vcs::git
 package require m::vcs::github
 package require m::vcs::hg
+package require m::vcs::svn
 package require debug
 package require debug::caller
 
@@ -164,7 +165,7 @@ proc ::m::vcs::update {store vcs urls} {
     if {$failed} {
 	m futil append $path/%stderr "Unable to reach remotes\n"
 	# Fake 'no changes', and error
-	return {-1 -1}
+	return {-1 -1 {}}
     }
 
     try {
@@ -174,9 +175,9 @@ proc ::m::vcs::update {store vcs urls} {
     } on error {e o} {
 	# Fake 'no changes', and error.
 	# Note, CAP already saved the errorInfo into %stderr
-	return {-1 -1}
+	return {-1 -1 {}}
     }
-
+    if {[llength $counts] < 3} { lappend counts {} }
     debug.m/vcs {==> ($counts)}
     return $counts
 }
@@ -322,6 +323,7 @@ proc ::m::vcs::detect {url} {
     github detect $url
     git    detect $url
     hg     detect $url
+    svn    detect $url
     fossil detect $url
 
     return -code error "Unable to determine vcs for $url"
