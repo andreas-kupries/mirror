@@ -352,6 +352,7 @@ proc ::m::glue::cmd_siteconfig_show {config} {
 
 proc ::m::glue::cmd_show {config} {
     debug.m/glue {[debug caller] | }
+    package require m::mset
     package require m::state
 
     set all [$config @all]
@@ -360,7 +361,7 @@ proc ::m::glue::cmd_show {config} {
 	[table/d t {
 	    $t add Store         [m state store]
 	    $t add Limit         [m state limit]
-	    $t add Take          [m state take]
+	    $t add Take         "[m state take] ([m mset count-pending] pending/[m mset count] total)"
 	    $t add Window        [m state store-window-size]
 	    $t add {Report To}   [m state report-mail-destination]
 	    $t add {-} {}
@@ -971,11 +972,12 @@ proc ::m::glue::cmd_update {config} {
     package require m::state
     package require m::store
 
-    set nowcycle [clock seconds]
-
+    set startcycle [m state start-of-current-cycle]
+    set nowcycle   [clock seconds]
+    
     m db transaction {
 	set verbose  [$config @verbose]
-	set msets    [UpdateSets $nowcycle [$config @mirror-sets]]
+	set msets    [UpdateSets $startcycle $nowcycle [$config @mirror-sets]]
 	debug.m/glue {msets = ($msets)}
 
 	foreach mset $msets {
@@ -1084,6 +1086,12 @@ proc ::m::glue::cmd_pending {config} {
     package require m::mset
     package require m::state
 
+    set tw [$config @tw]
+    set th [$config @th] ; incr th -1 ;# Additional line before the table (counts).
+
+    set nmset    [m mset count]
+    set npending [m mset count-pending]
+    
     m db transaction {
 	set series {}
 	set take   [m state take]
@@ -1096,11 +1104,14 @@ proc ::m::glue::cmd_pending {config} {
 	    }
 	}
     }
+
     lassign [TruncW \
 		 {{} {Mirror Set} #Repositories} \
 		 {0 1 0} \
-		 [TruncH $series [$config @th]] [$config @tw]] \
+		 [TruncH $series $th] $tw] \
 	titles series
+
+    puts @[color note $npending]/$nmset
     [table t $titles {
 	foreach row $series {
 	    $t add {*}$row
@@ -1465,13 +1476,13 @@ proc ::m::glue::cmd_accept {config} {
 		dict set details submitter $email
 	    }
 
-	    MailHeader mail Accepted $desc
-	    lappend mail "Your submission has been accepted."
-	    lappend mail "The repository should appear on our web-pages soon."
-	    MailFooter mail
-	    
-	    m mailer to $email \
-		[m mail generator reply [join $mail \n] $details]
+	    MailHeader accept_mail Accepted $desc
+	    lappend accept_mail "Your submission has been accepted."
+	    lappend accept_mail "The repository should appear on our web-pages soon."
+	    MailFooter accept_mail
+
+	    set accept_mail [join $accept_mail \n]
+	    m mailer to $email [m mail generator reply $accept_mail $details]
 	}
     }
     SiteRegen
@@ -1528,14 +1539,14 @@ proc ::m::glue::cmd_reject {config} {
 		dict set details submitter $email
 	    }
 
-	    MailHeader themail Declined $desc
-	    lappend    themail "We are sorry to tell you that we are declining it."
-	    lappend    themail $text ;# cause
-	    MailFooter themail
+	    MailHeader decline_mail Declined $desc
+	    lappend    decline_mail "We are sorry to tell you that we are declining it."
+	    lappend    decline_mail $text ;# cause
+	    MailFooter decline_mail
 
-	    m mailer to $email \
-		[m mail generator reply [join $themail \n] $details]
-	    unset themail
+	    set decline_mail [join $decline_mail \n]
+	    m mailer to $email [m mail generator reply $decline_mail $details]
+	    unset decline_mail
 	}
     }
     SiteRegen
@@ -1574,8 +1585,7 @@ proc ::m::glue::cmd_test_mail_config {config} {
     package require m::mailer
     package require m::mail::generator
 
-    m mailer to [$config @destination] \
-	[m mail generator test]
+    m mailer to [$config @destination] [m mail generator test]
     OK    
 }
 
@@ -2220,32 +2230,48 @@ proc ::m::glue::ComeAround {newcycle} {
     set current [m state start-of-current-cycle]
     m state start-of-previous-cycle $current
     m state start-of-current-cycle  $newcycle
+
+    m msg "Cycle complete, coming around and starting new ..."
     
     set email [m state report-mail-destination]
 
     if {$email eq {}} {
 	debug.m/glue {[debug caller] | Skipping report without destination}
 	# Nobody to report to, skipping report
+	m msg "- [color warning {Skipping mail report, no destination}]"
 	return
     }
 
-    m mailer to $email \
-	[m mail generator reply [ComeAroundMail $current $newcycle] {}]
+    m msg "- [color good "Mailing report to"] [color note $email]"
+    
+    set comearound [ComeAroundMail $current $newcycle]
+    m mailer to $email [m mail generator reply $comearound {}]
+
+    m msg [color good OK]
     return
 }
 
-proc ::m::glue::UpdateSets {now msets} {
+proc ::m::glue::UpdateSets {start now msets} {
     debug.m/glue {[debug caller] | }
 
     set n [llength $msets]
-    if {!$n} {
-	# No repositories specified.
-	# Pull mirror sets directly from pending
-	return [m mset take-pending [m state take] \
-		    ::m::glue::ComeAround $now]
+    if {$n} {
+	# The note below is not shown when the user explicitly
+	# specifies the mirror sets to process. Because that is
+	# outside any cycle.
+	return $msets
     }
 
-    return $msets
+    set take     [m state take]
+    set nmset    [m mset count]
+    set npending [m mset count-pending]
+
+    m msg "In cycle started on [m format epoch $start]: $take/$npending/$nmset"
+
+    # No repositories specified.
+    # Pull mirror sets directly from pending
+    return [m mset take-pending $take \
+		::m::glue::ComeAround $now]
 }
 
 proc ::m::glue::Dedup {values} {
