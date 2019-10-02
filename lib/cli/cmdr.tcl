@@ -925,6 +925,15 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 		Show the mail which would be generated if the update
 		cycle turned around now.
 	    }
+	    option mail {
+		Actually send the mail. Use the configured destination,
+		if not overridden by --destination.
+	    } { alias M ; presence }
+	    option destination {
+		The destination address to send the mail to.
+	    } { alias D
+		generate [m::cmdr::call glue gen_report_destination]
+	    }
 	} [m::cmdr::call glue cmd_test_cycle_mail]
 
 	private mail-setup {

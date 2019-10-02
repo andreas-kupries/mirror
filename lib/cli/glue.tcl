@@ -48,6 +48,17 @@ debug prefix m/glue {}
 
 # # ## ### ##### ######## ############# ######################
 
+proc ::m::glue::gen_report_destination {p} {
+    debug.m/glue {[debug caller] | }
+    package require m::state
+
+    set email [m state report-mail-destination]
+
+    debug.m/glue {[debug caller] | [$p config] }
+    debug.m/glue {[debug caller] | --> $email }
+    return $email
+}
+
 proc ::m::glue::gen_limit {p} {
     debug.m/glue {[debug caller] | }
     package require m::state
@@ -1574,8 +1585,22 @@ proc ::m::glue::cmd_test_cycle_mail {config} {
     package require m::db
     package require m::state
 
-    m db transaction {
-	m msg [ComeAroundMail [m state start-of-current-cycle] [clock seconds]]
+    if {[$config @mail]} {
+	# For mailing no color control sequences in the output!
+	set active [cmdr color active]
+	cmdr color activate 0
+	m db transaction {
+	    set message [ComeAroundMail [m state start-of-current-cycle] [clock seconds]]
+	}
+	cmdr color activate $active
+	package require m::mail::generator
+	package require m::mailer
+	m mailer to [$config @destination] [m mail generator reply $message {}]
+    } else {
+	m db transaction {
+	    set message [ComeAroundMail [m state start-of-current-cycle] [clock seconds]]
+	}
+	m msg $message
     }
     OK    
 }
@@ -2242,6 +2267,8 @@ proc ::m::glue::ComeAround {newcycle} {
 	return
     }
 
+    package require m::mail::generator
+    package require m::mailer
     m msg "- [color good "Mailing report to"] [color note $email]"
     
     set comearound [ComeAroundMail $current $newcycle]

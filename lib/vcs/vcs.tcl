@@ -80,6 +80,8 @@ proc ::m::vcs::size {store} {
 
     set path [Path $store]
     set kb   [lindex [m exec get du -sk $path] 0]
+
+    debug.m/vcs {=> $kb}
     return $kb
 }
 
@@ -158,6 +160,7 @@ proc ::m::vcs::update {store vcs urls} {
     m futil write $path/%stdout "Verifying urls ...\n"
     set failed 0
     foreach u $urls {
+	debug.m/vcs {Verifying $u ...}
 	if {[m url ok $u xr]} continue
 	m futil append $path/%stderr "  Bad url: $u\n"
 	set failed 1
@@ -451,7 +454,9 @@ proc ::m::vcs::CAP {path script} {
 
 proc ::m::vcs::Path {dir} {
     debug.m/vcs {}
-    return [file normalize [file join [m state store] $dir]]
+    set path [file normalize [file join [m state store] $dir]]
+    debug.m/vcs {=> $path}
+    return $path
 }
 
 # # ## ### ##### ######## ############# #####################

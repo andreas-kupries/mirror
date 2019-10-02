@@ -112,7 +112,7 @@ proc ::m::store::update {store cycle now} {
     # Get all repositories for this store (same VCS, same mirror set),
     # then feed everything to the vcs layer.
 
-    set remotes [Remotes $store]
+    set remotes [Remotes $store 1]
 
     set started [clock seconds]
     set counts  [m vcs update $store $vcs $remotes]
@@ -724,8 +724,20 @@ proc ::m::store::Sep {sv} {
     return
 }
 
-proc ::m::store::Remotes {store} {
+proc ::m::store::Remotes {store {onlyactive 0}} {
     debug.m/store {}
+    if {$onlyactive} {
+	return [m db eval {
+	    SELECT R.url
+	    FROM   repository R
+	    ,      store      S
+	    WHERE S.id   = :store
+	    AND   R.vcs  = S.vcs
+	    AND   R.mset = S.mset
+	    AND   R.active
+	}]
+    }
+    
     return [m db eval {
 	SELECT R.url
 	FROM   repository R
