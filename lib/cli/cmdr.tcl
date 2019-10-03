@@ -824,6 +824,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	    user   str                    {account on the mail relay host}
 	    pass   str                    {credentials for the mail account}
 	    tls    boolean                {TLS use to secure SMTP}
+	    debug  boolean                {SMTP narrative tracing}
 	    sender str                    {nominal sender of all mail}
 	    header str                    {header text placed before generated content}
 	    footer str                    {footer text placed after generated content}

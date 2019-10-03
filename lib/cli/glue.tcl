@@ -2422,6 +2422,7 @@ proc ::m::glue::MailConfigShow {t {prefix {}}} {
     $t add ${prefix}Sender [Inval $s {$s ne "undefined"}]
     $t add ${prefix}Header [m state mail-header]
     $t add ${prefix}Footer [m state mail-footer]
+    $t add ${prefix}Debug  [m state mail-debug]
     return
 }
 
