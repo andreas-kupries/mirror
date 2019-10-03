@@ -1590,7 +1590,7 @@ proc ::m::glue::cmd_test_cycle_mail {config} {
 	set active [cmdr color active]
 	cmdr color activate 0
 	m db transaction {
-	    set message [ComeAroundMail [m state start-of-current-cycle] [clock seconds]]
+	    set message [ComeAroundMail [m state mail-width] [m state start-of-current-cycle] [clock seconds]]
 	}
 	cmdr color activate $active
 	package require m::mail::generator
@@ -1598,7 +1598,7 @@ proc ::m::glue::cmd_test_cycle_mail {config} {
 	m mailer to [$config @destination] [m mail generator reply $message {}]
     } else {
 	m db transaction {
-	    set message [ComeAroundMail [m state start-of-current-cycle] [clock seconds]]
+	    set message [ComeAroundMail [$config @tw] [m state start-of-current-cycle] [clock seconds]]
 	}
 	m msg $message
     }
@@ -2197,52 +2197,55 @@ proc ::m::glue::MakeName {prefix} {
     return "${prefix}#$n"
 }
 
-proc ::m::glue::ComeAroundMail {current newcycle} {
+proc ::m::glue::ComeAroundMail {width current newcycle} {
     debug.m/glue {[debug caller] | }
     package require m::db
     package require m::state
     package require m::store
     package require m::format
 
+    # Get updates and convert into a series for the table. A series we
+    # can compress width-wise before formatting.
+    set series {}    
+    foreach row [m store updates] {
+	dict with row {}
+	# store mname vcode changed updated created size active remote
+	# sizep commits commitp mins maxs lastn
+	if {$created eq "."} continue ;# ignore separations
+	if {$changed < $current} continue ;# older cycle
+
+	set dcommit [DeltaCommitFull $commits $commitp]
+	set dsize   [DeltaSizeFull $size $sizep]
+	set changed [m format epoch $changed]
+	set spent   [StatsTime $mins $maxs $lastn]
+
+	lappend series [list $changed $spent $dsize $dcommit $vcode $mname]
+    }
+    
     lappend mail "\[[info hostname]\] Cycle Report."
-    lappend mail "The cycle\nfrom [clock format $current]\nto   [clock format $newcycle]"
-
-    set n 0
-    table t {Changed Time Size Commits VCS {Mirror Set}} {
-	foreach row [m store updates] {
-	    dict with row {}
-	    # store mname vcode changed updated created size active remote
-	    # sizep commits commitp mins maxs lastn
-	    if {$created eq "."} continue ;# ignore separations
-	    if {$changed < $current} continue ;# older cycle
-
-	    # This row is for the cycle which justed ended. Put into the mail.
-	
-	    if {!$n} {
-		lappend mail "found @/n/@ changed repositories:\n"
-	    }
-	    incr n
-
-	    set dcommit [DeltaCommitFull $commits $commitp]
-	    set dsize   [DeltaSizeFull $size $sizep]
-	    set changed [m format epoch $changed]
-	    set spent   [StatsTime $mins $maxs $lastn]
-
-	    $t add $changed $spent $dsize $dcommit $vcode $mname
-	}
-    }
-
+    lappend mail "Cycle\nFrom [clock format $current]\nTo   [clock format $newcycle]"
+    set n [llength $series]
     if {!$n} {
-	# No changes found
-	lappend mail "found no changes."
+	lappend mail "Found no changes."
     } else {
-	# Add the table ito the mail
-	lappend mail [$t show return]
-	# Note: The `return` prempts the show from destroying the table.
-    }
-    $t destroy
-    MailFooter mail
+	lappend mail "Found @/n/@ changed repositories:\n"
 
+	lassign [TruncW \
+		     {Changed Time Size Commits VCS {Mirror Set}} \
+		     {0 0 0 0 0 1} \
+		     $series \
+		     $width] \
+	    titles series
+	
+	table t $titles {
+	    foreach row $series {
+		$t add {*}$row
+	    }
+	}
+	lappend mail [$t show]
+    }
+    
+    MailFooter mail
     return [string map [list @/n/@ $n] [join $mail \n]]
 }
 
@@ -2271,7 +2274,7 @@ proc ::m::glue::ComeAround {newcycle} {
     package require m::mailer
     m msg "- [color good "Mailing report to"] [color note $email]"
     
-    set comearound [ComeAroundMail $current $newcycle]
+    set comearound [ComeAroundMail [m state mail-width] $current $newcycle]
     m mailer to $email [m mail generator reply $comearound {}]
 
     m msg [color good OK]
@@ -2422,6 +2425,7 @@ proc ::m::glue::MailConfigShow {t {prefix {}}} {
     $t add ${prefix}Sender [Inval $s {$s ne "undefined"}]
     $t add ${prefix}Header [m state mail-header]
     $t add ${prefix}Footer [m state mail-footer]
+    $t add ${prefix}Width  [m state mail-width]
     $t add ${prefix}Debug  [m state mail-debug]
     return
 }
@@ -2585,7 +2589,7 @@ proc ::m::glue::TruncW {titles weights series width} {
     debug.m/glue { terminal'    : $width (-[expr {3*$n+1}]) }
     debug.m/glue { weights'     : ($weights)}
     
-    # compute series column widths (max len) for all columns.  If the
+    # Compute series column widths (max len) for all columns.  If the
     # total width is larger than width we have to shrink by weight.
     # Note: Min column width after shrinking is 6 (because we want to
     # show something for each column).  If shrink by weight goes below

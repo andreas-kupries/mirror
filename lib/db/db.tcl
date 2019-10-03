@@ -585,5 +585,18 @@ proc ::m::db::SETUP-201902052301 {} {
     return
 }
 
+proc ::m::db::SETUP-201910031116 {} {
+    debug.m/db {}
+    # Extended mail configuration, width to use for tables.
+
+    D m::db
+    # - -- --- ----- -------- -------------
+    T^ state
+    #                           -- Mail content configuration
+    > 'mail-width' '200'        ;# Width of tables placed into content
+
+    return
+}
+
 # # ## ### ##### ######## ############# #####################
 return

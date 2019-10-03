@@ -828,6 +828,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	    sender str                    {nominal sender of all mail}
 	    header str                    {header text placed before generated content}
 	    footer str                    {footer text placed after generated content}
+	    width  cmdr::validate::posint {width of tables placed into generated content}
 	} {
      	    private $k [string map [list V $v K $k D $d] {
 		description { Set or query D }

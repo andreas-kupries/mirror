@@ -51,6 +51,7 @@ namespace eval ::m::state {
 	    mail-sender
 	    mail-tls
 	    mail-user
+	    mail-width
 
 	    site-active
 	    site-logo
