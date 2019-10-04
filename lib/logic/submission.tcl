@@ -184,7 +184,7 @@ proc ::m::submission::drop {rejection} {
 
 proc ::m::submission::accept {submission} {
     debug.m/submission {}
-    set url [m db onecolum {
+    set url [m db onecolumn {
 	SELECT url
 	FROM  submission
 	WHERE id = :submission
@@ -211,7 +211,7 @@ proc ::m::submission::accept {submission} {
 
 proc ::m::submission::reject {submission reason} {
     debug.m/submission {}
-    set url [m db onecolum {
+    set url [m db onecolumn {
 	SELECT url
 	FROM  submission
 	WHERE id = :submission
