@@ -31,7 +31,7 @@ debug prefix m/format {[debug caller] | }
 ## Definition
 
 namespace eval m::format {
-    namespace export size epoch interval
+    namespace export size epoch epoch/short interval
     namespace ensemble create
 }
 namespace eval m {
@@ -56,6 +56,12 @@ proc m::format::epoch {epoch} {
     debug.m/format {}
     if {$epoch eq {}} return
     return [clock format $epoch -format {%Y-%m-%d %H:%M:%S}]
+}
+
+proc m::format::epoch/short {epoch} {
+    debug.m/format {}
+    if {$epoch eq {}} return
+    return [clock format $epoch -format {%Y-%m-%d %H:%M}]
 }
 
 proc ::m::format::interval {seconds} {

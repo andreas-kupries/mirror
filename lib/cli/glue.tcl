@@ -2214,12 +2214,12 @@ proc ::m::glue::ComeAroundMail {width current newcycle} {
 	if {$created eq "."} continue ;# ignore separations
 	if {$changed < $current} continue ;# older cycle
 
-	set dcommit [DeltaCommitFull $commits $commitp]
-	set dsize   [DeltaSizeFull $size $sizep]
-	set changed [m format epoch $changed]
-	set spent   [StatsTime $mins $maxs $lastn]
+	set dcommit [DeltaCommit $commits $commitp]
+	set dsize   [DeltaSize $size $sizep]
+	set changed [m format epoch/short $changed]
+	set spent   [LastTime $lastn]
 
-	lappend series [list $changed $spent $dsize $dcommit $vcode $mname]
+	lappend series [list $changed $vcode $mname $spent $dsize $dcommit]
     }
     
     lappend mail "\[[info hostname]\] Cycle Report."
@@ -2231,8 +2231,8 @@ proc ::m::glue::ComeAroundMail {width current newcycle} {
 	lappend mail "Found @/n/@ changed repositories:\n"
 
 	lassign [TruncW \
-		     {Changed Time Size Commits VCS {Mirror Set}} \
-		     {0 0 0 0 0 1} \
+		     {Changed VCS {Mirror Set} Time Size Commits} \
+		     {0 0 1 0 0 0} \
 		     $series \
 		     $width] \
 	    titles series
@@ -2242,7 +2242,8 @@ proc ::m::glue::ComeAroundMail {width current newcycle} {
 		$t add {*}$row
 	    }
 	}
-	lappend mail [$t show]
+	lappend mail [$t show return]
+	$t destroy
     }
     
     MailFooter mail
