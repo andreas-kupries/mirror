@@ -369,9 +369,12 @@ proc ::m::glue::cmd_show {config} {
     set all [$config @all]
 
     m db transaction {
+	set n [m state limit]
+	if {!$n} { set n [color note {adjust to terminal height}] }
+
 	[table/d t {
 	    $t add Store         [m state store]
-	    $t add Limit         [m state limit]
+	    $t add Limit         $n
 	    $t add Take         "[m state take] ([m mset count-pending] pending/[m mset count] total)"
 	    $t add Window        [m state store-window-size]
 	    $t add {Report To}   [m state report-mail-destination]

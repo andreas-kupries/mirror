@@ -33,7 +33,7 @@ debug prefix db/setup {[debug caller] | }
 
 namespace eval db::setup {
     namespace import ::db::track::it ; rename it track
-    namespace export D C U T T^ I I+ > >+ X < /
+    namespace export D C U T T^ I I+ > >+ X < <= /
 }
 
 namespace eval db {
@@ -158,6 +158,31 @@ proc db::setup::< {table args} {
     lappend sql "DROP TABLE $table"
     lappend sql "ALTER TABLE new_${table} RENAME TO $table"
     R [join $sql ";\n"]
+    variable thetable $table
+    return
+}
+
+proc db::setup::<= {table select} {
+    debug.db/setup {}
+    T new_${table}
+
+    # constraint: do no lose rows. count, then count again.
+    set old [lindex [R "SELECT count (*) FROM $table"] 0]
+    
+    lappend map @@ $table
+    set select [string map $map $select]
+    lappend sql "INSERT INTO new_${table} $select"
+    lappend sql "DROP TABLE $table"
+    lappend sql "ALTER TABLE new_${table} RENAME TO $table"
+    R [join $sql ";\n"]
+
+    set new [lindex [R "SELECT count (*) FROM $table"] 0]
+
+    if {$old != $new} {
+	return -code error -errorcode {MIRROR DB SCHEMA CHANGE FAIL} \
+	    "Migration of $table failed, row number mismatch: $new after != $old before."
+    }
+
     variable thetable $table
     return
 }

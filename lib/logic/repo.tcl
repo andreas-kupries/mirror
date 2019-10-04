@@ -88,13 +88,11 @@ proc ::m::repo::name {repo} {
     debug.m/repo {}
     # TODO MAYBE - repo name - cache?    
     return [m db onecolumn {
-	SELECT R.url || ' (: ' || N.name || ')'
+	SELECT R.url || ' (: ' || M.name || ')'
 	FROM   repository R
 	,      mirror_set M
-	,      name       N
 	WHERE  R.id = :repo
 	AND    M.id = R.mset
-	AND    N.id = M.name
     }]
 }
 
@@ -164,16 +162,14 @@ proc ::m::repo::get {repo} {
 	,      'vcs'    , R.vcs
 	,      'vcode'  , V.code
 	,      'mset'   , R.mset
-	,      'name'   , N.name
+	,      'name'   , M.name
 	,      'store'  , S.id
 	FROM   repository             R
 	,      mirror_set             M
-	,      name                   N
 	,      version_control_system V
 	,      store                  S
 	WHERE  R.id   = :repo
 	AND    M.id   = R.mset
-	AND    N.id   = M.name
 	AND    V.id   = R.vcs
 	AND    S.vcs  = R.vcs
 	AND    S.mset = R.mset
@@ -189,7 +185,7 @@ proc ::m::repo::search {substring} {
     set sub [string tolower $substring]
     set series {}
     m db eval {
-	SELECT N.name             AS name
+	SELECT M.name             AS name
 	,      R.url              AS url
 	,      R.id               AS rid
 	,      V.code             AS vcode
@@ -203,17 +199,15 @@ proc ::m::repo::search {substring} {
 	,      S.commits_previous AS commitp
 	FROM   repository             R
 	,      mirror_set             M
-	,      name                   N
 	,      version_control_system V
 	,      store                  S
 	,      store_times            T
 	WHERE  M.id   = R.mset
-	AND    N.id   = M.name
 	AND    V.id   = R.vcs
 	AND    S.mset = R.mset
 	AND    S.vcs  = R.vcs
 	AND    S.id   = T.store
-	ORDER BY N.name ASC
+	ORDER BY M.name ASC
 	,        R.url  ASC
     } {
 	if {
@@ -256,7 +250,7 @@ proc ::m::repo::get-n {first n} {
     set lim [expr {$n + 1}]
     set replist {}
     m db eval {
-	SELECT N.name             AS name
+	SELECT M.name             AS name
 	,      R.url              AS url
 	,      R.id               AS rid
 	,      V.code             AS vcode
@@ -270,21 +264,19 @@ proc ::m::repo::get-n {first n} {
 	,      S.commits_previous AS commitp
 	FROM   repository             R
 	,      mirror_set             M
-	,      name                   N
 	,      version_control_system V
 	,      store                  S
 	,      store_times            T
 	WHERE  M.id   = R.mset
-	AND    N.id   = M.name
 	AND    V.id   = R.vcs
 	AND    S.mset = R.mset
 	AND    S.vcs  = R.vcs
 	AND    S.id   = T.store
 	-- cursor start clause ...
-	AND ((N.name > :mname) OR
-	     ((N.name = :mname) AND
+	AND ((M.name > :mname) OR
+	     ((M.name = :mname) AND
 	      (R.url >= :uname)))
-	ORDER BY N.name ASC
+	ORDER BY M.name ASC
 	,        R.url  ASC
 	LIMIT :lim
     } {
@@ -371,14 +363,12 @@ proc ::m::repo::FIRST {} {
     # Ordered by mirror set name, then url
 
     return [m db eval {
-	SELECT N.name
+	SELECT M.name
 	,      R.url
 	FROM   repository R
 	,      mirror_set M
-	,      name       N
 	WHERE  R.mset = M.id
-	AND    M.name = N.id
-	ORDER BY N.name ASC
+	ORDER BY M.name ASC
 	,        R.url  ASC
 	LIMIT 1
     }]

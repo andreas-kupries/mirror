@@ -276,7 +276,7 @@ proc ::m::store::search {substring} {
     set series {}
     m db eval {
 	SELECT S.id      AS store
-	,      N.name    AS mname
+	,      M.name    AS mname
 	,      V.code    AS vcode
 	,      T.changed AS changed
 	,      T.updated AS updated
@@ -296,12 +296,12 @@ proc ::m::store::search {substring} {
 	,    store                  S
 	,    mirror_set             M
 	,    version_control_system V
-	,    name                   N
 	WHERE T.store   = S.id
 	AND   S.mset    = M.id
 	AND   S.vcs     = V.id
-	AND   M.name    = N.id
-	ORDER BY mname ASC, vcode ASC, size ASC
+	ORDER BY mname ASC
+	,        vcode ASC
+	,        size  ASC
     } {
 	if {
 	    [string first $sub [string tolower $mname]] < 0
@@ -318,7 +318,7 @@ proc ::m::store::issues {} {
     set last {}
     m db eval {
 	SELECT S.id      AS store
-	,      N.name    AS mname
+	,      M.name    AS mname
 	,      V.code    AS vcode
 	,      T.changed AS changed
 	,      T.updated AS updated
@@ -338,14 +338,14 @@ proc ::m::store::issues {} {
 	,    store                  S
 	,    mirror_set             M
 	,    version_control_system V
-	,    name                   N
 	WHERE T.store   = S.id
 	AND   T.attend  = 1    -- Flag for "has issues"
 	AND   active    > 0    -- Flag for "not completely disabled"
 	AND   S.mset    = M.id
 	AND   S.vcs     = V.id
-	AND   M.name    = N.id
-	ORDER BY mname ASC, vcode ASC, size ASC
+	ORDER BY mname ASC
+	,        vcode ASC
+	,        size  ASC
     } {
 	Srow series ;# upvar column variables
     }
@@ -359,7 +359,7 @@ proc ::m::store::disabled {} {
     set last {}
     m db eval {
 	SELECT S.id      AS store
-	,      N.name    AS mname
+	,      M.name    AS mname
 	,      V.code    AS vcode
 	,      T.changed AS changed
 	,      T.updated AS updated
@@ -374,16 +374,16 @@ proc ::m::store::disabled {} {
 	,    store                  S
 	,    mirror_set             M
 	,    version_control_system V
-	,    name                   N
 	,    repository             R
 	WHERE T.store   = S.id
 	AND   R.active  = 0    -- Flag for disabled
 	AND   S.mset    = M.id
 	AND   S.vcs     = V.id
-	AND   M.name    = N.id
 	AND   R.mset    = S.mset
 	AND   R.vcs     = S.vcs
-	ORDER BY mname ASC, vcode ASC, size ASC
+	ORDER BY mname ASC
+	,        vcode ASC
+	,        size  ASC
     } {
 	Srow+rid+url series ;# upvar column variables
     }
@@ -397,7 +397,7 @@ proc ::m::store::by-name {} {
     set last {}
     m db eval {
 	SELECT S.id      AS store
-	,      N.name    AS mname
+	,      M.name    AS mname
 	,      V.code    AS vcode
 	,      T.changed AS changed
 	,      T.updated AS updated
@@ -417,12 +417,12 @@ proc ::m::store::by-name {} {
 	,    store                  S
 	,    mirror_set             M
 	,    version_control_system V
-	,    name                   N
 	WHERE T.store   = S.id
 	AND   S.mset    = M.id
 	AND   S.vcs     = V.id
-	AND   M.name    = N.id
-	ORDER BY mname ASC, vcode ASC, size ASC
+	ORDER BY mname ASC
+	,        vcode ASC
+	,        size  ASC
     } {
 	if {($last ne {}) && ($last ne $mname)} {
 	    Sep series
@@ -441,7 +441,7 @@ proc ::m::store::by-vcs {} {
     set series {}
     m db eval {
 	SELECT S.id      AS store
-	,      N.name    AS mname
+	,      M.name    AS mname
 	,      V.code    AS vcode
 	,      T.changed AS changed
 	,      T.updated AS updated
@@ -461,12 +461,12 @@ proc ::m::store::by-vcs {} {
 	,    store                  S
 	,    mirror_set             M
 	,    version_control_system V
-	,    name                   N
 	WHERE T.store   = S.id
 	AND   S.mset    = M.id
 	AND   S.vcs     = V.id
-	AND   M.name    = N.id
-	ORDER BY vcode ASC, mname ASC, size ASC
+	ORDER BY vcode ASC
+	,        mname ASC
+	,        size  ASC
     } {
 	Srow series
     }
@@ -479,7 +479,7 @@ proc ::m::store::by-size {} {
     set series {}
     m db eval {
 	SELECT S.id      AS store
-	,      N.name    AS mname
+	,      M.name    AS mname
 	,      V.code    AS vcode
 	,      T.changed AS changed
 	,      T.updated AS updated
@@ -499,12 +499,12 @@ proc ::m::store::by-size {} {
 	,    store                  S
 	,    mirror_set             M
 	,    version_control_system V
-	,    name                   N
 	WHERE T.store   = S.id
 	AND   S.mset    = M.id
 	AND   S.vcs     = V.id
-	AND   M.name    = N.id
-	ORDER BY size DESC, mname ASC, vcode ASC
+	ORDER BY size  DESC
+	,        mname ASC
+	,        vcode ASC
     } {
 	Srow series
     }
@@ -526,7 +526,7 @@ proc ::m::store::updates {} {
     set last {}
     m db eval {
 	SELECT S.id      AS store
-	,      N.name    AS mname
+	,      M.name    AS mname
 	,      V.code    AS vcode
 	,      T.changed AS changed
 	,      T.updated AS updated
@@ -552,11 +552,9 @@ proc ::m::store::updates {} {
 	,    store                  S
 	,    mirror_set             M
 	,    version_control_system V
-	,    name                   N
 	WHERE T.store   = S.id
 	AND   S.mset    = M.id
 	AND   S.vcs     = V.id
-	AND   M.name    = N.id
 	AND   T.created != T.changed
 	ORDER BY T.changed DESC
     } {
@@ -574,7 +572,7 @@ proc ::m::store::updates {} {
     # i.e. last created top/first.
     m db eval {
 	SELECT S.id      AS store
-	,      N.name    AS mname
+	,      M.name    AS mname
 	,      V.code    AS vcode
 	,      T.changed AS changed
 	,      T.updated AS updated
@@ -600,11 +598,9 @@ proc ::m::store::updates {} {
 	,    store                  S
 	,    mirror_set             M
 	,    version_control_system V
-	,    name                   N
 	WHERE T.store   = S.id
 	AND   S.mset    = M.id
 	AND   S.vcs     = V.id
-	AND   M.name    = N.id
 	AND   T.created = T.changed
 	ORDER BY T.created DESC
     } {
@@ -908,11 +904,9 @@ proc ::m::store::VCS {store} {
 proc ::m::store::MSName {mset} {
     debug.m/store {}
     return [m db onecolumn {
-	SELECT N.name
-	FROM   mirror_set M
-	,      name       N
-	WHERE  M.id   = :mset
-	AND    M.name = N.id
+	SELECT name
+	FROM   mirror_set
+	WHERE  id = :mset
     }]
 }
 

@@ -598,5 +598,29 @@ proc ::m::db::SETUP-201910031116 {} {
     return
 }
 
+proc ::m::db::SETUP-201910032120 {} {
+    debug.m/db {}
+
+    # Drop table `name` as superfluous. The only user of this
+    # information is table `mirror_set`. Fold the data into a
+    # modified `mirror_set`. Further drop the auto-increment.
+
+    D m::db
+    # - -- --- ----- -------- -------------
+
+    I
+    C name  TEXT  NOT NULL  UNIQUE
+
+    <= mirror_set {
+	SELECT M.id
+	,      N.name
+	FROM @@   M
+	,    name N
+	WHERE M.name = N.id
+    }
+
+    return
+}
+
 # # ## ### ##### ######## ############# #####################
 return

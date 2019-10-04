@@ -80,18 +80,16 @@ proc ::m::mset::known {} {
     # Repository and mirror set information in one trip.
     m db eval {
 	SELECT M.id   AS id
+	,      M.name AS name
 	,      R.id   AS rid
-	,      N.name AS mname
 	,      R.url  AS url
 	FROM   repository R
 	,      mirror_set M
-	,      name       N
 	WHERE  R.mset = M.id
-	AND    M.name = N.id
     } {
 	dict set mid $rid $id
-	dict set map [string tolower $url]   $id
-	dict set map [string tolower $mname] $id
+	dict set map [string tolower $url]  $id
+	dict set map [string tolower $name] $id
     }
 
     # See also m::repo::known
@@ -120,23 +118,19 @@ proc ::m::mset::known {} {
 proc ::m::mset::all {} {
     debug.m/mset {}
     return [m db eval {
-	SELECT M.id   AS mset
-	,      N.name AS mname
-	FROM   mirror_set M
-	,      name       N
-	WHERE  N.id = M.name
-	ORDER BY mname ASC
+	SELECT id
+	,      name
+	FROM   mirror_set
+	ORDER BY name ASC
     }]
 }
 
 proc ::m::mset::id {name} {
     debug.m/mset {}
     return [m db onecolumn {
-	SELECT M.id
-	FROM   mirror_set M
-	,      name       N
-	WHERE  N.name = :name
-	AND    N.id   = M.name
+	SELECT id
+	FROM   mirror_set
+	WHERE  name = :name
     }]
 }
 
@@ -160,19 +154,17 @@ proc ::m::mset::add {name} {
     debug.m/mset {}
 
     m db eval {
-	INSERT INTO name VALUES ( NULL, :name )
-    }
-
-    set nid [m db last_insert_rowid]
-
-    m db eval {
-	INSERT INTO mirror_set VALUES ( NULL, :nid )
+	INSERT
+	INTO mirror_set
+	VALUES ( NULL, :name )
     }
 
     set mset [m db last_insert_rowid]
 
     m db eval {
-	INSERT INTO mset_pending VALUES ( :mset )
+	INSERT
+	INTO mset_pending
+	VALUES ( :mset )
     }
 
     return $mset
@@ -186,12 +178,6 @@ proc ::m::mset::remove {mset} {
 
     return [m db eval {
 	DELETE
-	FROM  name
-	WHERE id IN ( SELECT name
-		      FROM   mirror_set
-		      WHERE  id = :mset )
-	;
-	DELETE
 	FROM  mirror_set
 	WHERE id = :mset
 	;
@@ -204,11 +190,9 @@ proc ::m::mset::remove {mset} {
 proc ::m::mset::rename {mset name} {
     debug.m/mset {}
     m db eval {
-	UPDATE name
+	UPDATE mirror_set
 	SET    name = :name
-	WHERE  id IN ( SELECT name
-		       FROM   mirror_set
-		       WHERE  id = :mset )
+	WHERE  id   = :mset
     }
     return
 }
@@ -217,10 +201,8 @@ proc ::m::mset::has {name} {
     debug.m/mset {}
     return [m db onecolumn {
 	SELECT count (*)
-	FROM   mirror_set M
-	,      name       N
-	WHERE  M.name = N.id
-	AND    N.name = :name
+	FROM   mirror_set
+	WHERE  name = :name
     }]
 }
 
@@ -273,27 +255,23 @@ proc ::m::mset::has-vcs {mset vcs} {
 proc ::m::mset::name {mset} {
     debug.m/mset {}
     return [m db onecolumn {
-	SELECT N.name
-	FROM   mirror_set M
-	,      name       N
-	WHERE  M.id   = :mset
-	AND    M.name = N.id
+	SELECT name
+	FROM   mirror_set
+	WHERE  id = :mset
     }]
 }
 
 proc ::m::mset::pending {} {
     debug.m/mset {}
     return [m db eval {
-	SELECT N.name
+	SELECT name
 	,      (SELECT count (*)
 		FROM  repository R
 		WHERE R.mset = P.mset
 		AND   R.active) AS arc
 	FROM   mset_pending P
 	,      mirror_set   M
-	,      name         N
 	WHERE P.mset = M.id
-	AND   N.id   = M.name
 	AND   arc > 0
 	ORDER BY P.ROWID
     }]
