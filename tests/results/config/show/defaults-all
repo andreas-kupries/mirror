@@ -1,0 +1,31 @@
++-------------+-*-+
+| Store       | <MD>/store *|
+| Limit       | 20 *|
+| Take        | 5 *|
+| Window      | 10 *|
+| Report To   | * |
+| -           | * |
+| Cycle, Last | * |
+| Cycle, Now  | * |
+| Site        | * |
+| - State     | off *|
+| - Url       | * |
+| - Logo      | * |
+| - Title     | Mirror *|
+| - Manager   | * |
+| - - Name    | * |
+| - - Mail    | * |
+| - Location  | <MD>/site *|
+| Mail        | * |
+| - Host      | localhost *|
+| - Port      | 25 *|
+| - User      | undefined *|
+| - Pass      | * |
+| - TLS       | 0 *|
+| - Sender    | undefined *|
+| - Header    | This is a semi-automated mail by @cmd@, on behalf of @sender@. *|
+| - Footer    | * |
+| - Width     | * |
+| - Debug     | * |
++-------------+-*-+
+OK

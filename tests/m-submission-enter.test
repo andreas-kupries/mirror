@@ -1,0 +1,59 @@
+# -*- tcl -*- tcl.tk//DSL tcltest//EN//2.0 tcl.tk//DSL tcltest//EN//2.0
+## (c) 2018-2019 Andreas Kupries
+# # ## ### ##### ######## ############# #####################
+## submit a repository, enter a repository submission
+
+kt check Tcl     8.5
+kt check tcltest 2
+
+# # ## ### ##### ######## ############# #####################
+
+kt::source support/invoke.tcl
+
+# # ## ### ##### ######## ############# #####################
+
+foreach command {
+    submit
+    {submission enter}
+} {
+    set label [join ${command} -]
+    # - -- --- ----- -------- ------------- ---------------------
+
+    test ${label}-1.0 "${command} - wrong args, not enough" -body {
+	mapp {*}${command}
+    } -result [err submissions/enter/wrongargs-notenough @@ $command] -match glob
+
+    test ${label}-1.1 "${command} - wrong args, not enough" -body {
+	mapp {*}${command} URL
+    } -result [err submissions/enter/wrongargs-notenough @@ $command] -match glob
+
+    test ${label}-1.2 "${command} - wrong args, too many" -body {
+	mapp {*}${command} URL EMAIL SUBMITTER X
+    } -result [err submissions/enter/wrongargs-toomany @@ $command] -match glob
+
+    # - -- --- ----- -------- ------------- ---------------------
+
+    lappend a2ex [ok submissions/enter/ok]
+    lappend a2ex [ok submissions/enter/ok-submissions]
+
+    test ${label}-2.0 "${command}" -setup mdb-reset -body {
+	lappend r [mapp {*}${command} [a-core] fox@hole.com]
+	lappend r [mapp submissions]
+	set r
+    } -cleanup {unset r a2ex} -match glob -result $a2ex
+
+    lappend a2ex [ok submissions/enter/ok-name]
+    lappend a2ex [ok submissions/enter/ok-name-submissions]
+
+    test ${label}-2.1 "${command}, with name" -setup mdb-reset -body {
+	lappend r [mapp {*}${command} [a-core] fox@hole.com {The Fox}]
+	lappend r [mapp submissions]
+	set r
+    } -cleanup {unset r a2ex} -match glob -result $a2ex
+
+    # - -- --- ----- -------- ------------- ---------------------
+}
+    
+# # ## ### ##### ######## ############# #####################
+cleanupTests
+return

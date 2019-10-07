@@ -1,0 +1,11 @@
++-------------+-*-+
+| Store       | <MD>/store |
+| Limit       | 20 *|
+| Take        | 5 *|
+| Window      | 10 *|
+| Report To   | * |
+| -           | * |
+| Cycle, Last | * |
+| Cycle, Now  | * |
++-------------+-*-+
+OK

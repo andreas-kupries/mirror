@@ -1,5 +1,5 @@
 # -*- tcl -*- tcl.tk//DSL tcltest//EN//2.0 tcl.tk//DSL tcltest//EN//2.0
-## (c) 2018 Andreas Kupries
+## (c) 2018-2019 Andreas Kupries
 # # ## ### ##### ######## ############# #####################
 ## mail configuration commands
 
@@ -11,15 +11,18 @@ kt check tcltest 2
 kt::source support/invoke.tcl
 
 # # ## ### ##### ######## ############# #####################
-
-lappend cases  footer . {}
-lappend cases  header . {}
-lappend cases  host   . {}
-lappend cases  pass   . {}
-lappend cases  port   4 {0 -1}
-lappend cases  sender . {}
-lappend cases  tls    1 {2 bogus}
-lappend cases  user   . {}
+##             command good value
+##             v       v  bad values
+lappend cases  debug   1  {{} not-a-boolean}
+lappend cases  footer  .  {}
+lappend cases  header  .  {}
+lappend cases  host    .  {}
+lappend cases  pass    .  {}
+lappend cases  port    4  {0 -1}
+lappend cases  sender  .  {}
+lappend cases  tls     1  {2 bogus}
+lappend cases  user    .  {}
+lappend cases  width   4  {0 -1}
 
 foreach {
     command

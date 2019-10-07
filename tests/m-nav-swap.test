@@ -1,0 +1,51 @@
+# -*- tcl -*- tcl.tk//DSL tcltest//EN//2.0 tcl.tk//DSL tcltest//EN//2.0
+## (c) 2018-2019 Andreas Kupries
+# # ## ### ##### ######## ############# #####################
+## swap - Change current repository (in the rolodex)
+## Note: State cleanup on test file exit is used to remove anything added here.
+
+kt check Tcl     8.5
+kt check tcltest 2
+
+# # ## ### ##### ######## ############# #####################
+
+kt::source support/invoke.tcl
+
+# # ## ### ##### ######## ############# #####################
+
+test swap-1.0 {swap - wrong#args, too many} -body {
+    mapp swap X
+} -result [err nav/swap/wrongargs_toomany] -match glob
+
+# # ## ### ##### ######## ############# #####################
+## swap
+
+lappend a2ex *
+lappend a2ex *
+lappend a2ex *
+# While we do not care about the add's during matching we also want to
+# see the output when something does not match, in case the issue lies
+# before swap is run.
+lappend a2ex [ok nav/swap/ok-current-1]
+lappend a2ex [ok nav/swap/ok]
+lappend a2ex [ok nav/swap/ok-current-2]
+
+test swap-2.0 {swap} -setup {
+    mdb-reset
+    lappend r [mapp add --name COR           [b-core]]   ;# @0
+    lappend r [mapp add --name CHI           [b-chisel]] ;# @1 @p
+    lappend r [mapp add --name GIT --vcs git [b-github]] ;# @2 @c
+    # Forced `git` as the common denominator, and `github` may not be available.    
+} -body {
+    lappend r [mapp current]
+    lappend r [mapp swap]
+    lappend r [mapp current]
+    set r
+} -cleanup {unset r a2ex} -match glob -result $a2ex
+
+# # ## ### ##### ######## ############# #####################
+## TDO Reject swap of mismatched repositories
+
+# # ## ### ##### ######## ############# #####################
+cleanupTests
+return

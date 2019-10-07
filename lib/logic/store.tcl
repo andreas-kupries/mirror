@@ -34,7 +34,7 @@ namespace eval ::m {
 }
 namespace eval ::m::store {
     namespace export \
-	add remove move rename merge split update has check \
+	add remove move rename merge cleave update has check \
 	id vcs-name updates by-name by-size by-vcs move-location \
 	get remotes total-size count search issues disabled path
     namespace ensemble create
@@ -93,13 +93,13 @@ proc ::m::store::merge {target origin} {
     return
 }
 
-proc ::m::store::split {store msetnew} {
+proc ::m::store::cleave {store msetnew} {
     debug.m/store {}
 
     set vcs  [VCS $store]
     set new  [Add $vcs $msetnew ]
     set name [MSName $msetnew]
-    m vcs split $vcs $store $new $name
+    m vcs cleave $vcs $store $new $name
     Size $new
     return
 }
@@ -817,7 +817,7 @@ proc ::m::store::Spent {store new} {
     if {($mins < 0) || ($new < $mins)} { set mins $new }
     if {                $new > $maxs}  { set maxs $new }
 
-    set window [::split [string trim $window ,] ,]
+    set window [split [string trim $window ,] ,]
 
     debug.m/store {lastn'= ($window)}
     

@@ -1,0 +1,29 @@
+# -*- tcl -*- tcl.tk//DSL tcltest//EN//2.0 tcl.tk//DSL tcltest//EN//2.0
+## (c) 2018-2019 Andreas Kupries
+# # ## ### ##### ######## ############# #####################
+## show main configuration
+
+kt check Tcl     8.5
+kt check tcltest 2
+
+# # ## ### ##### ######## ############# #####################
+
+kt::source support/invoke.tcl
+
+# # ## ### ##### ######## ############# #####################
+
+test config-show-1.0 "config show - wrong args, too many" -body {
+    mapp config show foo
+} -result [err config/show/wrongargs-toomany] -match glob
+
+test config-show-2.0 "config show, defaults" -body {
+    mapp config show
+} -result [ok config/show/defaults] -match glob
+
+test config-show-2.1 "config show --all, defaults" -body {
+    mapp config show --all
+} -result [ok config/show/defaults-all] -match glob
+
+# # ## ### ##### ######## ############# #####################
+cleanupTests
+return

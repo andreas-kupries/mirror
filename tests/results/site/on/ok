@@ -19,16 +19,31 @@ Generating <MD>/site
   - pages/index.md
   + pages/disclaimer.md
   + website.conf
+  + static/images/logo/svn.svg
+  + static/images/submit.svg
+  + static/images/logo/git.svg
+  + static/images/logo/github.svg
+  + static/images/logo/hg.svg
+  + static/images/logo/fossil.svg
   + static/images/ok.svg
   + static/images/bad.svg
   + static/images/off.svg
   + static/images/yellow.svg
 = Data dependent content ...
   + pages/contact.md
-  + static/external/spec.txt
+  + static/spec.txt
+  + static/search
+  + static/submit
   + pages/index.md
   + pages/index_name.md
   + pages/index_size.md
   + pages/index_vcs.md
+  + pages/index_issues.md
+  + pages/index_disabled.md
 = SSG build web ...
+= Sync and flip stage to serve
+- Push index
+- Push rejections
+- Remove handled submissions
+- Pull new submissions
 OK

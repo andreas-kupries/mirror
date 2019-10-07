@@ -1,0 +1,62 @@
+# -*- tcl -*- tcl.tk//DSL tcltest//EN//2.0 tcl.tk//DSL tcltest//EN//2.0
+## (c) 2018-2019 Andreas Kupries
+# # ## ### ##### ######## ############# #####################
+## rejected table
+## Note: Most of this is tested in the context of other commands
+## (submit, accept, reject)
+
+kt check Tcl     8.5
+kt check tcltest 2
+
+# # ## ### ##### ######## ############# #####################
+
+kt::source support/invoke.tcl
+
+# # ## ### ##### ######## ############# #####################
+
+foreach command {
+    {submission rejected}
+    {submission declined}
+    rejections
+} {
+    set label [join $command -]
+    # - -- --- ----- -------- ------------- ---------------------
+
+    test ${label}-1.0 "$command - wrong args, too many" -body {
+	mapp {*}${command} foo
+    } -result [err submissions/rejected/wrongargs-toomany @@ $command] -match glob
+
+    test ${label}-2.0 "$command, defaults" -setup {
+	mdb-reset
+    } -body {
+	mapp {*}${command}
+    } -match glob -result [ok submissions/rejected/defaults]
+
+    # - -- --- ----- -------- ------------- ---------------------
+    ## Template changes do not affect past rejections.
+    ## Could be placed into "m-mail-reply" as well.
+
+    lappend a2ex *
+    lappend a2ex *
+    lappend a2ex *
+    lappend a2ex *
+    lappend a2ex [ok submissions/rejected/rejected]
+
+    test ${label}-2.1 "$command, template change does not affect past" -setup {
+	mdb-reset
+	lappend r [mapp submit [a-core] fox@hole.com]
+	lappend r [mapp submit [b-core] fox@hole.com]
+	lappend r [mapp submission reject %1]
+	lappend r [mapp mail reply change spam {No can have spam}]
+	lappend r [mapp submission reject %2]
+    } -body {
+	lappend r [mapp {*}${command}]
+	set r
+    } -cleanup {unset r a2ex} -match glob -result $a2ex
+
+    # - -- --- ----- -------- ------------- ---------------------
+}
+    
+# # ## ### ##### ######## ############# #####################
+cleanupTests
+return

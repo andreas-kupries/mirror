@@ -1,0 +1,39 @@
+# -*- tcl -*- tcl.tk//DSL tcltest//EN//2.0 tcl.tk//DSL tcltest//EN//2.0
+## (c) 2018-2019 Andreas Kupries
+# # ## ### ##### ######## ############# #####################
+## submissions table
+## Note: Most of this is tested in the context of other commands
+## (submit, accept, reject)
+
+kt check Tcl     8.5
+kt check tcltest 2
+
+# # ## ### ##### ######## ############# #####################
+
+kt::source support/invoke.tcl
+
+# # ## ### ##### ######## ############# #####################
+
+foreach command {
+    submissions
+    {submission list}
+} {
+    set label [join ${command} -]
+    # - -- --- ----- -------- ------------- ---------------------
+    
+    test ${label}-1.0 "$command - wrong args, too many" -body {
+	mapp {*}${command} foo
+    } -result [err submissions/list/wrongargs-toomany @@ $command] -match glob
+
+    # - -- --- ----- -------- ------------- ---------------------
+
+    test ${label}-2.0 "$command, defaults" -body {
+	mapp {*}${command}
+    } -match glob -result [ok submissions/list/defaults]
+
+    # - -- --- ----- -------- ------------- ---------------------
+}
+    
+# # ## ### ##### ######## ############# #####################
+cleanupTests
+return

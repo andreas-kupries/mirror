@@ -7,5 +7,7 @@
 | Sender | undefined                                                      |
 | Header | This is a semi-automated mail by @cmd@, on behalf of @sender@. |
 | Footer |                                                                |
+| Width  | 200                                                            |
+| Debug  | 0                                                              |
 +--------+----------------------------------------------------------------+
 OK

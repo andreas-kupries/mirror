@@ -936,7 +936,7 @@ proc ::m::glue::cmd_split {config} {
 
 	    m msg "  Split store ..."
 
-	    m store split $store $msetnew
+	    m store cleave $store $msetnew
 	}
     }
 

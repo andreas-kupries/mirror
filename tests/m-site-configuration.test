@@ -1,5 +1,5 @@
 # -*- tcl -*- tcl.tk//DSL tcltest//EN//2.0 tcl.tk//DSL tcltest//EN//2.0
-## (c) 2018 Andreas Kupries
+## (c) 2018-2019 Andreas Kupries
 # # ## ### ##### ######## ############# #####################
 ## mail configuration commands
 
@@ -11,13 +11,13 @@ kt check tcltest 2
 kt::source support/invoke.tcl
 
 # # ## ### ##### ######## ############# #####################
-
-lappend cases logo     logo                {}
-lappend cases location t-site              {}
-lappend cases mail     example@example.com {}
-lappend cases manager  {The fox}           {}
-lappend cases title    {Lazy dog}          {}
-lappend cases url      http://example.com  {}
+##             command   good value           bad values
+lappend cases  location  t-site               {}
+lappend cases  logo      logo                 {}
+lappend cases  mail      example@example.com  {}
+lappend cases  manager   {The fox}            {}
+lappend cases  title     {Lazy dog}           {}
+lappend cases  url       http://example.com   {}
 
 foreach {
     command

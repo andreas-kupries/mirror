@@ -12,26 +12,30 @@ kt::source support/invoke.tcl
 
 # # ## ### ##### ######## ############# #####################
 
-## [ok] show
+## [ok] list
 ## [ok] add
 ## [ok] remove
 ## [ok] change
 ## [ok] default
 
 # # ## ### ##### ######## ############# #####################
-## show
+## list, replies
 
-test mail-reply-show-1.0 "mail reply show - wrong args, too many" -body {
-    mapp mail reply show foo
-} -result [err mail/reply/show/wrongargs-toomany] -match glob
+test mail-reply-list-1.0 "mail reply list - wrong args, too many" -body {
+    mapp mail reply list foo
+} -result [err mail/reply/list/wrongargs-toomany @@ {reply list}] -match glob
 
-test mail-reply-show-2.0 "mail reply show, defaults" -body {
-    mapp mail reply show
-} -result [ok mail/reply/show/defaults]
+test mail-reply-list-2.0 "mail reply list, defaults" -body {
+    mapp mail reply list
+} -result [ok mail/reply/list/defaults]
 
-test mail-reply-show-2.1 "mail reply == reply mail show" -body {
-    mapp mail reply
-} -result [ok mail/reply/show/defaults]
+test mail-replies-1.0 "mail replies - wrong args, too many" -body {
+    mapp mail replies foo
+} -result [err mail/reply/list/wrongargs-toomany @@ replies] -match glob
+
+test mail-replies-2.0 "mail replies, defaults" -body {
+    mapp mail replies
+} -result [ok mail/reply/list/defaults]
 
 # # ## ### ##### ######## ############# #####################
 ## add
@@ -58,7 +62,7 @@ test mail-reply-add-3.0 "mail reply add ok, output" -setup mdb-reset -body {
 
 test mail-reply-add-3.1 "mail reply add ok, database" -setup mdb-reset -body {
     mapp mail reply add trial trial
-    mapp mail reply show
+    mapp mail reply list
 } -result [ok mail/reply/add/ok-table]
 
 test mail-reply-add-4.0 "mail reply add ok, automail, output" -setup mdb-reset -body {
@@ -67,7 +71,7 @@ test mail-reply-add-4.0 "mail reply add ok, automail, output" -setup mdb-reset -
 
 test mail-reply-add-4.1 "mail reply add ok, automail, database" -setup mdb-reset -body {
     mapp mail reply add -M trial trial
-    mapp mail reply show
+    mapp mail reply list
 } -result [ok mail/reply/add/ok-automail-table]
 
 # # ## ### ##### ######## ############# #####################
@@ -95,7 +99,7 @@ test mail-reply-remove-3.0 "mail reply remove ok, output" -setup mdb-reset -body
 
 test mail-reply-remove-3.1 "mail reply remove ok, database" -setup mdb-reset -body {
     mapp mail reply remove offtopic
-    mapp mail reply show
+    mapp mail reply list
 } -result [ok mail/reply/remove/ok-table]
 
 # # ## ### ##### ######## ############# #####################
@@ -123,7 +127,7 @@ test mail-reply-change-3.0 "mail reply change ok, output" -setup mdb-reset -body
 
 test mail-reply-change-3.1 "mail reply change ok, database" -setup mdb-reset -body {
     mapp mail reply change offtopic foo
-    mapp mail reply show
+    mapp mail reply list
 } -result [ok mail/reply/change/ok-table]
 
 # # ## ### ##### ######## ############# #####################
@@ -147,7 +151,7 @@ test mail-reply-default-3.0 "mail reply default ok, output" -setup mdb-reset -bo
 
 test mail-reply-default-3.1 "mail reply default ok, database" -setup mdb-reset -body {
     mapp mail reply default offtopic
-    mapp mail reply show
+    mapp mail reply list
 } -result [ok mail/reply/default/ok-table]
 
 # # ## ### ##### ######## ############# #####################

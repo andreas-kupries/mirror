@@ -1,0 +1,53 @@
+# -*- tcl -*- tcl.tk//DSL tcltest//EN//2.0 tcl.tk//DSL tcltest//EN//2.0
+## (c) 2018-2019 Andreas Kupries
+# # ## ### ##### ######## ############# #####################
+## submission reject - rejection of repository submissions
+## Note: State cleanup on test file exit is used to remove anything added here.
+
+# TODO: look into using the local fossil for self as `server`.
+
+kt check Tcl     8.5
+kt check tcltest 2
+
+# # ## ### ##### ######## ############# #####################
+
+kt::source support/invoke.tcl
+
+# # ## ### ##### ######## ############# #####################
+
+foreach command {
+    reject
+    decline
+} {
+    # - -- --- ----- -------- ------------- ---------------------
+
+    test submission-${command}-1.0 "submission ${command} - wrong args, not enough" -body {
+	mapp submission ${command}
+    } -result [err submissions/reject/wrongargs-notenough @@ $command] -match glob
+
+    # - -- --- ----- -------- ------------- ---------------------
+    ## reject -- note: defaults do not mail
+
+    lappend a2ex *
+    lappend a2ex [ok submissions/reject/ok]
+    lappend a2ex [ok submissions/reject/ok-submissions]
+    lappend a2ex [ok submissions/reject/ok-list]
+    lappend a2ex [ok submissions/reject/ok-rejected]
+
+    test submission-${command}-2.0 "submission ${command}" -setup {
+	mdb-reset
+	lappend r [mapp submit [a-core] fox@hole.com]
+    } -body {
+	lappend r [mapp submission ${command} %1]
+	lappend r [mapp submissions]
+	lappend r [mapp list]
+	lappend r [mapp submission rejected]
+	set r
+    } -cleanup {unset r a2ex} -match glob -result $a2ex
+
+    # - -- --- ----- -------- ------------- ---------------------
+}
+
+# # ## ### ##### ######## ############# #####################
+cleanupTests
+return

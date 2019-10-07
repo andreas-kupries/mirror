@@ -11,6 +11,12 @@ kt local   testing m::exec
 
 kt::source support/capture.tcl
 
+if {[package vsatisfies [package present Tcl] 8.6]} {
+    proc A {text} { string map {{ ...} { ?arg ...?}} $text }
+} else {
+    proc A {text} { return $text }
+}
+
 # # ## ### ##### ######## ############# #####################
 #
 ## [ok] capture::active
@@ -286,7 +292,7 @@ proc DONE {} {
 
 test exec-get-1.0 {get - wrong args, not enough} -body {
     m::exec::get
-} -returnCodes error -result {wrong # args: should be "m::exec::get cmd ..."}
+} -returnCodes error -result [A {wrong # args: should be "m::exec::get cmd ..."}]
 
 test exec-get-2.0 {get - (a) no verbose, no capture} -setup {
     m::exec::verbose 0
@@ -378,7 +384,7 @@ fail}}
 
 test exec-go-1.0 {go - wrong args, not enough} -body {
     m::exec::go
-} -returnCodes error -result {wrong # args: should be "m::exec::go cmd ..."}
+} -returnCodes error -result [A {wrong # args: should be "m::exec::go cmd ..."}]
 
 test exec-go-2.0 {go - (a) no verbose, no capture} -setup {
     m::exec::verbose 0
@@ -484,7 +490,7 @@ fail}}
 
 test exec-silent-1.0 {silent - wrong args, not enough} -body {
     m::exec::silent
-} -returnCodes error -result {wrong # args: should be "m::exec::silent cmd ..."}
+} -returnCodes error -result [A {wrong # args: should be "m::exec::silent cmd ..."}]
 
 test exec-silent-2.0 {silent - (a) no verbose, no capture} -setup {
     m::exec::verbose 0

@@ -1,0 +1,64 @@
+# -*- tcl -*- tcl.tk//DSL tcltest//EN//2.0 tcl.tk//DSL tcltest//EN//2.0
+## (c) 2018-2019 Andreas Kupries
+# # ## ### ##### ######## ############# #####################
+## merge - Merging mirror sets and their repos
+## Note: State cleanup on test file exit is used to remove anything added here.
+
+kt check Tcl     8.5
+kt check tcltest 2
+
+# # ## ### ##### ######## ############# #####################
+
+kt::source support/invoke.tcl
+
+# # ## ### ##### ######## ############# #####################
+## Merge has no wrong#args, as it can take any numnber of args.
+## However it can bail if there are not enough mirror sets.
+
+test merge-1.0 {merge - undefined} -body {
+    mapp merge
+} -result [err repos/merge/undefined] -match glob
+
+# TODO: add a single repository, to allow second guard to trigger.
+
+# # ## ### ##### ######## ############# #####################
+## merge
+
+lappend a2ex *
+lappend a2ex *
+lappend a2ex *
+# While we do not care about the add's during matching we also want to
+# see the output when something does not match, in case the issue lies
+# before merge is run.
+lappend a2ex [ok repos/merge/ok]
+lappend a2ex [ok repos/merge/ok-list]
+lappend a2ex [ok repos/merge/ok-pending]
+lappend a2ex [ok repos/merge/ok-updates]
+lappend a2ex [ok repos/merge/ok-current]
+lappend a2ex [ok repos/merge/ok-export]
+lappend a2ex [ok repos/merge/ok-store]
+
+test merge-2.0 {merge} -setup {
+    mdb-reset
+    lappend r [mapp add --name COR           [b-core]]
+    lappend r [mapp add --name CHI           [b-chisel]]
+    lappend r [mapp add --name GIT --vcs git [b-github]]
+} -body {
+    # Forced `git` as the common denominator, and `github` may not be available.    
+    lappend r [mapp merge COR CHI GIT]
+    lappend r [mapp list]
+    lappend r [mapp pending]
+    lappend r [mapp updates]
+    lappend r [mapp current]
+    lappend r [mapp export]
+    lappend r [store-scan]
+    set r
+} -cleanup {unset r a2ex} -match glob -result $a2ex
+
+# # ## ### ##### ######## ############# #####################
+## Reject merge of mismatched repositories
+
+
+# # ## ### ##### ######## ############# #####################
+cleanupTests
+return

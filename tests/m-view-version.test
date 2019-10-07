@@ -1,0 +1,25 @@
+# -*- tcl -*- tcl.tk//DSL tcltest//EN//2.0 tcl.tk//DSL tcltest//EN//2.0
+## (c) 2018-2019 Andreas Kupries
+# # ## ### ##### ######## ############# #####################
+## version
+
+kt check Tcl     8.5
+kt check tcltest 2
+
+# # ## ### ##### ######## ############# #####################
+
+kt::source support/invoke.tcl
+
+# # ## ### ##### ######## ############# #####################
+
+test version-1.0 {version - wrong args, too many} -body {
+    mapp version foo
+} -result [err view/version/wrongargs-toomany] -match glob
+
+test version-1.1 {version result} -body {
+    mapp version
+} -result [ok* {mirror 0}]
+
+# # ## ### ##### ######## ############# #####################
+cleanupTests
+return

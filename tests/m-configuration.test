@@ -1,7 +1,7 @@
 # -*- tcl -*- tcl.tk//DSL tcltest//EN//2.0 tcl.tk//DSL tcltest//EN//2.0
-## (c) 2018 Andreas Kupries
+## (c) 2018 - 2019 Andreas Kupries
 # # ## ### ##### ######## ############# #####################
-## configuration commands
+## main configuration commands
 
 kt check Tcl     8.5
 kt check tcltest 2
@@ -11,38 +11,41 @@ kt check tcltest 2
 kt::source support/invoke.tcl
 
 # # ## ### ##### ######## ############# #####################
+##             command  good value   bad values
+lappend cases  limit    30           {0 -1}
+lappend cases  report   ak           {}
+lappend cases  store    [md]/store-b {}
+lappend cases  take     10           {0 -1}
+lappend cases  window   15           {-1}
 
-lappend cases  limit 30           {0 -1}
-lappend cases  store [md]/store-b {}
-lappend cases  take  10           {0 -1}
+# # ## ### ##### ######## ############# #####################
 
 foreach {
     command
     goodvalue
     badvalues
 } $cases {
-    test ${command}-1.0 "${command} - wrong args, too many" -body {
-	mapp ${command} $goodvalue foo
-    } -result [err ${command}/wrongargs-toomany] -match glob
+    test config-${command}-1.0 "config ${command} - wrong args, too many" -body {
+	mapp config ${command} $goodvalue foo
+    } -result [err config/${command}/wrongargs-toomany] -match glob
 
-    test ${command}-2.0 "${command} query, default" -body {
-	mapp ${command}
-    } -result [ok ${command}/default]
+    test config-${command}-2.0 "config ${command} query, default" -body {
+	mapp config ${command}
+    } -result [ok config/${command}/default]
 
-    test ${command}-2.1 "${command} change, ok, $goodvalue" -body {
-	mapp ${command} $goodvalue
-    } -result [ok ${command}/ok]
+    test config-${command}-2.1 "config ${command} change, ok, $goodvalue" -body {
+	mapp config ${command} $goodvalue
+    } -result [ok config/${command}/ok]
 
     foreach bad $badvalues {
 	incr k
-	test ${command}-2.2.$k "${command} change, bad, $bad" -body {
-	    mapp ${command} $bad
-	} -result [err ${command}/bad-$bad] -match glob
+	test config-${command}-2.2.$k "config ${command} change, bad, $bad" -body {
+	    mapp config ${command} $bad
+	} -result [err config/${command}/bad-$bad] -match glob
     }
 }
 
-unset cases
-
 # # ## ### ##### ######## ############# #####################
+unset cases
 cleanupTests
 return

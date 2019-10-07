@@ -2,6 +2,7 @@ Still active web site generation
 +----------+-*--------------------+
 | State    | on                  *|
 | Url      | https://example.com *|
+| Logo     |                     *|
 | Title    | Mirror              *|
 | Manager  |                     *|
 | - Name   | fox                 *|
@@ -9,4 +10,8 @@ Still active web site generation
 | Location | <MD>/site *|
 +----------+-*--------------------+
 Generating <MD>/site
+- Push index
+- Push rejections
+- Remove handled submissions
+- Pull new submissions
 OK
