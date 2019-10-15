@@ -33,15 +33,73 @@ debug prefix m/vcs/hg {[debug caller] | }
 # # ## ### ##### ######## ############# #####################
 ## Definition
 
+namespace eval m {
+    namespace export vcs
+    namespace ensemble create
+}
 namespace eval m::vcs {
     namespace export hg
     namespace ensemble create
 }
 namespace eval m::vcs::hg {
-    namespace export setup cleanup update check cleave merge \
-	version detect remotes export name-from-url revs
+    # Operation backend implementations
+    namespace export version cleanup
+
+    # Regular implementations not yet moved to operations.
+    namespace export setup update check cleave merge \
+	detect remotes export name-from-url revs
     namespace ensemble create
 }
+
+# # ## ### ##### ######## ############# ######################
+## Operations implemented for separate process/backend
+#
+# [/] version
+# [ ] setup       S U
+# [/] cleanup     S
+# [ ] update      S U 1st
+# [ ] mergable?   SA SB
+# [ ] merge       S-DST S-SRC
+# [ ] split       S-SRC S-DST
+# [ ] export      S
+# [ ] url-to-name U
+#
+
+# Operations backend: version
+proc ::m::vcs::hg::version {} {
+    debug.m/vcs/hg {}
+
+    if {![llength [auto_execok hg]]} {
+	m ops client err {`hg` not found in PATH}
+	m ops client fail
+	return
+    }
+
+    set v [m exec get-- hg version]   ; debug.m/vcs/hg {raw = (($v))}
+    set v [split  $v \n]              ; debug.m/vcs/hg {split    = '$v'}
+    set v [lindex $v 0]               ; debug.m/vcs/hg {sel line = '$v'}
+    set v [lindex $v end]             ; debug.m/vcs/hg {sel col  = '$v'}
+    set v [string trimright $v ")"]   ; debug.m/vcs/hg {trim     = '$v'}
+
+    m ops client result $v
+    m ops client ok
+    return
+}
+
+# setup
+
+proc ::m::vcs::hg::cleanup {path} {
+    debug.m/vcs/hg {}
+    m ops client ok
+    return
+}
+
+# update
+# mergable?
+# merge
+# split
+# export
+# url-to-name
 
 # # ## ### ##### ######## ############# ######################
 
@@ -70,34 +128,11 @@ proc ::m::vcs::hg::detect {url} {
     return -code return hg
 }
 
-proc ::m::vcs::hg::version {iv} {
-    debug.m/vcs/hg {}
-    if {[llength [auto_execok hg]]} {
-	m exec post-hook ;# clear
-
-	set v [m exec get hg version]   ; debug.m/vcs/hg {raw = (($v))}
-	set v [split  $v \n]            ; debug.m/vcs/hg {split    = '$v'}
-	set v [lindex $v 0]             ; debug.m/vcs/hg {sel line = '$v'}
-	set v [lindex $v end]           ; debug.m/vcs/hg {sel col  = '$v'}
-	set v [string trimright $v ")"] ; debug.m/vcs/hg {trim     = '$v'}
-
-	return $v
-    }
-    upvar 1 $iv issues
-    lappend issues "`hg` not found in PATH"
-    return
-}
-
 proc ::m::vcs::hg::setup {path url} {
     debug.m/vcs/hg {}
 
     set repo [HgOf $path]
     Hg clone --noupdate $url $repo
-    return
-}
-
-proc ::m::vcs::hg::cleanup {path} {
-    debug.m/vcs/hg {}
     return
 }
 

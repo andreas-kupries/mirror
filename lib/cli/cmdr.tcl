@@ -911,6 +911,31 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
     }
 
     # # ## ### ##### ######## ############# ######################
+    ## VCS backend
+
+    officer vcs-op {
+	description {
+	    Commands implementing VCS backend operations for the
+	    builtin systems.
+	}
+	common *all* -extend {
+	    section VCS backend operations
+	}
+	common .args {
+	    input vcs {
+		Version control system for the operation.
+	    } { validate [m::cmdr::vt vcs] }
+	    input log {
+		Path to file to write the operation's log into.
+	    } { validate wfile }
+	}
+	
+	private version {
+	    use .args
+	}  [m::cmdr::call glue cmd_vcsop_version]
+    }
+
+    # # ## ### ##### ######## ############# ######################
     ## Developer support, debugging.
 
     officer debug {

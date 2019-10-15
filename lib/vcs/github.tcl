@@ -54,6 +54,10 @@ debug prefix m/vcs/github {[debug caller] | }
 # # ## ### ##### ######## ############# #####################
 ## Definition
 
+namespace eval m {
+    namespace export vcs
+    namespace ensemble create
+}
 namespace eval m::vcs {
     namespace export github
     namespace ensemble create
@@ -66,12 +70,67 @@ namespace eval m::vcs::github {
     namespace import ::m::vcs::git::merge
     namespace import ::m::vcs::git::export
 
-    namespace export setup cleanup update check cleave merge \
-	detect version remotes export name-from-url revs
+    # Operation backend implementations
+    namespace export version cleanup
+
+    namespace export setup update check cleave merge \
+	detect remotes export name-from-url revs
     namespace ensemble create
 
     namespace import ::cmdr::color
 }
+
+# # ## ### ##### ######## ############# ######################
+## Operations implemented for separate process/backend
+#
+# [/] version                  | Local
+# [ ] setup       S U          | 
+# [/] cleanup     S            |       Inherited from git.
+# [ ] update      S U 1st      | 
+# [ ] mergable?   SA SB        | .i
+# [ ] merge       S-DST S-SRC  | .i
+# [ ] split       S-SRC S-DST  | .i
+# [ ] export      S            | .i
+# [ ] url-to-name U            | 
+#
+
+# setup
+# Operations backend: version
+proc ::m::vcs::github::version {} {
+    debug.m/vcs/github {}
+
+    if {![llength [auto_execok git]]} {
+	m ops client err "`git` not found in PATH"
+	m ops client fail
+	return
+    }
+
+    # git hub cannot be looked for in the path. Must be available as a
+    # subcommand of `git` however.
+    if {[catch {
+	m exec silent git hub help
+    }]} {
+	m ops client err "`git hub` not installed."
+	m ops client fail
+	return
+    }
+
+    set v [m exec get-- git hub version]
+    set v [split $v \n]
+    set v [lindex $v 0 end]
+    set v [string trim $v ']
+
+    m ops client result $v
+    m ops client ok
+    return
+}
+
+# update
+# mergable?
+# merge
+# split
+# export
+# url-to-name
 
 # # ## ### ##### ######## ############# #####################
 
@@ -127,28 +186,6 @@ proc ::m::vcs::github::detect {url} {
 	return
     }
     return -code return github
-}
-
-proc ::m::vcs::github::version {iv} {
-    debug.m/vcs/github {}
-    upvar 1 $iv issues
-    set ok 1
-    if {![llength [auto_execok git]]} {
-	set ok 0
-	lappend issues "`git` not found in PATH"
-    } elseif {[catch {
-	m exec silent git hub help
-    }]} {
-	set ok 0
-	lappend issues "`git hub` not installed."
-    }
-    if {!$ok} return
-
-    set v [m exec get git hub version]
-    set v [split $v \n]
-    set v [lindex $v 0 end]
-    set v [string trim $v ']
-    return $v
 }
 
 proc ::m::vcs::github::setup {path url} {

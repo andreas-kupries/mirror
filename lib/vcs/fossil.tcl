@@ -33,23 +33,78 @@ debug prefix m/vcs/fossil {[debug caller] | }
 # # ## ### ##### ######## ############# #####################
 ## Definition
 
+namespace eval m {
+    namespace export vcs
+    namespace ensemble create
+}
 namespace eval m::vcs {
     namespace export fossil
     namespace ensemble create
 }
 namespace eval m::vcs::fossil {
-    namespace export setup cleanup update check cleave merge \
-	version detect remotes export name-from-url revs
+    # Operation backend implementations
+    namespace export version cleanup
+
+    # Regular implementations not yet moved to operations.
+    namespace export setup update check cleave merge \
+        detect remotes export name-from-url revs
     namespace ensemble create
 }
 
 # # ## ### ##### ######## ############# ######################
+## Operations implemented for separate process/backend
+#
+# [/] version
+# [ ] setup       S U
+# [/] cleanup     S
+# [ ] update      S U 1st
+# [ ] mergable?   SA SB
+# [ ] merge       S-DST S-SRC
+# [ ] split       S-SRC S-DST
+# [ ] export      S
+# [ ] url-to-name U
+#
+
+proc ::m::vcs::fossil::version {} {
+    debug.m/vcs/fossil {}
+    if {![llength [auto_execok fossil]]} {
+	m ops client err {`fossil` not found in PATH}
+	m ops client fail
+	return
+    }
+    
+    set version [lindex [m exec get-- fossil version] 4]
+
+    m ops client result $version
+    m ops client ok
+    return 
+}
+
+# setup
+
+proc ::m::vcs::fossil::cleanup {path} {
+    debug.m/vcs/fossil {}
+    # Nothing special. No op.
+    m ops client ok
+    return
+}
+
+# update
+# mergable?
+# merge
+# split
+# export
+# url-to-name
+
+# # ## ### ##### ######## ############# ######################
+## Old code
 
 proc ::m::vcs::fossil::LogNormalize {o e} {
     debug.m/vcs/fossil {}
 
-    # Remove time-skew warnings from the error log. Add authorization
-    # issues reported in the regular log to the error log.
+    # Remove time-skew warnings from the error log. Add
+    # authorization issues reported in the regular log
+    # to the error log.
     lassign [m futil grep {time skew}      $e] _ errors
     lassign [m futil grep {not authorized} $o] auth _
 
@@ -84,17 +139,6 @@ proc ::m::vcs::fossil::detect {url} {
     return -code return fossil
 }
 
-proc ::m::vcs::fossil::version {iv} {
-    debug.m/vcs/fossil {}
-    if {[llength [auto_execok fossil]]} {
-	m exec post-hook ;# clear
-	return [lindex [m exec get fossil version] 4]
-    }
-    upvar 1 $iv issues
-    lappend issues "`fossil` not found in PATH"
-    return
-}
-
 proc ::m::vcs::fossil::setup {path url} {
     debug.m/vcs/fossil {}
 
@@ -102,11 +146,6 @@ proc ::m::vcs::fossil::setup {path url} {
 
     Fossil clone $url $repo
     Fossil remote-url off -R $repo
-    return
-}
-
-proc ::m::vcs::fossil::cleanup {path} {
-    debug.m/vcs/fossil {}
     return
 }
 

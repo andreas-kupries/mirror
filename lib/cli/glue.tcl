@@ -558,25 +558,29 @@ proc ::m::glue::cmd_vcs {config} {
     debug.m/glue {[debug caller] | }
     package require m::vcs
 
-    m msg [color note {Supported VCS}]
-
     m db transaction {
-	[table t {Code Name Version} {
-	    foreach {code name} [m vcs all] {
-		set version [m vcs version $code issues]
-		set vmsg {}
-		if {$version ne {}} {
-		    lappend vmsg [color note $version]
-		}
-		if {[llength $issues]} {
-		    foreach issue $issues {
-			lappend vmsg [color bad $issue]
-		    }
-		}
-		$t add $code $name [join $vmsg \n]
-	    }
-	}] show
+	set all [m vcs all]
     }
+    foreach {code name} $all {
+	set version [m vcs version $code issues]
+	set vmsg {}
+	if {$version ne {}} {
+	    lappend vmsg [color note $version]
+	}
+	if {[llength $issues]} {
+	    foreach issue $issues {
+		lappend vmsg [color bad $issue]
+	    }
+	}
+	lappend series $code $name [join $vmsg \n]
+    }
+
+    m msg [color note {Supported VCS}]
+    [table t {Code Name Version} {
+	foreach {code name msg} $series {
+	    $t add $code $name $msg
+	}
+    }] show
     OK
 }
 
@@ -1676,6 +1680,37 @@ proc ::m::glue::cmd_test_vt_submission {config} {
 proc ::m::glue::cmd_debug_levels {config} {
     debug.m/glue {[debug caller] | }
     puts [info level 0]		;# XXX TODO FILL-IN debug levels
+    return
+}
+
+# # ## ### ##### ######## ############# ######################
+## VCS backend operation implementations
+
+proc ::m::glue::cmd_vcsop_version {config} {
+    debug.m/glue {[debug caller] | }
+
+    set vcs   [$config @vcs]
+    set log   [$config @log]
+    set vcode [m vcs code $vcs]
+
+    m vcs ops-log $log
+
+    # TODO: Rework the VCS version code to generate the operations log
+    # itself. Including proper progress reports.
+    set issues {}
+    set version [m vcs $vcode version issues]
+
+    if {[llength $issues]} {
+	foreach issue $issues {
+	    m vcs ops-record result $issue
+	}
+	m vcs ops-record fail
+	m vcs ops-done
+	exit 1
+    }
+    m vcs ops-record result $version
+    m vcs ops-record ok
+    m vcs ops-done
     return
 }
 

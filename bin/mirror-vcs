@@ -1,0 +1,31 @@
+#!/usr/bin/env tclsh
+## -*- tcl -*-
+# # ## ### ##### ######## ############# ######################
+
+# CLI
+# VCS backend/plugin - Generic backend providing the builtin vcs.
+#
+# Implements all the backoffice operations.
+# Fixed API for communication with the frontend.
+
+# # ## ### ##### ######## ############# ######################
+
+# @@ Meta Begin
+# Application mirror-vcs 0
+# Meta author      {Andreas Kupries}
+# Meta category    ?
+# Meta description ?
+# Meta location    https://core.tcl-lang.org/akupries/mirror
+# Meta platform    tcl
+# Meta require     {Tcl 8.5-}
+# Meta subject     ?
+# Meta summary     ?
+# @@ Meta End
+
+# # ## ### ##### ######## ############# ######################
+
+package require Tcl 8.5
+package require m::ops::client
+
+# # ## ### ##### GO
+m ops client main

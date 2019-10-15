@@ -33,15 +33,71 @@ debug prefix m/vcs/svn {[debug caller] | }
 # # ## ### ##### ######## ############# #####################
 ## Definition
 
+namespace eval m {
+    namespace export vcs
+    namespace ensemble create
+}
 namespace eval m::vcs {
     namespace export svn
     namespace ensemble create
 }
 namespace eval m::vcs::svn {
-    namespace export setup cleanup update check cleave merge \
-	version detect remotes export name-from-url revs
+    # Operation backend implementations
+    namespace export version cleanup
+
+    # Regular implementations not yet moved to operations.
+    namespace export setup update check cleave merge \
+	detect remotes export name-from-url revs
     namespace ensemble create
 }
+
+# # ## ### ##### ######## ############# ######################
+## Operations implemented for separate process/backend
+#
+# [/] version
+# [ ] setup       S U
+# [/] cleanup     S
+# [ ] update      S U 1st
+# [ ] mergable?   SA SB
+# [ ] merge       S-DST S-SRC
+# [ ] split       S-SRC S-DST
+# [ ] export      S
+# [ ] url-to-name U
+#
+
+proc ::m::vcs::svn::version {} {
+    debug.m/vcs/svn {}
+
+    if {![llength [auto_execok svn]]} {
+	m ops client err {`svn` not found in PATH}
+	m ops client fail
+	return
+    }
+
+    set v [m exec get-- svn --version]; debug.m/vcs/svn {raw = (($v))}
+    set v [split  $v \n]              ; debug.m/vcs/svn {split    = '$v'}
+    set v [lindex $v 0]               ; debug.m/vcs/svn {sel line = '$v'}
+    set v [lindex $v 2]               ; debug.m/vcs/svn {sel col  = '$v'}
+
+    m ops client result $v
+    m ops client ok
+    return
+}
+
+# setup
+
+proc ::m::vcs::svn::cleanup {path} {
+    debug.m/vcs/svn {}
+    m ops client ok
+    return
+}
+
+# update
+# mergable?
+# merge
+# split
+# export
+# url-to-name
 
 # # ## ### ##### ######## ############# ######################
 
@@ -71,33 +127,11 @@ proc ::m::vcs::svn::detect {url} {
     return -code return svn
 }
 
-proc ::m::vcs::svn::version {iv} {
-    debug.m/vcs/svn {}
-    if {[llength [auto_execok svn]]} {
-	m exec post-hook ;# clear
-
-	set v [m exec get svn --version]; debug.m/vcs/svn {raw = (($v))}
-	set v [split  $v \n]            ; debug.m/vcs/svn {split    = '$v'}
-	set v [lindex $v 0]             ; debug.m/vcs/svn {sel line = '$v'}
-	set v [lindex $v 2]             ; debug.m/vcs/svn {sel col  = '$v'}
-
-	return $v
-    }
-    upvar 1 $iv issues
-    lappend issues "`svn` not found in PATH"
-    return
-}
-
 proc ::m::vcs::svn::setup {path url} {
     debug.m/vcs/svn {}
 
     set repo [SvnOf $path]
     Svn checkout $url $repo
-    return
-}
-
-proc ::m::vcs::svn::cleanup {path} {
-    debug.m/vcs/svn {}
     return
 }
 

@@ -2,10 +2,14 @@
 # -*- tcl -*- \
 exec kettle -f "$0" "${1+$@}"
 kettle tcl
+#
 kettle tclapp bin/mirror-migrate
+#
 kettle tclapp bin/mirror-search
 kettle tclapp bin/mirror-submit
+#
 kettle tclapp bin/mirror
+kettle tclapp bin/mirror-vcs
 #
 # Helpers for working with github
 #

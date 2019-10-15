@@ -38,13 +38,104 @@ namespace eval ::m {
 }
 
 namespace eval ::m::exec {
-    namespace export verbose go get nc-get silent capture post-hook
+    namespace export verbose go get nc-get silent capture post-hook \
+	job get--
     namespace ensemble create
 }
 
 namespace eval ::m::exec::capture {
     namespace export to on off clear get path active
     namespace ensemble create
+}
+
+# # ## ### ##### ######## ############# #####################
+## Background jobs.
+
+proc ::m::exec::job {done out args} {
+    debug.m/exec {}
+    set pipe [open "|[linsert $args end 2>@1]"]
+    fconfigure $pipe -blocking 0
+    fileevent  $pipe readable [list ::m::exec::Job $done $out $pipe]
+    return $pipe
+}
+
+proc ::m::exec::Job {done report pipe args} {
+    debug.m/exec {}
+    if {[eof $pipe]} {
+	fconfigure $pipe -blocking 1
+	set ok 1
+	if {[catch {
+	    close $pipe
+	} msg]} {
+	    set ok 0
+	}
+	Do $done $ok $msg
+	return
+    }
+    if {[gets $pipe line] < 0} return
+    Do $report $line
+    return    
+}
+
+proc ::m::exec::Do {cmd args} {
+    debug.m/exec {}
+    uplevel #0 [list {*}$cmd {*}$args]
+}
+
+# # ## ### ##### ######## ############# #####################
+## Get for use in backends (report out/err, capture out)
+
+proc ::m::exec::get-- {args} {
+    debug.m/exec {}
+    variable get
+    variable getid
+
+    m ops client note "> [join $args]"
+
+    set id [incr getid] ; set get($id) {}
+    
+    # Alternate exec get ...
+    # - stdout/err are reported as info/error progress reports.
+    # - stdout is further captured and returned.
+    lassign [chan pipe] err w
+    set out [open "|[linsert $args end 2>@ $w]"]
+
+    fconfigure $out -blocking 0
+    fileevent  $out readable [list ::m::exec::Get $out $id]
+
+    fconfigure $err -blocking 0
+    fileevent  $err readable [list ::m::exec::Err $err]
+
+    vwait m::exec::get(r,$id)
+    set res $get(r,$id)
+    unset get(r,$id)
+    return $res
+}
+
+proc ::m::exec::Get {chan id} {
+    debug.m/exec {}
+    # Stderr transforms into progress reports, as info.
+    # Also saved, i.e. captured for further processing.
+    variable get
+    if {[eof $chan]} {
+	close $chan
+	set get(r,$id) [join $get($id) \n]
+	unset get($id)
+	return
+    }
+    if {[gets $chan line] < 0} return
+    m ops client info $line
+    lappend get($id) $line
+    return
+}
+
+proc ::m::exec::Err {chan} {
+    debug.m/exec {}
+    # Stderr transforms into progress reports, as errors.
+    if {[eof $chan]} { close $chan ; return }
+    if {[gets $chan line] < 0} return
+    m ops client err $line
+    return
 }
 
 # # ## ### ##### ######## ############# #####################

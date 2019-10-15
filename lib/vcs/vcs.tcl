@@ -22,6 +22,7 @@ package provide m::vcs 0
 ## Requisites
 
 package require Tcl 8.5
+package require fileutil
 package require cmdr::color
 package require m::db
 package require m::state
@@ -40,7 +41,7 @@ package require debug::caller
 # # ## ### ##### ######## ############# ######################
 
 debug level  m/vcs
-debug prefix m/vcs {[debug caller] | }
+debug prefix m/vcs {[pid] [debug caller] | }
 
 # # ## ### ##### ######## ############# #####################
 ## Definition
@@ -59,6 +60,10 @@ namespace eval ::m::vcs {
     namespace ensemble create
 
     namespace import ::cmdr::color
+
+    # Operation state: Id counter, and state per operation.
+    variable opsid 0
+    variable ops   {}
 }
 
 # # ## ### ##### ######## ############# #####################
@@ -313,7 +318,31 @@ proc ::m::vcs::version {vcode iv} {
     debug.m/vcs {}
     upvar 1 $iv issues
     set issues {}
-    return [$vcode version issues]
+
+    # Redirect through an external command. This command is currently
+    # always `mirror vcs-op version ...`.
+    
+    Operation ::m::vcs::OpComplete $vcode version {*}[OpCmd $vcode]
+    set state [OpWait]
+
+    dict with state {}
+    # [x] ok
+    # [ ] commits
+    # [ ] size
+    # [ ] forks
+    # [x] results
+    # [x] msg
+    # [ ] duration
+
+    if {!$ok} {
+	if {[llength $msg]}     { lappend issues {*}$msg     }
+	if {[llength $results]} { lappend issues {*}$results }
+	return
+    } else {
+	set version [lindex $results 0]
+	debug.m/vcs {--> $version}
+	return $version
+    }
 }
 
 proc ::m::vcs::detect {url} {
@@ -457,6 +486,161 @@ proc ::m::vcs::Path {dir} {
     set path [file normalize [file join [m state store] $dir]]
     debug.m/vcs {=> $path}
     return $path
+}
+
+# # ## ### ##### ######## ############# #####################
+## Background operations. Based on jobs.
+#
+## Caller side
+# - Operation DONE VCS OP ...
+# - OpCmd VCS ...
+#
+
+proc ::m::vcs::OpComplete {state} {
+    debug.m/vcs {}
+    variable opsresult $state
+    return
+}
+
+proc ::m::vcs::OpWait {} {
+    debug.m/vcs {}
+    vwait ::m::vcs::opsresult
+    return $::m::vcs::opsresult
+}
+
+proc ::m::vcs::OpCmd {vcs args} {
+    debug.m/vcs {}
+    # Currently only fallback for builtin systems.
+    # TODO: Query system configuration first.
+    list mirror-vcs %vcs% %log% %operation% {*}$args
+    #list %self% vcs-op %operation% %vcs% %log% {*}$args
+}
+
+proc ::m::vcs::Operation {done vcs op args} {
+    debug.m/vcs {}
+    variable opsid ; incr opsid
+    variable ops
+
+    set logfile [fileutil::tempfile mirror_vcs_]
+    
+    lappend map %self%      $::argv0
+    lappend map %operation% $op
+    lappend map %vcs%       $vcs
+    lappend map %log%       $logfile
+    lappend map %%          %
+    
+    set args  [lmap w $args { string map $map $w }]
+    set jdone [list ::m::vcs::OpDone     $opsid]
+    set jout  [list ::m::vcs::OpProgress $opsid]
+
+    dict set ops $opsid ok       1
+    dict set ops $opsid log      $logfile
+    dict set ops $opsid commits  {}
+    dict set ops $opsid size     {}
+    dict set ops $opsid forks    {}
+    dict set ops $opsid results  {}
+    dict set ops $opsid start    [clock seconds]
+    dict set ops $opsid done     $done
+    #
+    dict set ops $opsid pipe [m exec job $jdone $jout {*}$args]
+    return $opsid
+}
+
+proc ::m::vcs::OpProgress {opsid line} {
+    debug.m/vcs {}
+    # Progress reporting from job stdout
+    variable ops
+    
+    if {[catch {
+	set words [lassign $line tag]
+	set color [dict get {
+	    info  black	   note  blue  warn  yellow
+	    error magenta  fatal red
+	} $tag]
+    } msg]} {
+	close [dict get $ops $opsid pipe]
+	OpDone $opsid 0 $msg
+	return
+    }
+
+    # When not verbose limit reporting to (potential) trouble,
+    # i.e. warnings and higher.
+
+    set level [dict get {
+	info 0 note 1 warn 2 error 3 fatal 4
+    } $tag]
+    if {![m exec verbose] && ($level < 2)} return
+    
+    m msg [color $color [join $words]]
+    return
+}
+
+proc ::m::vcs::OpDone {opsid ok msg} {
+    debug.m/vcs {}
+    # Process the operations log for information.
+    variable ops
+    set state [dict get $ops $opsid]
+    dict unset ops $opsid
+
+    dict unset state pipe
+    set log      [dict get $state log]   ; dict unset state log
+    set done     [dict get $state done]  ; dict unset state done
+    set start    [dict get $state start] ; dict unset state start
+    set duration [expr { [clock seconds] - $start }]
+    
+    dict set state ok       $ok
+    dict set state msg      $msg
+    dict set state duration $duration
+
+    if {$ok} {
+	# Process operations log.
+	set chan [open $log r]
+	while {[gets $chan line] >= 0} {
+	    debug.m/vcs {-- $line}
+	    if {[catch {
+		set words [lassign $line tag]
+	    } msg]} {
+		dict set state ok  0
+		dict set state msg $msg
+		break
+	    }
+	    set val [lindex $words 0]
+	    switch -exact -- $tag {
+		info -
+		note -
+		warn {
+		    # Ignore non-error progress reports in the
+		    # operations log.
+		}
+		error -
+		fatal {
+		    dict set state ok  0
+		    dict lappend state msg $val
+		}
+		commits { dict set     state commits $val }
+		size    { dict set     state size    $val }
+		fork    { dict lappend state forks   $val }
+		ok      { dict set     state ok 1         }
+		fail    { dict set     state ok 0         }
+		result  { dict lappend state results $val }
+		default {
+		    # Fail on unknown tags
+		    dict set state ok  0
+		    dict set state msg "Unknown tag $tag"
+		    break
+		}
+	    }
+	}
+	close $chan
+    }
+
+    # TODO: Save log into a blob...
+
+    #puts $log
+    file delete $log
+
+    m::exec::Do $done $state
+    return
 }
 
 # # ## ### ##### ######## ############# #####################

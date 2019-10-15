@@ -34,15 +34,74 @@ debug prefix m/vcs/git {[debug caller] | }
 # # ## ### ##### ######## ############# #####################
 ## Definition
 
+namespace eval m {
+    namespace export vcs
+    namespace ensemble create
+}
 namespace eval m::vcs {
     namespace export git
     namespace ensemble create
 }
 namespace eval m::vcs::git {
-    namespace export setup cleanup update check cleave merge \
-	version detect remotes export name-from-url revs
+    # Operation backend implementations
+    namespace export version cleanup
+
+    # Regular implementations not yet moved to operations.
+    namespace export setup update check cleave merge \
+	detect remotes export name-from-url revs
     namespace ensemble create
 }
+
+# # ## ### ##### ######## ############# ######################
+## Operations implemented for separate process/backend
+#
+# [/] version
+# [ ] setup       S U
+# [/] cleanup     S
+# [ ] update      S U 1st
+# [ ] mergable?   SA SB
+# [ ] merge       S-DST S-SRC
+# [ ] split       S-SRC S-DST
+# [ ] export      S
+# [ ] url-to-name U
+#
+
+proc ::m::vcs::git::version {} {
+    debug.m/vcs/git {}
+
+    if {![llength [auto_execok git]]} {
+	m ops client err {`git` not found in PATH}
+	m ops client fail
+	return
+    }
+
+    set v [lindex [m exec get-- git version] end]
+    if {[package vcompare $v 2.6.1] <= 0} {
+	m ops client err "$v <= 2.6.1 not sufficient"
+	m ops client fail
+	return
+    }
+
+    m ops client result $v
+    m ops client ok
+    return
+}
+
+# setup
+
+proc ::m::vcs::git::cleanup {path} {
+    debug.m/vcs/git {}
+    # Nothing special. No op.
+    m ops client ok
+    return
+}
+
+# update
+# mergable?
+# merge
+# split
+# export
+# url-to-name
 
 # # ## ### ##### ######## ############# ######################
 
@@ -97,32 +156,11 @@ proc ::m::vcs::git::detect {url} {
     return -code return git
 }
 
-proc ::m::vcs::git::version {iv} {
-    debug.m/vcs/git {}
-    upvar 1 $iv issues
-    if {[llength [auto_execok git]]} {
-	m exec post-hook ;# clear
-	set v [lindex [m exec get git version] end]
-	if {[package vcompare $v 2.6.1] <= 0} {
-	    lappend issues "$v <= 2.6.1 not sufficient"
-	    return
-	}
-	return $v
-    }
-    lappend issues "`git` not found in PATH"
-    return
-}
 
 proc ::m::vcs::git::setup {path url} {
     debug.m/vcs/git {}
     m exec post-hook ::m::vcs::git::LogNormalize
     m exec go git --bare --git-dir [GitOf $path] init
-    return
-}
-
-proc ::m::vcs::git::cleanup {path} {
-    debug.m/vcs/git {}
-    # Nothing special. No op.
     return
 }
 

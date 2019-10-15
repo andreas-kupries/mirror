@@ -22,7 +22,7 @@ package require Tcl 8.5
 package require debug
 package require debug::caller
 
-package require http
+package require http 2
 package require tls
 http::register https 443 tls::socket
 # tls::init for good ciphers and protocols
