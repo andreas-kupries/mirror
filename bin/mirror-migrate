@@ -27,8 +27,10 @@
 # # ## ### ##### ######## ############# ######################
 
 package require Tcl 8.5
+package require m::app
 
 proc main {} {
+    m app debug flags
     migrate [cmdline]
 }
 

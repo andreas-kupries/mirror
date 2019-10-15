@@ -44,6 +44,7 @@ if 0 {
 package require debug
 package require cmdr::color
 package require m::cmdr
+package require m::app
 
 debug header {[::cmdr color {black bg-cyan} [clock format [clock seconds]]] }
 
@@ -51,7 +52,7 @@ proc main {} {
     global argv
     global env
     if {![info exists env(TERM)]} { set env(TERM) xterm }
-    debugflags
+    m app debugflags
     
     # # ## ### ##### ######## ############# ######################
     ## Invoke the application code.
@@ -64,34 +65,6 @@ proc main {} {
 	set status [m cmdr main $argv]
     } finally {
 	exit $status
-    }
-    return
-}
-
-proc debugflags {} {
-    global argv env
-    
-    # (1) Process all --debug flags we can find. This is done before
-    #     cmdr gets hold of the command line to enable the debugging
-    #     of the innards of cmdr itself.
-    # 
-    # (2) Further activate debugging early when specified through the
-    #     environment
-    #
-    # TODO: Put both of these into Cmdr, as convenience commands.
-
-    set copy $argv
-    while {[llength $copy]} {
-	set copy [lassign $copy first]
-	if {$first ne "--debug"} continue
-	set copy [lassign $copy tag]
-	debug on $tag
-    }
-
-    if {[info exists env(MIRROR_DEBUG)]} {
-	foreach tag [split $env(MIRROR_DEBUG) ,] {
-	    debug on [string trim $tag]
-	}
     }
     return
 }

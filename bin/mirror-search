@@ -28,6 +28,7 @@
 #puts stderr [info nameofexecutable]
 package require Tcl 8.6
 package require m::db::location
+package require m::app
 package require m::site
 package require m::format
 package require m::web::bootstrap
@@ -36,6 +37,7 @@ package require wapp
 proc main {} {
     global env
     if {![info exists env(TERM)]} { set env(TERM) xterm }
+    m app debugflags
     cmdline
     # Allow for 10 second transactions from the cli or submission
     # helper before giving up.
