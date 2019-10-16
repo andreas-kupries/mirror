@@ -1,0 +1,46 @@
+
+[ ]	Repository - Retarget = Change url
+  	Alternative: add url, merge to set, remove old url
+	Retarget can be internally this, with shortcuts.
+	Ensures that url is ok, and VCS matches
+
+[ ]	Ability to archive a store/mset - Rename! Disable repositories.
+  	Note: Must allow re-adding the same url in new repositories!
+	
+	This is when an author or maintainer drops a repository and
+	puts a new into the same place. And we want to keep the old
+	while tracking the new.
+
+	url would not be unique anymore ...
+
+	Alternative: Make url nullable ... Add a new column for archived url.
+		     For archived repos/mset move url into new archive column.
+
+	Alternative:
+		Make url unique within the mset.
+		With the entire mset archived a new mset can have the same url.
+
+	Trouble: We are not really archiving the mset, but the store ?!
+	In that case the url and repository can be unchanged.
+	The store is inactive, the new active store may point to the
+	previous store.
+
+	To handle current issue => Ability to export/save a store, future
+	import as archived ?
+
+[ ]	Add a search command, like we have for the web interface
+[ ]	.
+[ ]	.
+[ ]	.
+[ ]	.
+[ ]	.
+[ ]	.
+[ ]	.
+[ ]	.
+[ ]	.
+[ ]	.
+[ ]	.
+[ ]	.
+
+list = show attend flag, not just available.
+remove - allow multiple repositories ?

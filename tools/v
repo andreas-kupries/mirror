@@ -1,0 +1,12 @@
+#!/bin/bash
+
+VCS="fossil git github hg svn"
+
+for vcs in $VCS
+do
+    echo ... ... ... ... ... ... ... ... ... $vcs ...
+    mirror-vcs $vcs LOG "$@"
+    echo
+    cat LOG
+    rm LOG
+done

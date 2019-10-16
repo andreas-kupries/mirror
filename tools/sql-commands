@@ -1,0 +1,3 @@
+#!/bin/bash
+#grep -rn 'm db \(eval\|onecolumn\|exists\)' .
+grep -rn 'm db ' .

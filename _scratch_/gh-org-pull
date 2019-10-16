@@ -1,0 +1,176 @@
+#!/usr/bin/env tclsh
+## -*- tcl -*-
+# # ## ### ##### ######## ############# ######################
+
+# Pull a list of github repositories for a person or org.
+# Resolve forked repositories to the main repository.
+# Print the result as a mirror import spec.
+
+# # ## ### ##### ######## ############# ######################
+
+# @@ Meta Begin
+# Application mirror   ?
+# Meta author      {Andreas Kupries}
+# Meta category    ?
+# Meta description ?
+# Meta location    https://core.tcl-lang.org/akupries/????
+# Meta platform    tcl
+# Meta require     m::cmdr
+# Meta require     {Tcl 8.5-}
+# Meta subject     ?
+# Meta summary     ?
+# @@ Meta End
+
+# # ## ### ##### ######## ############# ######################
+
+package require Tcl 8.5
+package require try
+
+if 0 {
+    puts =\t[join $auto_path \n=\t]
+    rename package __p
+    proc package {args} {
+	puts [info level 0]
+	try {
+	    set r [uplevel 1 [list __p {*}$args]]
+	} on error {e o} {
+	    set r $e
+	} finally {
+	    puts [info level 0]:\t$r
+	}
+    }
+}
+
+package require debug
+package require cmdr::color
+package require m::exec
+package require m::futil
+
+debug header {[::cmdr color {black bg-cyan} [clock format [clock seconds]]] }
+
+proc main {} {
+    debugflags
+    do {*}[cmdline]
+    return
+}
+
+proc cmdline {} {
+    global argv argc
+    if {($argc < 1) || ($argc > 2)} usage
+    lassign $argv user name
+    if {$name eq ""} { set name $user }
+    return [list $user $name]
+}
+
+proc usage {} {
+    global argv0
+    puts stderr "Usage: $argv0 user ?name?"
+    exit 1
+}
+
+proc do {user name} {
+    log "Pull list of repositories for $user ..."
+
+    set repos [m exec nc-get git hub org-repos $user]
+    
+    log "Processing ..."
+    foreach entry [lrange [split $repos \n] 1 end] {
+	#log (($entry))
+	#log ""
+	
+	set desc [lassign $entry index date repo]
+
+	#log I|$index|
+	#log D|$date|
+	#log R|$repo|
+	#log D|$desc|
+
+	log -nonewline "+ $repo"
+
+	catch { ::exec > [pid] 2> [m::exec::NULL] git hub repo --raw $repo }
+	set lines [split [m futil cat [pid]] \n]
+	file delete -force [pid]
+	
+	#set lines [split [m exec nc-get git hub repo --raw $repo] \n]
+	#log I%%${lines}%%
+
+	lassign [m futil grep source/full_name $lines] root _
+	lassign [m futil grep language         $lines] lang _
+
+	set lang [lindex $lang 0 1]
+	if {[llength $root]} {
+	    #log ">>${root}<<"
+	    
+	    set root [lindex $root 0 1]
+	    log -nonewline " --> $root"
+	    flush stderr
+	    set repo $root
+	}
+
+	write $repo $desc $name $lang
+	log ""
+    }
+}
+
+proc log {args} {
+    if {[lindex $args 0] eq "-nonewline"} {
+	puts {*}[linsert $args 1 stderr]
+    } else {
+	puts stderr {*}$args
+    }
+    flush stderr
+    return
+}
+
+proc write {repo desc name lang} {
+    lassign [split $repo /] owner project
+    set project [camelize $project]
+    if {$lang ne {}} { append project " .($lang)." }
+    
+    puts "# - -- --- ----- -------- -------------"
+    puts "# $desc"
+    puts "##"
+    puts [list R github https://github.com/$repo]
+    puts [list M "[string totitle $project] ($desc) - $name"]
+    puts ""
+    return
+}
+
+proc camelize {text} {
+    set out ""
+    foreach elem [split $text -] {
+	append out [string totitle $elem]
+    }
+    return $out
+}
+
+proc debugflags {} {
+    global argv env
+    
+    # (1) Process all --debug flags we can find. This is done before
+    #     cmdr gets hold of the command line to enable the debugging
+    #     of the innards of cmdr itself.
+    # 
+    # (2) Further activate debugging early when specified through the
+    #     environment
+    #
+    # TODO: Put both of these into Cmdr, as convenience commands.
+
+    set copy $argv
+    while {[llength $copy]} {
+	set copy [lassign $copy first]
+	if {$first ne "--debug"} continue
+	set copy [lassign $copy tag]
+	debug on $tag
+    }
+
+    if {[info exists env(MIRROR_DEBUG)]} {
+	foreach tag [split $env(MIRROR_DEBUG) ,] {
+	    debug on [string trim $tag]
+	}
+    }
+    return
+}
+
+# # ## ### ##### GO
+main

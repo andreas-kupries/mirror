@@ -1,0 +1,27 @@
+#!/usr/bin/env tclsh
+## -*- tcl -*-
+# # ## ### ##### ######## ############# ######################
+
+package require Tcl 8.6
+package require m::futil
+
+proc main {} {
+    global argv
+
+    set gitdir [lindex $argv 0]
+    set refs [m futil cat $gitdir/info/refs]
+    set new {}
+    
+    foreach line [split [string trimright $refs] \n] {
+	lassign $line hash file
+	if {![file exists $gitdir/$file]} {
+	    puts $file
+	    continue
+	}
+	#lappend new $hash\t$file
+    }
+    #m futil write $gitdir/info/refs [join $new \n]\n
+}	 
+
+# # ## ### ##### GO
+main
