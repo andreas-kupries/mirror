@@ -44,11 +44,11 @@ namespace eval m::vcs {
 }
 namespace eval m::vcs::git {
     # Operation backend implementations
-    namespace export version cleanup
+    namespace export version cleanup export
 
     # Regular implementations not yet moved to operations.
     namespace export setup update check cleave merge \
-	detect remotes export name-from-url revs
+	detect remotes name-from-url revs
     namespace ensemble create
 }
 
@@ -62,7 +62,7 @@ namespace eval m::vcs::git {
 # [ ] mergable?   SA SB
 # [ ] merge       S-DST S-SRC
 # [ ] split       S-SRC S-DST
-# [ ] export      S
+# [/] export      S
 # [ ] url-to-name U
 #
 
@@ -100,7 +100,13 @@ proc ::m::vcs::git::cleanup {path} {
 # mergable?
 # merge
 # split
-# export
+
+proc ::m::vcs::git::export {path} {
+    debug.m/vcs/git {}
+    m ops client ok
+    return
+}
+
 # url-to-name
 
 # # ## ### ##### ######## ############# ######################
@@ -225,11 +231,6 @@ proc ::m::vcs::git::merge {primary secondary} {
 }
 
 proc ::m::vcs::git::remotes {path} {
-    debug.m/vcs/git {}
-    return
-}
-
-proc ::m::vcs::git::export {path} {
     debug.m/vcs/git {}
     return
 }

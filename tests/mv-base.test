@@ -1,0 +1,30 @@
+# -*- tcl -*- tcl.tk//DSL tcltest//EN//2.0 tcl.tk//DSL tcltest//EN//2.0
+## (c) 2019 Andreas Kupries
+# # ## ### ##### ######## ############# #####################
+## mirror-vcs base - generic wrong#args
+
+kt check Tcl     8.5
+kt check tcltest 2
+
+# # ## ### ##### ######## ############# #####################
+
+kt::source support/invoke-vcs.tcl
+
+# # ## ### ##### ######## ############# #####################
+## Generic syntax errors for mirror-vcs
+
+test mirror-vcs-1.0 "mirror-vcs - wrong args, not enough" -body {
+    mvcs
+} -result [err mirror-vcs/wrongargs-notenough] -match glob
+
+test mirror-vcs-1.1 "mirror-vcs - wrong args, not enough" -body {
+    mvcs VCS
+} -result [err mirror-vcs/wrongargs-notenough] -match glob
+
+test mirror-vcs-1.2 "mirror-vcs - wrong args, not enough" -body {
+    mvcs VCS LOG
+} -result [err mirror-vcs/wrongargs-notenough] -match glob
+    
+# # ## ### ##### ######## ############# #####################
+cleanupTests
+return

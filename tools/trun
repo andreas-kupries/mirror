@@ -1,0 +1,31 @@
+#!/bin/bash
+
+clear
+echo
+ftilde
+rtilde
+
+rm -rf X.*
+
+# Prevent older installed packages
+# from interfering with testing.
+$SUDO ./build.tcl uninstall
+clear
+echo
+
+time ./build.tcl test --log X "$@"
+
+echo
+echo Fixup ...
+for i in $(ls X.*|grep -v X.result)
+do
+    echo Fixing $i ...
+    fix-tcl-quoting < $i > ${i}-f
+done
+
+echo
+ls X.*
+
+echo
+date
+echo

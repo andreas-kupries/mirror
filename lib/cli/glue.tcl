@@ -1684,37 +1684,6 @@ proc ::m::glue::cmd_debug_levels {config} {
 }
 
 # # ## ### ##### ######## ############# ######################
-## VCS backend operation implementations
-
-proc ::m::glue::cmd_vcsop_version {config} {
-    debug.m/glue {[debug caller] | }
-
-    set vcs   [$config @vcs]
-    set log   [$config @log]
-    set vcode [m vcs code $vcs]
-
-    m vcs ops-log $log
-
-    # TODO: Rework the VCS version code to generate the operations log
-    # itself. Including proper progress reports.
-    set issues {}
-    set version [m vcs $vcode version issues]
-
-    if {[llength $issues]} {
-	foreach issue $issues {
-	    m vcs ops-record result $issue
-	}
-	m vcs ops-record fail
-	m vcs ops-done
-	exit 1
-    }
-    m vcs ops-record result $version
-    m vcs ops-record ok
-    m vcs ops-done
-    return
-}
-
-# # ## ### ##### ######## ############# ######################
 
 proc ::m::glue::MailFooter {mv} {
     debug.m/glue {[debug caller] | }

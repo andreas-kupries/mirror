@@ -71,10 +71,10 @@ namespace eval m::vcs::github {
     namespace import ::m::vcs::git::export
 
     # Operation backend implementations
-    namespace export version cleanup
+    namespace export version cleanup export
 
     namespace export setup update check cleave merge \
-	detect remotes export name-from-url revs
+	detect remotes name-from-url revs
     namespace ensemble create
 
     namespace import ::cmdr::color
@@ -90,7 +90,7 @@ namespace eval m::vcs::github {
 # [ ] mergable?   SA SB        | .i
 # [ ] merge       S-DST S-SRC  | .i
 # [ ] split       S-SRC S-DST  | .i
-# [ ] export      S            | .i
+# [/] export      S            |       Inherited from git.
 # [ ] url-to-name U            | 
 #
 
@@ -129,7 +129,6 @@ proc ::m::vcs::github::version {} {
 # mergable?
 # merge
 # split
-# export
 # url-to-name
 
 # # ## ### ##### ######## ############# #####################

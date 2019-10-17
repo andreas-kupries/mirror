@@ -1,0 +1,6 @@
+note {> git hub version}
+info {git-hub version '*'}
+info {}
+info {  Copyright *. Ingy döt Net.}
+info {}
+info {Run 'git hub info' for more detailed information.}

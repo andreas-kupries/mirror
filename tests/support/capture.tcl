@@ -56,6 +56,6 @@ proc capture-on {} {
 }
 
 proc capture-done {} {
-    rename ::puts	   ::capture
+    rename ::puts      ::capture
     rename ::puts_orig ::puts
 }

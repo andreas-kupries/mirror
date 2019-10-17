@@ -1,0 +1,4 @@
+result {#!/usr/bin/env fossil}
+result {repository: STORE/source.fossil}
+result {}
+ok

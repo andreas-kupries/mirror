@@ -65,17 +65,17 @@ The additional result commands are
 
 ## Operations
 
-|Operation		|Meaning						|
-|---			|---							|
-|setup STORE URL	|Create store, with initial remote			|
-|cleanup STORE		|Remove store	      	  	 			|
-|update STORE URL 1st	|Update store from specified remote, flag primary	|
-|mergable? STORA STORB	|Are the two stores mergable ?				|
-|merge DST SRC	 	|Merge SRC store into DST store, remove SRC		|
-|split SRC DST		|Make store DST a copy of store SRC			|
-|export STORE		|Return path to CGI script for web access to store	|
-|version		|Version of the installed VCS client	     		|
-|url-to-name		|Generate a name from a remote				|
+|Operation		|Meaning						|State	|
+|---			|---							|---	|
+|setup STORE URL	|Create store, with initial remote			|	|
+|cleanup STORE		|Remove store	      	  	 			|ok	|
+|update STORE URL 1st	|Update store from specified remote, flag primary	|	|
+|mergable? STORA STORB	|Are the two stores mergable ?				|	|
+|merge DST SRC	 	|Merge SRC store into DST store, remove SRC		|	|
+|split SRC DST		|Make store DST a copy of store SRC			|	|
+|export STORE		|Return path to CGI script for web access to store	|	|
+|version		|Version of the installed VCS client	     		|ok	|
+|url-to-name		|Generate a name from a remote				|	|
 
 The VCS-specific code should only check primary remotes for forks,
 i.e. automagic remotes. Assuming that the VCS supports this.

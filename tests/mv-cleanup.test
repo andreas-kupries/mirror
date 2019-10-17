@@ -1,0 +1,46 @@
+# -*- tcl -*- tcl.tk//DSL tcltest//EN//2.0 tcl.tk//DSL tcltest//EN//2.0
+## (c) 2019 Andreas Kupries
+# # ## ### ##### ######## ############# #####################
+## mirror-vcs . . cleanup .
+
+kt check Tcl     8.5
+kt check tcltest 2
+
+# # ## ### ##### ######## ############# #####################
+
+kt::source support/invoke-vcs.tcl
+
+# # ## ### ##### ######## ############# #####################
+
+foreach vcs {
+    fossil git github hg svn
+} {
+    test mirror-vcs-${vcs}-cleanup-1.0 "mirror-vcs $vcs cleanup - wrong args, not enough" -body {
+	mvcs $vcs LOG cleanup
+    } -result [err mirror-vcs/cleanup/wrongargs]
+    
+    test mirror-vcs-${vcs}-cleanup-1.1 "mirror-vcs $vcs cleanup - wrong args, too many" -body {
+	mvcs $vcs LOG cleanup STORE X
+    } -result [err mirror-vcs/cleanup/wrongargs]
+    
+    test mirror-vcs-${vcs}-cleanup-2.0 "mirror-vcs $vcs cleanup - bad store" -body {
+	mvcs $vcs LOG cleanup BADSTORE
+    } -result [err mirror-vcs/bad-store]
+
+    test mirror-vcs-${vcs}-cleanup-3.0 "mirror-vcs $vcs cleanup result" -setup {
+	set r {}
+	file mkdir STORE
+    } -body {
+	lappend r [mvcs $vcs LOG cleanup STORE]
+	lappend r [string trim [fileutil::cat LOG]]
+    } -cleanup {
+	unset r
+	file delete -force LOG STORE
+    } -match glob -result [list \
+       [ok mirror-vcs/empty] \
+       [V  mirror-vcs/cleanup/ok]]
+}
+    
+# # ## ### ##### ######## ############# #####################
+cleanupTests
+return

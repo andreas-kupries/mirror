@@ -1,0 +1,4 @@
+note {> git version}
+info {git version *}
+result *
+ok

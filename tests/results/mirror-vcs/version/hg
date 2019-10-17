@@ -1,0 +1,9 @@
+note {> hg version}
+info {Mercurial Distributed SCM (version *)}
+info {(see https://mercurial-scm.org for more information)}
+info {}
+info {Copyright (C) * Matt Mackall and others}
+info {This is free software; see the source for copying conditions. There is NO}
+info {warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.}
+result *
+ok

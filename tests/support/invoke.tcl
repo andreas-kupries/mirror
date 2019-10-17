@@ -1,6 +1,6 @@
 ## -*- tcl -*- (c) 2018
 # # ## ### ##### ######## ############# #####################
-## Test support - Application simulator
+## Test support - Application simulator I - mirror
 
 kt require support linenoise::facade ;# m::cmdr references, cannot local cannot use modules
 kt require support cmdr::history
@@ -24,6 +24,8 @@ kt local   testing m::mailer
 kt local   testing m::db
 kt local   testing m::vcs::fossil
 kt local   testing m::vcs::git
+kt local   testing m::vcs::hg
+kt local   testing m::vcs::svn
 
 # level 3
 kt local   testing m::reply
@@ -49,16 +51,13 @@ kt local   testing m::validate::mset
 kt local   testing m::validate::repository
 
 # level 7
-				kt local   testing m::web::site
+kt local   testing m::web::site
 kt local   testing m::cmdr
 kt local   testing m::glue
 
-kt::source support/capture.tcl
+kt::source support/invoke-core.tcl
 
 # # ## ### ##### ######## ############# #####################
-
-proc td {} { tcltest::testsDirectory }
-proc md {} { return [td]/tm }
 
 proc mapp {args} {
     #puts XXX\t(([info level 0]))
@@ -71,54 +70,6 @@ proc mapp {args} {
 	#puts XXX\t//
     }
 }
-
-proc err {label args} { R 1 $label {*}$args }
-proc ok  {label args} { R 0 $label {*}$args }
-proc ok* {text}  { list 0 $text }
-
-proc R {state label args} { list $state [V $label {*}$args] }
-
-proc P {label} { return [td]/results/${label} } 
-
-proc V {label args} {
-    set path [P $label]
-    if {[file exists $path]} {
-	return [map [tcltest::viewFile $path] {*}$args]
-    } else {
-	return {}
-    }
-}
-
-proc store-scan {} {
-    #puts SCAN
-    set scan [map [join [lsort -dict [fileutil::find [md]/store]] \n]]
-    #puts //
-    list 0 $scan
-}
-
-proc map {x args} {
-    lappend map <MD>   [md]
-    lappend map <ACO/> [a-core]/doc/trunk/README.md
-    lappend map <ACO>  [a-core]
-    lappend map <BCH/> [b-chisel]/index
-    lappend map <BCH>  [b-chisel]
-    lappend map <BCO/> [b-core]/index
-    lappend map <BCO>  [b-core]
-    lappend map <BGH>  [b-github]
-    lappend map {*}$args
-
-    string map $map $x
-}
-
-# # ## ### ##### ######## ############# #####################
-## REF
-## Use of trailing /index to shortcircuit url redirection.
-
-proc a-core   {} { set _ https://core.tcl-lang.org/akupries/mirror }
-
-proc b-core   {} { set _ https://core.tcl-lang.org/akupries/atom }
-proc b-chisel {} { set _ https://chiselapp.com/user/andreas_kupries/repository/atom }
-proc b-github {} { set _ https://github.com/andreas-kupries/atom }
 
 # # ## ### ##### ######## ############# #####################
 

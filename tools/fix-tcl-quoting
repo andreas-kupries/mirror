@@ -1,0 +1,18 @@
+#!/usr/bin/env tclsh
+##
+# Error stacks in test output is often badly quoted (list element,
+# backslash quoting all over the place).  This filter recodes
+# everything back to readable text.
+
+lappend map \\n \n
+lappend map \\t \t
+lappend map "\\ " " "
+lappend map "\\{" "\{"
+lappend map "\\}" "\}"
+lappend map "\\\[" "\["
+lappend map "\\\]" "\]"
+lappend map "\\\"" "\""
+lappend map "\\\$" "\$"
+lappend map "\\;" ";"
+
+puts -nonewline [string map $map [read stdin]]

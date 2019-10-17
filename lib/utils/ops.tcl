@@ -66,21 +66,28 @@ proc ::m::ops::client::result  {v} { R result $v }
 proc ::m::ops::client::main {} {
     m app debugflags
     debug.m/ops/client {}
-    if {[catch {
-	set op [Cmdline]
+
+    if {![Cmdline op]} {
+	Done 1
+    }
+
+    if {![catch {
 	package require m::vcs::[lindex $op 0]
 	m vcs {*}$op
-    }]} {
-	foreach line [split $::errorInfo \n] { err $line }
-	fail
+    } m o]} {
+	Done
     }
-    Done
-    return
+
+    foreach line [split $::errorInfo \n] {
+	err $line
+    }
+    fail
+    Done 1
 }
 
 # # ## ### ##### ######## ############# #####################
 
-proc ::m::ops::client::Cmdline {} {
+proc ::m::ops::client::Cmdline {v} {
     debug.m/ops/client {}
     global argv
     if {[llength $argv] < 3} {
@@ -113,9 +120,11 @@ proc ::m::ops::client::Cmdline {} {
     } msg]} {
 	err $msg
 	fail
-	Done
-    }    
-    return [linsert $argv 0 $vcs $operation]
+	return 0
+    }
+    upvar 1 $v cmd
+    set cmd [linsert $argv 0 $vcs $operation]
+    return 1
 }
 
 proc ::m::ops::client::Usage {{note {}}} {
@@ -126,17 +135,17 @@ proc ::m::ops::client::Usage {{note {}}} {
 	fatal ""
     }
     regsub -all . $argv0 { } blank
-    fatal "Usage: $argv0 LOG setup       STORE URL"
-    fatal "       $blank     cleanup     STORE"
-    fatal "       $blank     update      STORE URL PRIMARY"
-    fatal "       $blank     mergable?   STORE STORE"
-    fatal "       $blank     merge       STORE STORE"
-    fatal "       $blank     split       STORE STORE"
-    fatal "       $blank     export      STORE"
-    fatal "       $blank     version"
-    fatal "       $blank     url-to-name URL"
+    fatal "Usage: $argv0 VCS LOG setup       STORE URL"
+    fatal "       $blank         cleanup     STORE"
+    fatal "       $blank         update      STORE URL PRIMARY"
+    fatal "       $blank         mergable?   STORE STORE"
+    fatal "       $blank         merge       STORE STORE"
+    fatal "       $blank         split       STORE STORE"
+    fatal "       $blank         export      STORE"
+    fatal "       $blank         version"
+    fatal "       $blank         url-to-name URL"
     fail
-    Done
+    return -code return 0
 }
 
 proc ::m::ops::client::Store {v} {
@@ -164,6 +173,7 @@ proc ::m::ops::client::LogTo {path} {
 proc ::m::ops::client::R {tag args} {
     debug.m/ops/client {}
     variable logchan
+
     if {$logchan ne {}} {
 	# Record everything in the operations log, if present.
 	puts  $logchan [linsert $args 0 $tag]
@@ -191,12 +201,15 @@ proc ::m::ops::client::R {tag args} {
     return
 }
 
-proc ::m::ops::client::Done {} {
+proc ::m::ops::client::Done {{state 0}} {
     debug.m/ops/client {}
     variable logchan
-    catch { close $logchan }
-    exit
-    return
+
+    if {$logchan ne {}} {
+	close $logchan
+    }
+    set logchan {}
+    return -code return $state
 }
 
 # # ## ### ##### ######## ############# #####################

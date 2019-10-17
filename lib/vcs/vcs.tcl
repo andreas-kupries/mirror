@@ -308,8 +308,33 @@ proc ::m::vcs::export {vcs store} {
     set path  [Path $store]
     set vcode [code $vcs]
 
+    # Redirect through an external command. This command is currently
+    # always `mirror-vcs VCS LOG export STORE`.
+
     # Ask plugin for CGI script to access the store.
-    return [$vcode export $path]
+    
+    Operation ::m::vcs::OpComplete $vcode export {*}[OpCmd $vcode $path]
+    set state [OpWait]
+
+    dict with state {}
+    # [x] ok
+    # [ ] commits
+    # [ ] size
+    # [ ] forks
+    # [x] results
+    # [ ] msg
+    # [ ] duration
+
+    if {!$ok} {
+	if {![llength $results]} {
+	    lappend results "Failed to retrieve export script for $vcs on $path"
+	}
+	return -errorcode {MIRROR VCS EXPORT} -code error [join $results \n]
+    } else {
+	set script [join $results \n]
+	debug.m/vcs {--> $script}
+	return $script
+    }
 }
 
 # # ## ### ##### ######## ############# #####################
@@ -320,7 +345,7 @@ proc ::m::vcs::version {vcode iv} {
     set issues {}
 
     # Redirect through an external command. This command is currently
-    # always `mirror vcs-op version ...`.
+    # always `mirror-vcs VCS LOG version`.
     
     Operation ::m::vcs::OpComplete $vcode version {*}[OpCmd $vcode]
     set state [OpWait]

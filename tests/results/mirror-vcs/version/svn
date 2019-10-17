@@ -1,0 +1,8 @@
+note {> svn --version}
+info {svn, version * (r*)}
+info {   compiled * on *}
+info {}
+info {Copyright (C) * The Apache Software Foundation.}
+*
+result *
+ok

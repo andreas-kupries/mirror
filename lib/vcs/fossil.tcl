@@ -43,11 +43,11 @@ namespace eval m::vcs {
 }
 namespace eval m::vcs::fossil {
     # Operation backend implementations
-    namespace export version cleanup
+    namespace export version cleanup export
 
     # Regular implementations not yet moved to operations.
     namespace export setup update check cleave merge \
-        detect remotes export name-from-url revs
+        detect remotes name-from-url revs
     namespace ensemble create
 }
 
@@ -61,7 +61,7 @@ namespace eval m::vcs::fossil {
 # [ ] mergable?   SA SB
 # [ ] merge       S-DST S-SRC
 # [ ] split       S-SRC S-DST
-# [ ] export      S
+# [/] export      S
 # [ ] url-to-name U
 #
 
@@ -93,7 +93,16 @@ proc ::m::vcs::fossil::cleanup {path} {
 # mergable?
 # merge
 # split
-# export
+
+proc ::m::vcs::fossil::export {path} {
+    debug.m/vcs/fossil {}
+    m ops client result "#!/usr/bin/env fossil"
+    m ops client result "repository: [FossilOf $path]"
+    m ops client result ""
+    m ops client ok
+    return
+}
+
 # url-to-name
 
 # # ## ### ##### ######## ############# ######################
@@ -186,11 +195,6 @@ proc ::m::vcs::fossil::merge {primary secondary} {
 proc ::m::vcs::fossil::remotes {path} {
     debug.m/vcs/fossil {}
     return
-}
-
-proc ::m::vcs::fossil::export {path} {
-    debug.m/vcs/fossil {}
-    return "#!/usr/bin/env fossil\nrepository: [FossilOf $path]\n"
 }
 
 # # ## ### ##### ######## ############# #####################

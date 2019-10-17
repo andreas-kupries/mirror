@@ -43,11 +43,11 @@ namespace eval m::vcs {
 }
 namespace eval m::vcs::hg {
     # Operation backend implementations
-    namespace export version cleanup
+    namespace export version cleanup export
 
     # Regular implementations not yet moved to operations.
     namespace export setup update check cleave merge \
-	detect remotes export name-from-url revs
+	detect remotes name-from-url revs
     namespace ensemble create
 }
 
@@ -61,7 +61,7 @@ namespace eval m::vcs::hg {
 # [ ] mergable?   SA SB
 # [ ] merge       S-DST S-SRC
 # [ ] split       S-SRC S-DST
-# [ ] export      S
+# [/] export      S
 # [ ] url-to-name U
 #
 
@@ -98,7 +98,14 @@ proc ::m::vcs::hg::cleanup {path} {
 # mergable?
 # merge
 # split
-# export
+
+proc ::m::vcs::hg::export {path} {
+    debug.m/vcs/hg {}
+    # no publication of the local repo
+    m ops client ok
+    return
+}
+
 # url-to-name
 
 # # ## ### ##### ######## ############# ######################
@@ -172,12 +179,6 @@ proc ::m::vcs::hg::remotes {path} {
     debug.m/vcs/hg {}
     # No automatic forks to track
     return
-}
-
-proc ::m::vcs::hg::export {path} {
-    debug.m/vcs/hg {}
-    # no publication of the local repo
-    return ""
 }
 
 # # ## ### ##### ######## ############# #####################

@@ -28,4 +28,4 @@ package require Tcl 8.5
 package require m::ops::client
 
 # # ## ### ##### GO
-m ops client main
+exit [m ops client main]
