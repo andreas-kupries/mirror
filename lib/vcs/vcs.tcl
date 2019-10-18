@@ -78,27 +78,27 @@ proc ::m::vcs::caps {store} {
     return $r
 }
 
-proc ::m::vcs::size {store} {
-    debug.m/vcs {}
-    # store id -> Using for path.
-    # vcs   id -> Decode to plugin name
-
-    set path [Path $store]
-    set kb   [lindex [m exec get du -sk $path] 0]
-
-    debug.m/vcs {=> $kb}
-    return $kb
-}
-
-proc ::m::vcs::revs {store vcs} {
-    debug.m/vcs {}
-    # store id -> Using for path.
-    # vcs   id -> Decode to plugin name
-
-    set path  [Path $store]
-    set vcode [code $vcs]
-    return [$vcode revs $path]
-}
+# proc ::m::vcs::size {store} {
+#     debug.m/vcs {}
+#     # store id -> Using for path.
+#     # vcs   id -> Decode to plugin name
+#
+#     set path [Path $store]
+#     set kb   [lindex [m exec get du -sk $path] 0]
+#
+#     debug.m/vcs {=> $kb}
+#     return $kb
+# }
+#
+# proc ::m::vcs::revs {store vcs} {
+#     debug.m/vcs {}
+#     # store id -> Using for path.
+#     # vcs   id -> Decode to plugin name
+#
+#     set path  [Path $store]
+#     set vcode [code $vcs]
+#     return [$vcode revs $path]
+# }
 
 proc ::m::vcs::setup {store vcs name url} {
     debug.m/vcs {}
@@ -116,35 +116,34 @@ proc ::m::vcs::setup {store vcs name url} {
     m futil write $path/%name $name  ;# Mirror set
     m futil write $path/%vcs  $vcode ;# Manager
 
-    try {
-	CAP $path {
-	    # Create vcs-specific special resources, if any
-	    $vcode setup  $path $url
-	    # Then update for the first time
-	    set counts [$vcode update $path [list $url] 1]
-	}
-    } trap {CHILDSTATUS} {e} {
-	# For errors always show captured output.
-	if {![m exec verbose]} {
-	    # TODO: Factor into helper command - Maybe an exec command, hide details
-	    set p "[color bad \u2588\u2588] "
-	    puts stdout $p[join [split [string trim [m futil cat $path/%stdout]] \n] \n$p]
-	    puts stderr $p[join [split [string trim [m futil cat $path/%stderr]] \n] \n$p]
-	}
+    # Redirect through an external command. This command is currently
+    # always `mirror-vcs VCS LOG setup STORE URL`.
 
+    # Ask plugin to fill the store.
+    
+    Operation ::m::vcs::OpComplete $vcode setup {*}[OpCmd $vcode $path $url]
+    set state [OpWait]
+
+    dict with state {}
+    # [x] ok
+    # [x] commits
+    # [x] size
+    # [x] forks
+    # [ ] results
+    # [x] msg
+    # [x] duration
+
+    if {!$ok} {
 	# Roll back filesystem changes
 	file delete -force -- $path
 
 	# Rethrow as something more distinguished for trapping
-	return -code error -errorcode {M VCS CHILD} $e
-	
-    } on error {e o} {
-	puts [color bad ////////////////////////////////////////]
-	puts [color bad $e]
-	puts [color bad $o]
-	puts [color bad ////////////////////////////////////////]
+	return -code error -errorcode {M VCS CHILD} $msg
     }
-    return $counts
+
+    dict unset state results
+    dict unset state msg
+    return $state
 }
 
 proc ::m::vcs::update {store vcs urls} {

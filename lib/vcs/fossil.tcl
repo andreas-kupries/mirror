@@ -43,10 +43,10 @@ namespace eval m::vcs {
 }
 namespace eval m::vcs::fossil {
     # Operation backend implementations
-    namespace export version cleanup export
+    namespace export version setup cleanup mergable? merge split export
 
     # Regular implementations not yet moved to operations.
-    namespace export setup update check cleave merge \
+    namespace export update \
         detect remotes name-from-url revs
     namespace ensemble create
 }
@@ -55,12 +55,12 @@ namespace eval m::vcs::fossil {
 ## Operations implemented for separate process/backend
 #
 # [/] version
-# [ ] setup       S U
+# [/] setup       S U
 # [/] cleanup     S
 # [ ] update      S U 1st
-# [ ] mergable?   SA SB
-# [ ] merge       S-DST S-SRC
-# [ ] split       S-SRC S-DST
+# [/] mergable?   SA SB
+# [/] merge       S-DST S-SRC
+# [/] split       S-SRC S-DST
 # [/] export      S
 # [ ] url-to-name U
 #
@@ -80,7 +80,36 @@ proc ::m::vcs::fossil::version {} {
     return 
 }
 
-# setup
+proc ::m::vcs::fossil::setup {path url} {
+    debug.m/vcs/fossil {}
+    
+    set repo [FossilOf $path]
+
+    Fossil clone $url $repo
+    if {[m exec err-last-get]} {
+	m ops client fail ; return
+    }
+    
+    Fossil remote-url off -R $repo
+    if {[m exec err-last-get]} {
+	m ops client fail ; return
+    }
+
+    set count [Count $path]
+    if {[m exec err-last-get]} {
+	m ops client fail ; return
+    }
+
+    set kb [m exec diskuse $path]
+    if {[m exec err-last-get]} {
+	m ops client fail ; return
+    }
+    
+    m ops client commits $count
+    m ops client size    $kb
+    m ops client ok
+    return
+}
 
 proc ::m::vcs::fossil::cleanup {path} {
     debug.m/vcs/fossil {}
@@ -90,9 +119,30 @@ proc ::m::vcs::fossil::cleanup {path} {
 }
 
 # update
-# mergable?
-# merge
-# split
+
+proc ::m::vcs::fossil::mergable? {primary other} {
+    debug.m/vcs/fossil {}
+    if {[ProjectCode $primary] eq [ProjectCode $other]} {
+	m ops client ok
+    } else {
+	m ops client fail
+    }
+    return
+}
+
+proc ::m::vcs::fossil::merge {primary secondary} {
+    debug.m/vcs/fossil {}
+    # Nothing special. No op.
+    m ops client ok
+    return
+}
+
+proc ::m::vcs::fossil::split {origin dst} {
+    debug.m/vcs/fossil {}
+    # Nothing special. No op.
+    m ops client ok
+    return
+}
 
 proc ::m::vcs::fossil::export {path} {
     debug.m/vcs/fossil {}
@@ -108,24 +158,6 @@ proc ::m::vcs::fossil::export {path} {
 # # ## ### ##### ######## ############# ######################
 ## Old code
 
-proc ::m::vcs::fossil::LogNormalize {o e} {
-    debug.m/vcs/fossil {}
-
-    # Remove time-skew warnings from the error log. Add
-    # authorization issues reported in the regular log
-    # to the error log.
-    lassign [m futil grep {time skew}      $e] _ errors
-    lassign [m futil grep {not authorized} $o] auth _
-
-    # Drop rebuild progress reporting
-    lassign [m futil grep {% complete} $o] _ o
-
-    set     e $errors
-    lappend e {*}$auth
-
-    return [list $o $e]
-}
-
 proc ::m::vcs::fossil::name-from-url {url} {
     debug.m/vcs/fossil {}
     
@@ -139,8 +171,8 @@ proc ::m::vcs::fossil::detect {url} {
     if {![llength [auto_execok fossil]]} {
 	set p "PATH: "
 	puts stderr "fossil = [auto_execok fossil]"
-	puts stderr $p[join [split $::env(PATH) :] \n$p]
-	
+	puts stderr $p[join [::split $::env(PATH) :] \n$p]
+
 	m msg "[cmdr color note "fossil"] [cmdr color warning "not available"]"
 	# Fall through
 	return
@@ -148,20 +180,10 @@ proc ::m::vcs::fossil::detect {url} {
     return -code return fossil
 }
 
-proc ::m::vcs::fossil::setup {path url} {
-    debug.m/vcs/fossil {}
-
-    set repo [FossilOf $path]
-
-    Fossil clone $url $repo
-    Fossil remote-url off -R $repo
-    return
-}
-
-proc ::m::vcs::fossil::revs {path} {
-    debug.m/vcs/fossil {}
-    return [Count $path]
-}
+#proc ::m::vcs::fossil::revs {path} {
+#    debug.m/vcs/fossil {}
+#    return [Count $path]
+#}
 
 proc ::m::vcs::fossil::update {path urls first} {
     debug.m/vcs/fossil {}
@@ -177,21 +199,6 @@ proc ::m::vcs::fossil::update {path urls first} {
     return [list $before [Count $path]]
 }
 
-proc ::m::vcs::fossil::check {primary other} {
-    debug.m/vcs/fossil {}
-    return [string equal [ProjectCode $primary] [ProjectCode $other]]
-}
-
-proc ::m::vcs::fossil::cleave {origin dst} {
-    debug.m/vcs/fossil {}
-    return
-}
-
-proc ::m::vcs::fossil::merge {primary secondary} {
-    debug.m/vcs/fossil {}
-    return
-}
-
 proc ::m::vcs::fossil::remotes {path} {
     debug.m/vcs/fossil {}
     return
@@ -200,17 +207,14 @@ proc ::m::vcs::fossil::remotes {path} {
 # # ## ### ##### ######## ############# #####################
 ## Helpers
 
-proc ::m::vcs::fossil::Fossil {args} {
+proc ::m::vcs::fossil::Count {path} {
     debug.m/vcs/fossil {}
-    m exec post-hook ::m::vcs::fossil::LogNormalize
-    m exec go fossil {*}$args
-    return
+    return [2nd [Grep check-ins:* [FossilGet info -R [FossilOf $path]]]]
 }
 
-proc ::m::vcs::fossil::FossilGet {args} {
+proc ::m::vcs::fossil::ProjectCode {path} {
     debug.m/vcs/fossil {}
-    m exec post-hook ::m::vcs::fossil::LogNormalize
-    return [m exec get fossil {*}$args]
+    return [2nd [Grep project-code:* [FossilGet info -R [FossilOf $path]]]]
 }
 
 proc ::m::vcs::fossil::FossilOf {path} {
@@ -218,29 +222,49 @@ proc ::m::vcs::fossil::FossilOf {path} {
     return [file join $path source.fossil]
 }
 
-proc ::m::vcs::fossil::Count {path} {
+proc ::m::vcs::fossil::FossilGet {args} {
     debug.m/vcs/fossil {}
-    set f  [FossilOf $path]
-    return [Sel 1 [Grep1 check-ins:* [split [FossilGet info -R $f] \n]]]
+    return [m exec get+route \
+		::m::vcs::fossil::Router \
+		fossil {*}$args]
 }
 
-proc ::m::vcs::fossil::ProjectCode {path} {
+proc ::m::vcs::fossil::Fossil {args} {
     debug.m/vcs/fossil {}
-    set f  [FossilOf $path]
-    return [Sel 1 [Grep1 project-code:* [split [FossilGet info -R $f] \n]]]
+    # get, and ignore captured result
+    m exec get+route \
+	::m::vcs::fossil::Router \
+	fossil {*}$args
+    return
 }
 
-proc ::m::vcs::fossil::Grep1 {pattern lines} {
+proc ::m::vcs::fossil::Grep {pattern lines} {
     debug.m/vcs/fossil {}
-    foreach line $lines {
+    foreach line [::split $lines \n] {
 	if {![string match $pattern $line]} continue
 	return $line
     }
     return -code error "$pattern missing"
 }
 
-proc ::m::vcs::fossil::Sel {index line} {
-    return [lindex $line $index]
+proc ::m::vcs::fossil::2nd {line} {
+    return [lindex $line 1]
+}
+
+proc ::m::vcs::fossil::Router {rv line} {
+    upvar 1 $rv route
+    # Route time skew warnings from error log to standard log.
+    # Route authorization issues from standard log to error log.
+    if {[string match {*time skew*}      $line]} { R out }
+    if {[string match {*not authorized*} $line]} { R err }
+    if {[string match {*% complete*} $line]}     { R ignore }
+    return
+}
+
+proc ::m::vcs::fossil::R {to} {
+    upvar 1 route route
+    set route $to
+    return -code return
 }
 
 # # ## ### ##### ######## ############# #####################

@@ -1,0 +1,10 @@
+note {> hg clone --noupdate http://hg.code.sourceforge.net/p/graphicsmagick/code STORE/source.hg}
+info {requesting all changes}
+info {adding changesets}
+info {adding manifests}
+info {adding file changes}
+info {added * changesets with * changes to * files (* heads)}
+note {> hg identify --num --rev tip -R STORE/source.hg}
+info *
+note {> du -sk STORE}
+info {*	STORE}

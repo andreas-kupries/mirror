@@ -1,0 +1,62 @@
+# -*- tcl -*- tcl.tk//DSL tcltest//EN//2.0 tcl.tk//DSL tcltest//EN//2.0
+## (c) 2019 Andreas Kupries
+# # ## ### ##### ######## ############# #####################
+## mirror-vcs . . split . .
+
+kt check Tcl     8.5
+kt check tcltest 2
+
+# # ## ### ##### ######## ############# #####################
+
+kt::source support/invoke-vcs.tcl
+
+# # ## ### ##### ######## ############# #####################
+
+foreach vcs {
+    fossil git github hg svn
+} {
+    test mirror-vcs-${vcs}-split-1.0 "mirror-vcs $vcs split - wrong args, not enough" -body {
+	mvcs $vcs LOG split
+    } -result [err mirror-vcs/split/wrongargs]
+    
+    test mirror-vcs-${vcs}-split-1.1 "mirror-vcs $vcs split - wrong args, not enough" -body {
+	mvcs $vcs LOG split STOREA
+    } -result [err mirror-vcs/split/wrongargs]
+    
+    test mirror-vcs-${vcs}-split-1.2 "mirror-vcs $vcs split - wrong args, too many" -body {
+	mvcs $vcs LOG split STOREA STOREB X
+    } -result [err mirror-vcs/split/wrongargs]
+    
+    test mirror-vcs-${vcs}-split-2.0 "mirror-vcs $vcs split - bad store" -setup {
+	file mkdir STORE
+    } -body {
+	mvcs $vcs LOG split BADSTORE STORE
+    } -cleanup {
+	file delete -force STORE
+    } -result [err mirror-vcs/bad-store]
+    
+    test mirror-vcs-${vcs}-split-2.1 "mirror-vcs $vcs split - bad store" -setup {
+	file mkdir STORE
+    } -body {
+	mvcs $vcs LOG split STORE BADSTORE
+    } -cleanup {
+	file delete -force STORE
+    } -result [err mirror-vcs/bad-store]
+    
+    test mirror-vcs-${vcs}-split-3.0 "mirror-vcs $vcs split result" -setup {
+	set r {}
+	file mkdir STOREA STOREB
+    } -body {
+	lappend r [mvcs $vcs LOG split STOREA STOREB]
+	lappend r [string trim [fileutil::cat LOG]]
+    } -cleanup {
+	unset r
+	file delete -force LOG STOREA STOREB
+    } -result [list \
+       [ok mirror-vcs/empty] \
+       [V  mirror-vcs/ok]]
+}
+    
+# # ## ### ##### ######## ############# #####################
+cleanupTests
+return

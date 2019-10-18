@@ -1,0 +1,2 @@
+note {> hg clone --noupdate BADURL STORE/source.hg}
+error {abort: repository BADURL not found!}

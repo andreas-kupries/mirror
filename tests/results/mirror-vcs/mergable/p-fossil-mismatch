@@ -1,0 +1,8 @@
+note {> fossil info -R STOREA/source.fossil}
+info {project-name: Mirror}
+info {project-code: *}
+info {check-ins:    *}
+note {> fossil info -R STOREB/source.fossil}
+info {project-name: Atom}
+info {project-code: *}
+info {check-ins:    *}

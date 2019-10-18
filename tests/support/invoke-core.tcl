@@ -52,9 +52,19 @@ proc map {x args} {
 ## Use of trailing /index to shortcircuit url redirection.
 
 proc a-core   {} { set _ https://core.tcl-lang.org/akupries/mirror }
+proc a-github {} { set _ https://github.com/andreas-kupries/mirror }
+
 proc b-core   {} { set _ https://core.tcl-lang.org/akupries/atom }
 proc b-chisel {} { set _ https://chiselapp.com/user/andreas_kupries/repository/atom }
 proc b-github {} { set _ https://github.com/andreas-kupries/atom }
+
+proc c-github {} { set _ https://github.com/andreas-kupries/critcl }
+
+proc d-hg     {} { set _ http://hg.code.sourceforge.net/p/graphicsmagick/code }
+
+proc e-svn    {} { set _ https://svn.code.sourceforge.net/p/tkdiff/code/ }
+
+# TODO: hg, svn examples.
 
 # # ## ### ##### ######## ############# #####################
 ## Make mirror-vcs visible.

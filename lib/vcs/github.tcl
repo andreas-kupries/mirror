@@ -25,8 +25,9 @@ package provide m::vcs::github 0
 # not seen in the management database.
 
 # The majority of the VCS operations are plain pass through, to git.
-# The exception is `update`. It performs the necessary operations to
-# detect all applicable forks before calling on the git operation..
+# The exceptions are `update` and `setup`. They perform the necessary
+# operations to detect all applicable forks after calling on the git
+# operation.
 
 # This package has knowledge of the internals of m::vcs::git, namely
 # the various execution helpers, to avoid having to define its own.
@@ -64,16 +65,16 @@ namespace eval m::vcs {
 }
 namespace eval m::vcs::github {
     namespace import ::m::vcs::git::cleanup
-    namespace import ::m::vcs::git::revs
-    namespace import ::m::vcs::git::check
-    namespace import ::m::vcs::git::cleave
+    #namespace import ::m::vcs::git::revs
+    namespace import ::m::vcs::git::mergable?
     namespace import ::m::vcs::git::merge
+    namespace import ::m::vcs::git::split
     namespace import ::m::vcs::git::export
 
     # Operation backend implementations
-    namespace export version cleanup export
+    namespace export version setup cleanup mergable? merge split export
 
-    namespace export setup update check cleave merge \
+    namespace export update \
 	detect remotes name-from-url revs
     namespace ensemble create
 
@@ -87,14 +88,13 @@ namespace eval m::vcs::github {
 # [ ] setup       S U          | 
 # [/] cleanup     S            |       Inherited from git.
 # [ ] update      S U 1st      | 
-# [ ] mergable?   SA SB        | .i
-# [ ] merge       S-DST S-SRC  | .i
-# [ ] split       S-SRC S-DST  | .i
+# [/] mergable?   SA SB        |       Inherited from git.
+# [/] merge       S-DST S-SRC  |       Inherited from git.
+# [/] split       S-SRC S-DST  |       Inherited from git.
 # [/] export      S            |       Inherited from git.
 # [ ] url-to-name U            | 
 #
 
-# setup
 # Operations backend: version
 proc ::m::vcs::github::version {} {
     debug.m/vcs/github {}
@@ -116,19 +116,48 @@ proc ::m::vcs::github::version {} {
     }
 
     set v [m exec get-- git hub version]
-    set v [split $v \n]
+    set v [::split $v \n]
     set v [lindex $v 0 end]
     set v [string trim $v ']
-
+    
     m ops client result $v
     m ops client ok
     return
 }
 
+proc ::m::vcs::github::setup {path url} {
+    debug.m/vcs/github {}
+    # url = https://github.com/owner/repo
+    # origin = ................^^^^^^^^^^
+    #
+    # Saving origin information for `git hub fork` to use to always
+    # target the proper repository when asking for information about
+    # the forks.
+
+    m vcs git setup $path $url
+
+    if {![m ops client ok?]} {
+	# git setup has already cleaned up.
+	return
+    }
+
+    set origin [join [lrange [file split $url] end-1 end] /]
+    
+    set forks [lsort -dict [m::vcs::git::Get hub forks --raw $origin]]
+    if {[m exec err-last-get]} {
+	set repo [GitOf $path]
+	file delete -force $repo
+	m ops client fail ; return
+    }
+
+    foreach fork $forks {
+	# unverified estimate (saved)
+	m ops client fork $fork
+    }
+    return
+}
+
 # update
-# mergable?
-# merge
-# split
 # url-to-name
 
 # # ## ### ##### ######## ############# #####################
@@ -143,7 +172,7 @@ proc ::m::vcs::github::name-from-url {url} {
     lassign [lreverse [file split $url]] repo owner
 
     set uinfo [m exec get git hub user $owner]
-    set name  [lindex [m futil grep Name [split $uinfo \n]] 0]
+    set name  [lindex [m futil grep Name [::split $uinfo \n]] 0]
 
     try {
 	set desc [m exec get git hub repo-get $owner/$repo description]
@@ -187,40 +216,6 @@ proc ::m::vcs::github::detect {url} {
     return -code return github
 }
 
-proc ::m::vcs::github::setup {path url} {
-    debug.m/vcs/github {}
-    # url = https://github.com/owner/repo
-    # origin = ................^^^^^^^^^^
-    #
-    # Saving origin information for `git hub fork` to use to always
-    # target the proper repository when asking for information about
-    # the forks.
-    OriginSave $path \
-	[join [lrange [file split $url] end-1 end] /]
-
-    m vcs git setup $path $url
-
-    set forks [llength [ForksRemote $path 0 0]] ;# unverified estimate (saved)
-
-    # TODO: Make the fork warn/error thresholds configurable.
-    # TODO: Implement --force'd operation.
-    if {$forks > 1000} {
-	m msg "  Estimated [cmdr color bad $forks] forks to track."
-	m msg "  [cmdr color warning "This will be very slow to setup and update."]"
-	return -code error -errorcode {M VCS GITHUB FORKS TOOMANY} \
-	    "Too slow for sensible operation. You may --force us"
-    }
-    if {$forks > 500} {
-	m msg "  Estimated [cmdr color bad $forks] forks to track."
-	m msg [cmdr color warning "This will be slow to setup and update."]
-	m msg "  Continuing ..."
-    } else {
-	m msg "  Estimated [cmdr color note $forks] forks to track."
-    }
-
-    return
-}
-
 proc ::m::vcs::github::update {path urls first} {
     debug.m/vcs/github {}
 
@@ -245,7 +240,7 @@ proc ::m::vcs::github::update {path urls first} {
     set git [m::vcs::git::GitOf $path]
 
     foreach fork $gone {
-	lassign [split $fork /] user repo
+	lassign [::split $fork /] user repo
 	set label m-vcs-github-fork-$user
 
 	# Convert all branches defined by this remote (i.e. user or
@@ -278,7 +273,7 @@ proc ::m::vcs::github::update {path urls first} {
     }
         
     foreach fork $new {
-	lassign [split $fork /] org repo
+	lassign [::split $fork /] org repo
 	set label m-vcs-github-fork-$org
  	set url https://github.com/$fork
 
@@ -331,7 +326,7 @@ proc ::m::vcs::github::ForksSave {path suffix forks} {
 
 proc ::m::vcs::github::ForksLoad {path suffix} {
     debug.m/vcs/github {}
-    return [split [string trim [m futil cat $path/forks$suffix]] \n]
+    return [::split [string trim [m futil cat $path/forks$suffix]] \n]
 }
 
 proc ::m::vcs::github::ForksRemote {path {skip 0} {verified 1}} {
@@ -388,14 +383,14 @@ proc ::m::vcs::github::ForksLocal {path} {
     debug.m/vcs/github {}
 
     lassign [m futil grep {\(fetch\)$} \
-		 [split [m::vcs::git::Get remote -v] \n]] \
+		 [::split [m::vcs::git::Get remote -v] \n]] \
 	forks _
 
     set r {}
     foreach fork [lsort -dict $forks] {
 	lassign $fork label url _
 	if {![string match m-vcs-github-fork-* $label]} continue
-	set fk [join [lrange [split $url /] end-1 end] /]
+	set fk [join [lrange [::split $url /] end-1 end] /]
 	
 	debug.m/vcs/github {$label = $url => $fk}
 	lappend r $fk

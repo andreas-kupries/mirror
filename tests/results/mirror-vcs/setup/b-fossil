@@ -1,0 +1,2 @@
+note {> fossil clone BADURL STORE/source.fossil}
+error {unknown repository: BADURL}

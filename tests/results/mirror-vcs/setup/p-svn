@@ -1,0 +1,7 @@
+note {> svn checkout https://svn.code.sourceforge.net/p/tkdiff/code/ STORE/source.svn}
+info {A    STORE/source.svn/*}*
+info {Checked out revision *.}
+note {> svn info -r HEAD --show-item revision STORE/source.svn}
+info *
+note {> du -sk STORE}
+info {*	STORE}

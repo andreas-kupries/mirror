@@ -38,7 +38,7 @@ foreach vcs {
 	file delete -force LOG STORE
     } -match glob -result [list \
        [ok mirror-vcs/empty] \
-       [V  mirror-vcs/cleanup/ok]]
+       [V  mirror-vcs/ok]]
 }
     
 # # ## ### ##### ######## ############# #####################

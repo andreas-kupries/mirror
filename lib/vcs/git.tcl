@@ -44,10 +44,10 @@ namespace eval m::vcs {
 }
 namespace eval m::vcs::git {
     # Operation backend implementations
-    namespace export version cleanup export
+    namespace export version cleanup mergable? merge split export
 
     # Regular implementations not yet moved to operations.
-    namespace export setup update check cleave merge \
+    namespace export setup update \
 	detect remotes name-from-url revs
     namespace ensemble create
 }
@@ -56,12 +56,12 @@ namespace eval m::vcs::git {
 ## Operations implemented for separate process/backend
 #
 # [/] version
-# [ ] setup       S U
+# [/] setup       S U
 # [/] cleanup     S
 # [ ] update      S U 1st
-# [ ] mergable?   SA SB
-# [ ] merge       S-DST S-SRC
-# [ ] split       S-SRC S-DST
+# [/] mergable?   SA SB
+# [/] merge       S-DST S-SRC
+# [/] split       S-SRC S-DST
 # [/] export      S
 # [ ] url-to-name U
 #
@@ -87,7 +87,50 @@ proc ::m::vcs::git::version {} {
     return
 }
 
-# setup
+proc ::m::vcs::git::setup {path url} {
+    debug.m/vcs/git {}
+
+    set repo [GitOf $path]
+
+    m exec get+route \
+	::m::vcs::git::Router \
+	git --bare --git-dir $repo init
+    # Cannot use `Git` ? --bare must be front ?!
+    if {[m exec err-last-get]} {
+	file delete -force $repo
+	m ops client fail ; return
+    }
+
+    RemoteAdd $url
+    if {[m exec err-last-get]} {
+	file delete -force $repo
+	m ops client fail ; return
+    }
+    
+    # Initial update
+    Git fetch --all --tags
+    if {[m exec err-last-get]} {
+	file delete -force $repo
+	m ops client fail ; return
+    }
+    
+    set count [Count $path]
+    if {[m exec err-last-get]} {
+	file delete -force $repo
+	m ops client fail ; return
+    }
+
+    set kb [m exec diskuse $path]
+    if {[m exec err-last-get]} {
+	file delete -force $repo
+	m ops client fail ; return
+    }
+    
+    m ops client commits $count
+    m ops client size    $kb
+    m ops client ok
+    return
+}
 
 proc ::m::vcs::git::cleanup {path} {
     debug.m/vcs/git {}
@@ -97,9 +140,29 @@ proc ::m::vcs::git::cleanup {path} {
 }
 
 # update
-# mergable?
-# merge
-# split
+
+proc ::m::vcs::git::mergable? {primary other} {
+    debug.m/vcs/git {}
+    # Git repositories can be merged at will.  Disparate projects
+    # simply cause storage of a forest of independent trees.  The user
+    # is responsible for keeping disparate projects apart.
+    m ops client ok
+    return
+}
+
+proc ::m::vcs::git::merge {primary secondary} {
+    debug.m/vcs/git {}
+    # Note: The remotes missing in primary are fixed by the next call
+    # to `update`.
+    m ops client ok
+    return
+}
+
+proc ::m::vcs::git::split {origin dst} {
+    debug.m/vcs/git {}
+    m ops client ok
+    return
+}
 
 proc ::m::vcs::git::export {path} {
     debug.m/vcs/git {}
@@ -110,28 +173,6 @@ proc ::m::vcs::git::export {path} {
 # url-to-name
 
 # # ## ### ##### ######## ############# ######################
-
-proc ::m::vcs::git::LogNormalize {o e} {
-    debug.m/vcs/git {}
-
-    # Move all non-errors written to stderr over into stdout.
-    lassign [m futil m-grep {
-	{^[[:space:]]*$}
-	{^From }
-	{tag update}
-	{ -> }
-	{^origin }
-	{^m-vcs-}
-	{warning: redirecting to}
-	{Auto packing}
-	{manual housekeeping}
-    } $e] out err
-
-    if {[llength $out]} { lappend o {*}$out }
-    set e $err
-
-    return [list $o $e]
-}
 
 proc ::m::vcs::git::name-from-url {url} {
     debug.m/vcs/git {}
@@ -160,14 +201,6 @@ proc ::m::vcs::git::detect {url} {
 	return
     }
     return -code return git
-}
-
-
-proc ::m::vcs::git::setup {path url} {
-    debug.m/vcs/git {}
-    m exec post-hook ::m::vcs::git::LogNormalize
-    m exec go git --bare --git-dir [GitOf $path] init
-    return
 }
 
 proc ::m::vcs::git::revs {path} {
@@ -210,26 +243,6 @@ proc ::m::vcs::git::update {path urls first} {
     return [list $before [Count $path]]
 }
 
-proc ::m::vcs::git::check {primary other} {
-    debug.m/vcs/git {}
-    # No true check. Any repository can fit with any other.
-    # The user is (unfortunately) responsible for keeping
-    # non-matching repositories apart.
-    return true
-}
-
-proc ::m::vcs::git::cleave {origin dst} {
-    debug.m/vcs/git {}
-    return
-}
-
-proc ::m::vcs::git::merge {primary secondary} {
-    debug.m/vcs/git {}
-    # Note: The remotes missing in primary are fixed by the next call
-    # to `update`.
-    return
-}
-
 proc ::m::vcs::git::remotes {path} {
     debug.m/vcs/git {}
     return
@@ -237,6 +250,31 @@ proc ::m::vcs::git::remotes {path} {
 
 # # ## ### ##### ######## ############# #####################
 ## Helpers
+
+proc ::m::vcs::git::Router {rv line} {
+    upvar 1 $rv route
+    # Route all non-errors written from error log to standard log.
+    foreach pattern {
+	{^[[:space:]]*$}
+	{^From }
+	{tag update}
+	{ -> }
+	{^origin }
+	{^m-vcs-}
+	{warning: redirecting to}
+	{Auto packing}
+	{manual housekeeping}
+    } {
+	if {[regexp -- $pattern $line]} { R out }
+    }
+    return
+}
+
+proc ::m::vcs::git::R {to} {
+    upvar 1 route route
+    set route $to
+    return -code return
+}
 
 proc ::m::vcs::git::RemoteAdd {url} {
     debug.m/vcs/git {}
@@ -264,8 +302,7 @@ proc ::m::vcs::git::Remotes {path} {
 
 proc ::m::vcs::git::Count {path} {
     debug.m/vcs/git {}
-    m exec post-hook ::m::vcs::git::LogNormalize
-    set count [string trim [m exec get git --git-dir [GitOf $path] rev-list --all --count]]
+    set count [string trim [Get rev-list --all --count]]
     debug.m/vcs/git {==> $count}
     return $count
 }
@@ -295,16 +332,18 @@ proc ::m::vcs::git::GitOf {path} {
 proc ::m::vcs::git::Git {args} {
     debug.m/vcs/git {}
     upvar 1 path path
-    m exec post-hook ::m::vcs::git::LogNormalize
-    m exec go git --git-dir [GitOf $path] {*}$args
+    m exec get+route \
+	::m::vcs::git::Router \
+	git --git-dir [GitOf $path] {*}$args
     return
 }
 
 proc ::m::vcs::git::Get {args} {
     debug.m/vcs/git {}
     upvar 1 path path
-    m exec post-hook ::m::vcs::git::LogNormalize
-    return [m exec get git --git-dir [GitOf $path] {*}$args]
+    return [m exec get+route \
+		::m::vcs::git::Router \
+		git --git-dir [GitOf $path] {*}$args]
 }
 
 # # ## ### ##### ######## ############# #####################

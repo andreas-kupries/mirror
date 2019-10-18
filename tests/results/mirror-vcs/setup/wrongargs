@@ -1,0 +1,11 @@
+fatal {Wrong # Args for setup}
+fatal {}
+fatal {Usage: mirror-vcs VCS LOG setup       STORE URL}
+fatal {                          cleanup     STORE}
+fatal {                          update      STORE URL PRIMARY}
+fatal {                          mergable?   STORE STORE}
+fatal {                          merge       STORE STORE}
+fatal {                          split       STORE STORE}
+fatal {                          export      STORE}
+fatal {                          version}
+fatal {                          url-to-name URL}

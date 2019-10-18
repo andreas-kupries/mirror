@@ -43,10 +43,10 @@ namespace eval m::vcs {
 }
 namespace eval m::vcs::hg {
     # Operation backend implementations
-    namespace export version cleanup export
+    namespace export version setup cleanup mergable? merge split export
 
     # Regular implementations not yet moved to operations.
-    namespace export setup update check cleave merge \
+    namespace export update \
 	detect remotes name-from-url revs
     namespace ensemble create
 }
@@ -55,12 +55,12 @@ namespace eval m::vcs::hg {
 ## Operations implemented for separate process/backend
 #
 # [/] version
-# [ ] setup       S U
+# [/] setup       S U
 # [/] cleanup     S
 # [ ] update      S U 1st
-# [ ] mergable?   SA SB
-# [ ] merge       S-DST S-SRC
-# [ ] split       S-SRC S-DST
+# [/] mergable?   SA SB
+# [/] merge       S-DST S-SRC
+# [/] split       S-SRC S-DST
 # [/] export      S
 # [ ] url-to-name U
 #
@@ -76,7 +76,7 @@ proc ::m::vcs::hg::version {} {
     }
 
     set v [m exec get-- hg version]   ; debug.m/vcs/hg {raw = (($v))}
-    set v [split  $v \n]              ; debug.m/vcs/hg {split    = '$v'}
+    set v [::split  $v \n]            ; debug.m/vcs/hg {split    = '$v'}
     set v [lindex $v 0]               ; debug.m/vcs/hg {sel line = '$v'}
     set v [lindex $v end]             ; debug.m/vcs/hg {sel col  = '$v'}
     set v [string trimright $v ")"]   ; debug.m/vcs/hg {trim     = '$v'}
@@ -86,7 +86,30 @@ proc ::m::vcs::hg::version {} {
     return
 }
 
-# setup
+proc ::m::vcs::hg::setup {path url} {
+    debug.m/vcs/hg {}
+
+    set repo [HgOf $path]
+    Hg clone --noupdate $url $repo
+    if {[m exec err-last-get]} {
+	m ops client fail ; return
+    }
+
+    set count [Count $path]
+    if {[m exec err-last-get]} {
+	m ops client fail ; return
+    }
+
+    set kb [m exec diskuse $path]
+    if {[m exec err-last-get]} {
+	m ops client fail ; return
+    }
+    
+    m ops client commits $count
+    m ops client size    $kb
+    m ops client ok
+    return
+}
 
 proc ::m::vcs::hg::cleanup {path} {
     debug.m/vcs/hg {}
@@ -95,9 +118,29 @@ proc ::m::vcs::hg::cleanup {path} {
 }
 
 # update
-# mergable?
-# merge
-# split
+
+proc ::m::vcs::hg::mergable? {primary other} {
+    debug.m/vcs/hg {}
+    # Hg repositories can be merged at will.  Disparate projects
+    # simply cause storage of a forest of independent trees.  The user
+    # is responsible for keeping disparate projects apart.
+    m ops client ok
+    return    
+}
+
+proc ::m::vcs::hg::merge {primary secondary} {
+    debug.m/vcs/hg {}
+    # Nothing special. No op.
+    m ops client ok
+    return
+}
+
+proc ::m::vcs::hg::split {origin dst} {
+    debug.m/vcs/hg {}
+    # Nothing special. No op.
+    m ops client ok
+    return
+}
 
 proc ::m::vcs::hg::export {path} {
     debug.m/vcs/hg {}
@@ -109,12 +152,6 @@ proc ::m::vcs::hg::export {path} {
 # url-to-name
 
 # # ## ### ##### ######## ############# ######################
-
-proc ::m::vcs::hg::LogNormalize {o e} {
-    debug.m/vcs/hg {}
-    # Nothing, for now
-    return [list $o $e]
-}
 
 proc ::m::vcs::hg::name-from-url {url} {
     debug.m/vcs/hg {}
@@ -135,14 +172,6 @@ proc ::m::vcs::hg::detect {url} {
     return -code return hg
 }
 
-proc ::m::vcs::hg::setup {path url} {
-    debug.m/vcs/hg {}
-
-    set repo [HgOf $path]
-    Hg clone --noupdate $url $repo
-    return
-}
-
 proc ::m::vcs::hg::revs {path} {
     debug.m/vcs/hg {}
     return [Count $path]
@@ -160,21 +189,6 @@ proc ::m::vcs::hg::update {path urls first} {
     return [list $before [Count $path]]
 }
 
-proc ::m::vcs::hg::check {primary other} {
-    debug.m/vcs/hg {}
-    return 1 ;#[string equal [ProjectCode $primary] [ProjectCode $other]]
-}
-
-proc ::m::vcs::hg::cleave {origin dst} {
-    debug.m/vcs/hg {}
-    return
-}
-
-proc ::m::vcs::hg::merge {primary secondary} {
-    debug.m/vcs/hg {}
-    return
-}
-
 proc ::m::vcs::hg::remotes {path} {
     debug.m/vcs/hg {}
     # No automatic forks to track
@@ -184,30 +198,28 @@ proc ::m::vcs::hg::remotes {path} {
 # # ## ### ##### ######## ############# #####################
 ## Helpers
 
-proc ::m::vcs::hg::Hg {args} {
-    debug.m/vcs/hg {}
-    m exec post-hook ::m::vcs::hg::LogNormalize
-    m exec go hg {*}$args
-    return
-}
-
-proc ::m::vcs::hg::HgGet {args} {
-    debug.m/vcs/hg {}
-    m exec post-hook ::m::vcs::hg::LogNormalize
-    return [m exec get hg {*}$args]
-}
-
-proc ::m::vcs::hg::HgOf {path} {
-    debug.m/vcs/hg {}
-    return [file join $path source.hg]
-}
-
 proc ::m::vcs::hg::Count {path} {
     debug.m/vcs/hg {}
     set tip [HgGet identify --num --rev tip -R [HgOf $path]]
     incr tip
     debug.m/vcs/hg { --> $tip }
     return $tip
+}
+
+proc ::m::vcs::hg::Hg {args} {
+    debug.m/vcs/hg {}
+    m exec get-- hg {*}$args
+    return
+}
+
+proc ::m::vcs::hg::HgGet {args} {
+    debug.m/vcs/hg {}
+    return [m exec get-- hg {*}$args]
+}
+
+proc ::m::vcs::hg::HgOf {path} {
+    debug.m/vcs/hg {}
+    return [file join $path source.hg]
 }
 
 # # ## ### ##### ######## ############# #####################

@@ -1,0 +1,65 @@
+# -*- tcl -*- tcl.tk//DSL tcltest//EN//2.0 tcl.tk//DSL tcltest//EN//2.0
+## (c) 2019 Andreas Kupries
+# # ## ### ##### ######## ############# #####################
+## mirror-vcs . . setup . .
+
+kt check Tcl     8.5
+kt check tcltest 2
+
+# # ## ### ##### ######## ############# #####################
+
+kt::source support/invoke-vcs.tcl
+
+# # ## ### ##### ######## ############# #####################
+
+foreach {vcs urlcmd} {
+    fossil  a-core
+    git     a-github
+    github  c-github
+    hg      d-hg
+    svn     e-svn
+} {
+    test mirror-vcs-${vcs}-setup-1.0 "mirror-vcs $vcs setup - wrong args, not enough" -body {
+	mvcs $vcs LOG setup
+    } -result [err mirror-vcs/setup/wrongargs]
+    
+    test mirror-vcs-${vcs}-setup-1.1 "mirror-vcs $vcs setup - wrong args, too many" -body {
+	mvcs $vcs LOG setup STORE
+    } -result [err mirror-vcs/setup/wrongargs]
+    
+    test mirror-vcs-${vcs}-setup-1.2 "mirror-vcs $vcs setup - wrong args, too many" -body {
+	mvcs $vcs LOG setup STORE URL X
+    } -result [err mirror-vcs/setup/wrongargs]
+    
+    test mirror-vcs-${vcs}-setup-2.0 "mirror-vcs $vcs setup - bad store" -body {
+	mvcs $vcs LOG setup BADSTORE URL
+    } -result [err mirror-vcs/bad-store]
+    
+    test mirror-vcs-${vcs}-setup-2.1 "mirror-vcs $vcs setup - bad url" -setup {
+	file mkdir STORE
+    } -body {
+	mvcs $vcs LOG setup STORE BADURL
+    } -cleanup {
+	file delete -force STORE
+    } -match glob -result [err mirror-vcs/setup/b-${vcs}]
+    
+    # Skip plugins without example repository
+    if {$urlcmd eq {}} continue
+    
+    test mirror-vcs-${vcs}-setup-3.0 "mirror-vcs $vcs setup result" -setup {
+	set r {}
+	file mkdir STORE
+    } -body {
+	lappend r [mvcs $vcs LOG setup STORE [$urlcmd]]
+	lappend r [string trim [fileutil::cat LOG]]
+    } -cleanup {
+	unset r
+	file delete -force LOG STORE
+    } -match glob -result [list \
+       [ok mirror-vcs/setup/p-$vcs] \
+       [V  mirror-vcs/setup/$vcs]]
+}
+    
+# # ## ### ##### ######## ############# #####################
+cleanupTests
+return

@@ -1,0 +1,13 @@
+note {> git --bare --git-dir STORE/source.git init}
+info {Initialized empty Git repository in */STORE/source.git/}
+note {> git --git-dir STORE/source.git remote add m-vcs-git-*mirror */mirror}
+note {> git --git-dir STORE/source.git fetch --all --tags}
+info {Fetching m-vcs-git-*mirror}
+info {From */mirror}*
+note {> git --git-dir STORE/source.git rev-list --all --count}
+info *
+note {> du -sk STORE}
+info {*	STORE}
+commits *
+size *
+ok

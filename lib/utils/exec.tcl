@@ -39,13 +39,21 @@ namespace eval ::m {
 
 namespace eval ::m::exec {
     namespace export verbose go get nc-get silent capture post-hook \
-	job get--
+	job err-last-get get-- get+route diskuse
     namespace ensemble create
 }
 
 namespace eval ::m::exec::capture {
     namespace export to on off clear get path active
     namespace ensemble create
+}
+
+# # ## ### ##### ######## ############# #####################
+## Highlevel shared exec: disk usage in kibibyte (du -sk).
+
+proc ::m::exec::diskuse {path} {
+    debug.m/exec {}
+    return [lindex [get-- du -sk $path] 0]
 }
 
 # # ## ### ##### ######## ############# #####################
@@ -85,14 +93,25 @@ proc ::m::exec::Do {cmd args} {
 # # ## ### ##### ######## ############# #####################
 ## Get for use in backends (report out/err, capture out)
 
+proc ::m::exec::err-last-get {} {
+    variable get ; return $get(err)
+}
+
 proc ::m::exec::get-- {args} {
+    debug.m/exec {}
+    get+route {} {*}$args
+}
+
+proc ::m::exec::get+route {router args} {
     debug.m/exec {}
     variable get
     variable getid
 
     m ops client note "> [join $args]"
-
-    set id [incr getid] ; set get($id) {}
+    
+    set id [incr getid]
+    set get(o,$id) {}
+    set get(e,$id) 0
     
     # Alternate exec get ...
     # - stdout/err are reported as info/error progress reports.
@@ -101,10 +120,10 @@ proc ::m::exec::get-- {args} {
     set out [open "|[linsert $args end 2>@ $w]"]
 
     fconfigure $out -blocking 0
-    fileevent  $out readable [list ::m::exec::Get $out $id]
+    fileevent  $out readable [list ::m::exec::Get $router $out $id]
 
     fconfigure $err -blocking 0
-    fileevent  $err readable [list ::m::exec::Err $err]
+    fileevent  $err readable [list ::m::exec::Err $router $err $id]
 
     vwait m::exec::get(r,$id)
     set res $get(r,$id)
@@ -112,29 +131,55 @@ proc ::m::exec::get-- {args} {
     return $res
 }
 
-proc ::m::exec::Get {chan id} {
+proc ::m::exec::Get {router chan id} {
     debug.m/exec {}
     # Stderr transforms into progress reports, as info.
     # Also saved, i.e. captured for further processing.
-    variable get
     if {[eof $chan]} {
 	close $chan
-	set get(r,$id) [join $get($id) \n]
-	unset get($id)
+	variable get
+	set get(r,$id) [join $get(o,$id) \n]
+	set get(err)   $get(e,$id)
+	unset get(o,$id) get(e,$id)
 	return
     }
     if {[gets $chan line] < 0} return
-    m ops client info $line
-    lappend get($id) $line
+    set route out
+    if {[llength $router]} {
+	{*}$router route $line
+    }
+    Process $route $id $line
     return
 }
 
-proc ::m::exec::Err {chan} {
+proc ::m::exec::Err {router chan id} {
     debug.m/exec {}
     # Stderr transforms into progress reports, as errors.
     if {[eof $chan]} { close $chan ; return }
     if {[gets $chan line] < 0} return
-    m ops client err $line
+    set route err
+    if {[llength $router]} {
+	{*}$router route $line
+    }
+    Process $route $id $line
+    return
+}
+
+proc ::m::exec::Process {dst id line} {
+    debug.m/exec {}
+    switch -exact -- $dst {
+	ignore {}
+	out {
+	    m ops client info $line
+	    variable get
+	    lappend get(o,$id) $line
+	}
+	err {
+	    m ops client err $line
+	    variable get
+	    incr get(e,$id)
+	}
+    }
     return
 }
 

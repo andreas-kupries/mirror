@@ -43,10 +43,10 @@ namespace eval m::vcs {
 }
 namespace eval m::vcs::svn {
     # Operation backend implementations
-    namespace export version cleanup export
+    namespace export version setup cleanup mergable? merge split export
 
     # Regular implementations not yet moved to operations.
-    namespace export setup update check cleave merge \
+    namespace export update \
 	detect remotes name-from-url revs
     namespace ensemble create
 }
@@ -55,12 +55,12 @@ namespace eval m::vcs::svn {
 ## Operations implemented for separate process/backend
 #
 # [/] version
-# [ ] setup       S U
+# [/] setup       S U
 # [/] cleanup     S
 # [ ] update      S U 1st
-# [ ] mergable?   SA SB
-# [ ] merge       S-DST S-SRC
-# [ ] split       S-SRC S-DST
+# [/] mergable?   SA SB
+# [/] merge       S-DST S-SRC
+# [/] split       S-SRC S-DST
 # [/] export      S
 # [ ] url-to-name U
 #
@@ -75,7 +75,7 @@ proc ::m::vcs::svn::version {} {
     }
 
     set v [m exec get-- svn --version]; debug.m/vcs/svn {raw = (($v))}
-    set v [split  $v \n]              ; debug.m/vcs/svn {split    = '$v'}
+    set v [::split  $v \n]            ; debug.m/vcs/svn {split    = '$v'}
     set v [lindex $v 0]               ; debug.m/vcs/svn {sel line = '$v'}
     set v [lindex $v 2]               ; debug.m/vcs/svn {sel col  = '$v'}
 
@@ -84,7 +84,30 @@ proc ::m::vcs::svn::version {} {
     return
 }
 
-# setup
+proc ::m::vcs::svn::setup {path url} {
+    debug.m/vcs/svn {}
+
+    set repo [SvnOf $path]
+    Svn checkout $url $repo
+    if {[m exec err-last-get]} {
+	m ops client fail ; return
+    }
+
+    set count [Count $path]
+    if {[m exec err-last-get]} {
+	m ops client fail ; return
+    }
+
+    set kb [m exec diskuse $path]
+    if {[m exec err-last-get]} {
+	m ops client fail ; return
+    }
+    
+    m ops client commits $count
+    m ops client size    $kb
+    m ops client ok
+    return
+}
 
 proc ::m::vcs::svn::cleanup {path} {
     debug.m/vcs/svn {}
@@ -93,9 +116,26 @@ proc ::m::vcs::svn::cleanup {path} {
 }
 
 # update
-# mergable?
-# merge
-# split
+
+proc ::m::vcs::svn::mergable? {primary other} {
+    debug.m/vcs/svn {}
+    # Cannot merge SVN checkouts.
+    # Each has a single origin url.
+    m ops client fail
+    return
+}
+
+proc ::m::vcs::svn::merge {primary secondary} {
+    debug.m/vcs/svn {}
+    m ops client ok
+    return
+}
+
+proc ::m::vcs::svn::split {origin dst} {
+    debug.m/vcs/svn {}
+    m ops client ok
+    return
+}
 
 proc ::m::vcs::svn::export {path} {
     debug.m/vcs/svn {}
@@ -107,12 +147,6 @@ proc ::m::vcs::svn::export {path} {
 # url-to-name
 
 # # ## ### ##### ######## ############# ######################
-
-proc ::m::vcs::svn::LogNormalize {o e} {
-    debug.m/vcs/svn {}
-    # Nothing, for now
-    return [list $o $e]
-}
 
 proc ::m::vcs::svn::name-from-url {url} {
     debug.m/vcs/svn {}
@@ -134,14 +168,6 @@ proc ::m::vcs::svn::detect {url} {
     return -code return svn
 }
 
-proc ::m::vcs::svn::setup {path url} {
-    debug.m/vcs/svn {}
-
-    set repo [SvnOf $path]
-    Svn checkout $url $repo
-    return
-}
-
 proc ::m::vcs::svn::revs {path} {
     debug.m/vcs/svn {}
     return [Count $path]
@@ -157,21 +183,6 @@ proc ::m::vcs::svn::update {path urls first} {
     return [list $before [Count $path]]
 }
 
-proc ::m::vcs::svn::check {primary other} {
-    debug.m/vcs/svn {}
-    return 0 ;# Cannot merge SVN checkouts. Each has a single origin url
-}
-
-proc ::m::vcs::svn::cleave {origin dst} {
-    debug.m/vcs/svn {}
-    return
-}
-
-proc ::m::vcs::svn::merge {primary secondary} {
-    debug.m/vcs/svn {}
-    return
-}
-
 proc ::m::vcs::svn::remotes {path} {
     debug.m/vcs/svn {}
     # No automatic forks to track
@@ -181,17 +192,11 @@ proc ::m::vcs::svn::remotes {path} {
 # # ## ### ##### ######## ############# #####################
 ## Helpers
 
-proc ::m::vcs::svn::Svn {args} {
+proc ::m::vcs::svn::Count {path} {
     debug.m/vcs/svn {}
-    m exec post-hook ::m::vcs::svn::LogNormalize
-    m exec go svn {*}$args
-    return
-}
-
-proc ::m::vcs::svn::SvnGet {args} {
-    debug.m/vcs/svn {}
-    m exec post-hook ::m::vcs::svn::LogNormalize
-    return [m exec get svn {*}$args]
+    set tip [string trim [SvnGet info -r HEAD --show-item revision [SvnOf $path]]]
+    debug.m/vcs/svn { --> $tip }
+    return $tip
 }
 
 proc ::m::vcs::svn::SvnOf {path} {
@@ -199,11 +204,15 @@ proc ::m::vcs::svn::SvnOf {path} {
     return [file join $path source.svn]
 }
 
-proc ::m::vcs::svn::Count {path} {
+proc ::m::vcs::svn::Svn {args} {
     debug.m/vcs/svn {}
-    set tip [string trim [SvnGet info -r HEAD --show-item revision [SvnOf $path]]]
-    debug.m/vcs/svn { --> $tip }
-    return $tip
+    m exec get-- svn {*}$args
+    return
+}
+
+proc ::m::vcs::svn::SvnGet {args} {
+    debug.m/vcs/svn {}
+    return [m exec get-- svn {*}$args]
 }
 
 # # ## ### ##### ######## ############# #####################

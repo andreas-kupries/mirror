@@ -1,0 +1,17 @@
+note {> fossil clone * STORE/source.fossil}
+info {Round-trips: *   Artifacts sent: 0  received: 0}
+*
+info {Clone done, sent: *  received: *  ip: *}
+info {Rebuilding repository meta-data...}
+info {Extra delta compression... }
+info {Vacuuming the database... }
+info {project-id: *}
+info {server-id:  *}
+info {admin-user: * (password is "*")}
+note {> fossil remote-url off -R STORE/source.fossil}
+note {> fossil info -R STORE/source.fossil}
+info {project-name: *}
+info {project-code: *}
+info {check-ins:    *}
+note {> du -sk STORE}
+info {*	STORE}

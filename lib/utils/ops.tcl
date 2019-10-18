@@ -43,32 +43,39 @@ namespace eval m::ops {
 namespace eval m::ops::client {
     namespace export set main \
 	info note warn err fatal \
-	result ok fail commits forks size
+	result ok fail commits fork size \
+	ok?
     namespace ensemble create
 }
 
 # # ## ### ##### ######## ############# ######################
 ## API
 
-proc ::m::ops::client::info  {args} { R info  [join $args] }
-proc ::m::ops::client::note  {args} { R note  [join $args] }
-proc ::m::ops::client::warn  {args} { R warn  [join $args] }
-proc ::m::ops::client::err   {args} { R error [join $args] }
-proc ::m::ops::client::fatal {args} { R fatal [join $args] }
+proc ::m::ops::client::ok? {} {
+    variable state
+    return [expr {$state == 0}]
+}
 
-proc ::m::ops::client::commits {v} { R commits $v }
-proc ::m::ops::client::forks   {v} { R forks $v }
-proc ::m::ops::client::size    {v} { R size $v }
-proc ::m::ops::client::ok      {}  { R ok }
-proc ::m::ops::client::fail    {}  { R fail }
-proc ::m::ops::client::result  {v} { R result $v }
+proc ::m::ops::client::info  {args} {     R info  [join $args] }
+proc ::m::ops::client::note  {args} {     R note  [join $args] }
+proc ::m::ops::client::warn  {args} {     R warn  [join $args] }
+proc ::m::ops::client::err   {args} { F ; R error [join $args] }
+proc ::m::ops::client::fatal {args} { F ; R fatal [join $args] }
+
+proc ::m::ops::client::commits {v} {     R commits $v }
+proc ::m::ops::client::fork    {v} {     R fork $v }
+proc ::m::ops::client::size    {v} {     R size $v }
+proc ::m::ops::client::ok      {}  {     R ok }
+proc ::m::ops::client::fail    {}  { F ; R fail }
+proc ::m::ops::client::result  {v} {     R result $v }
 
 proc ::m::ops::client::main {} {
     m app debugflags
     debug.m/ops/client {}
+    Ok
 
     if {![Cmdline op]} {
-	Done 1
+	fail ; Done
     }
 
     if {![catch {
@@ -81,8 +88,7 @@ proc ::m::ops::client::main {} {
     foreach line [split $::errorInfo \n] {
 	err $line
     }
-    fail
-    Done 1
+    fail ; Done
 }
 
 # # ## ### ##### ######## ############# #####################
@@ -201,9 +207,20 @@ proc ::m::ops::client::R {tag args} {
     return
 }
 
-proc ::m::ops::client::Done {{state 0}} {
+proc ::m::ops::client::F {} {
+    variable state 1 ;# exit status, 1 == fail
+    return
+}
+
+proc ::m::ops::client::Ok {} {
+    variable state 0 ;# exit status, 0 == ok
+    return
+}
+
+proc ::m::ops::client::Done {} {
     debug.m/ops/client {}
     variable logchan
+    variable state
 
     if {$logchan ne {}} {
 	close $logchan
@@ -216,7 +233,8 @@ proc ::m::ops::client::Done {{state 0}} {
 ## State
 
 namespace eval ::m::ops::client {
-    variable logchan {}    
+    variable logchan {}
+    variable state 0 ;# exit status, 0 == ok
 }
 
 # # ## ### ##### ######## ############# #####################

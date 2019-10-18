@@ -1,0 +1,127 @@
+# -*- tcl -*- tcl.tk//DSL tcltest//EN//2.0 tcl.tk//DSL tcltest//EN//2.0
+## (c) 2019 Andreas Kupries
+# # ## ### ##### ######## ############# #####################
+## mirror-vcs . . mergable? . .
+
+kt check Tcl     8.5
+kt check tcltest 2
+
+# # ## ### ##### ######## ############# #####################
+
+kt::source support/invoke-vcs.tcl
+
+# # ## ### ##### ######## ############# #####################
+
+foreach vcs {
+    fossil git github hg svn
+} {
+    test mirror-vcs-${vcs}-mergable-1.0 "mirror-vcs $vcs mergable? - wrong args, not enough" -body {
+	mvcs $vcs LOG mergable?
+    } -result [err mirror-vcs/mergable/wrongargs]
+    
+    test mirror-vcs-${vcs}-mergable-1.1 "mirror-vcs $vcs mergable? - wrong args, not enough" -body {
+	mvcs $vcs LOG mergable? STOREA
+    } -result [err mirror-vcs/mergable/wrongargs]
+    
+    test mirror-vcs-${vcs}-mergable-1.2 "mirror-vcs $vcs mergable? - wrong args, too many" -body {
+	mvcs $vcs LOG mergable? STOREA STOREB X
+    } -result [err mirror-vcs/mergable/wrongargs]
+    
+    test mirror-vcs-${vcs}-mergable-2.0 "mirror-vcs $vcs mergable? - bad store" -setup {
+	file mkdir STORE
+    } -body {
+	mvcs $vcs LOG mergable? BADSTORE STORE
+    } -cleanup {
+	file delete -force STORE
+    } -result [err mirror-vcs/bad-store]
+    
+    test mirror-vcs-${vcs}-mergable-2.1 "mirror-vcs $vcs mergable? - bad store" -setup {
+	file mkdir STORE
+    } -body {
+	mvcs $vcs LOG mergable? STORE BADSTORE
+    } -cleanup {
+	file delete -force STORE
+    } -result [err mirror-vcs/bad-store]
+
+    # Separate tests per VCS...
+    # fossil - allow for project-code match
+    # git    - allow always
+    # github - allow always
+    # hg     - allow always
+    # svn    - allow never
+
+    if {$vcs in {fossil svn}} continue
+
+    # git, github, hg: Allow always
+
+    test mirror-vcs-${vcs}-mergable-3.0 "mirror-vcs $vcs mergable? result, ok always" -setup {
+	set r {}
+	file mkdir STOREA STOREB
+    } -body {
+	lappend r [mvcs $vcs LOG mergable? STOREA STOREB]
+	lappend r [string trim [fileutil::cat LOG]]
+    } -cleanup {
+	unset r
+	file delete -force LOG STOREA STOREB
+    } -result [list \
+       [ok mirror-vcs/empty] \
+       [V  mirror-vcs/ok]]
+    
+}
+
+## # # ## ### ##### ######## ############# #####################
+# SVN: Allow never
+
+set vcs svn    
+
+test mirror-vcs-${vcs}-mergable-3.0 "mirror-vcs $vcs mergable? result, fail always" -setup {
+    set r {}
+    file mkdir STOREA STOREB
+} -body {
+    lappend r [mvcs $vcs LOG mergable? STOREA STOREB]
+    lappend r [string trim [fileutil::cat LOG]]
+} -cleanup {
+    unset r
+    file delete -force LOG STOREA STOREB
+} -result [list \
+       [err mirror-vcs/empty] \
+       [V   mirror-vcs/fail]]
+
+## # # ## ### ##### ######## ############# #####################
+# Fossil: (mis)match - Note, needs setup!
+
+set vcs fossil
+
+test mirror-vcs-${vcs}-mergable-3.0 "mirror-vcs $vcs mergable? result, match" -setup {
+    set r {}
+    file mkdir STOREA STOREB
+    mvcs $vcs LOG setup STOREA [a-core]
+    mvcs $vcs LOG setup STOREB [a-core]
+} -body {
+    lappend r [mvcs $vcs LOG mergable? STOREA STOREB]
+    lappend r [string trim [fileutil::cat LOG]]
+} -cleanup {
+    unset r
+    file delete -force LOG STOREA STOREB
+} -match glob -result [list \
+       [ok mirror-vcs/mergable/p-fossil-match] \
+       [V  mirror-vcs/mergable/fossil-match]]
+
+test mirror-vcs-${vcs}-mergable-3.1 "mirror-vcs $vcs mergable? result, mismatch" -setup {
+    set r {}
+    file mkdir STOREA STOREB
+    mvcs $vcs LOG setup STOREA [a-core]
+    mvcs $vcs LOG setup STOREB [b-core]
+} -body {
+    lappend r [mvcs $vcs LOG mergable? STOREA STOREB]
+    lappend r [string trim [fileutil::cat LOG]]
+} -cleanup {
+    unset r
+    file delete -force LOG STOREA STOREB
+} -match glob -result [list \
+       [err mirror-vcs/mergable/p-fossil-mismatch] \
+       [V   mirror-vcs/mergable/fossil-mismatch]]
+
+# # ## ### ##### ######## ############# #####################
+cleanupTests
+return
