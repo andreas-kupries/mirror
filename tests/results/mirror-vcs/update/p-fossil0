@@ -1,0 +1,9 @@
+note {> fossil pull * --once -R STORE/source.fossil}
+info {Round-trips: *   Artifacts sent: *  received: *}*
+info {Pull done, sent: *  received: *  ip: *}
+note {> fossil info -R STORE/source.fossil}
+info {project-name: *}
+info {project-code: *}
+info {check-ins:    *}
+note {> du -sk STORE}
+info {*	STORE}

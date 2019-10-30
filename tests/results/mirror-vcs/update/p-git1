@@ -1,0 +1,7 @@
+note {> git --git-dir STORE/source.git remote}
+info m-vcs-git-*
+note {> git --git-dir STORE/source.git fetch --tags m-vcs-git-*}
+note {> git --git-dir STORE/source.git rev-list --all --count}
+info *
+note {> du -sk STORE}
+info {*	STORE}

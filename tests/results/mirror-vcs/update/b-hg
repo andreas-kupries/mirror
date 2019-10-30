@@ -1,0 +1,3 @@
+note {> hg pull BADURL -R STORE/source.hg}
+error {abort: repository BADURL not found!}
+info {pulling from BADURL}

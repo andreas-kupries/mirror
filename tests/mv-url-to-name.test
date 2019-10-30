@@ -1,0 +1,45 @@
+# -*- tcl -*- tcl.tk//DSL tcltest//EN//2.0 tcl.tk//DSL tcltest//EN//2.0
+## (c) 2019 Andreas Kupries
+# # ## ### ##### ######## ############# #####################
+## mirror-vcs . . url-to-name URL
+
+kt check Tcl     8.5
+kt check tcltest 2
+
+# # ## ### ##### ######## ############# #####################
+
+kt::source support/invoke-vcs.tcl
+
+# # ## ### ##### ######## ############# #####################
+
+foreach {vcs type urlcmd} {
+    fossil ok  a-core
+    git    ok  a-github
+    github ok  a-github
+    hg     err d-hg
+    svn    err e-svn
+} {
+    test mirror-vcs-${vcs}-url-to-name-1.0 "mirror-vcs $vcs url-to-name - wrong args, not enough" -body {
+	mvcs $vcs LOG url-to-name
+    } -result [err mirror-vcs/url-to-name/wrongargs]
+    
+    test mirror-vcs-${vcs}-url-to-name-1.1 "mirror-vcs $vcs url-to-name - wrong args, too many" -body {
+	mvcs $vcs LOG url-to-name URL X
+    } -result [err mirror-vcs/url-to-name/wrongargs]
+
+    test mirror-vcs-${vcs}-url-to-name-2.0 "mirror-vcs $vcs url-to-name result" -setup {
+	set r {}
+    } -body {
+	lappend r [mvcs $vcs LOG url-to-name [$urlcmd]]
+	lappend r [string trim [fileutil::cat LOG]]
+    } -cleanup {
+	unset r
+	file delete -force LOG
+    } -result [list \
+       [$type mirror-vcs/url-to-name/p-$vcs] \
+       [V     mirror-vcs/url-to-name/$vcs]]    
+}
+
+# # ## ### ##### ######## ############# #####################
+cleanupTests
+return

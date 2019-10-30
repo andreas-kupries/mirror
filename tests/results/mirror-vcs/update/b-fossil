@@ -1,0 +1,2 @@
+note {> fossil pull BADURL --once -R STORE/source.fossil}
+error {unknown repository: BADURL}

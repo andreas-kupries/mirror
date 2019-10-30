@@ -1,0 +1,7 @@
+note {> hg pull http://hg.code.sourceforge.net/p/graphicsmagick/code -R STORE/source.hg}
+info {pulling from http://hg.code.sourceforge.net/p/graphicsmagick/code}
+info {searching for changes}*
+note {> hg identify --num --rev tip -R STORE/source.hg}
+info *
+note {> du -sk STORE}
+info {*	STORE}

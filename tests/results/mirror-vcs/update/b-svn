@@ -1,0 +1,2 @@
+note {> svn checkout BADURL STORE/source.svn}
+error {svn: *: 'BADURL' does not appear to be a URL}

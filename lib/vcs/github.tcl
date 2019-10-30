@@ -17,17 +17,14 @@ package provide m::vcs::github 0
 
 # # ## ### ##### ######## ############# #####################
 
-# The github derivation of the plain git VCS makes use of the
-# `git hub` tooling to auto-detect forks and use them as remotes.
-#
-# Note: While the auto-detected forks/remotes are known to the backend
-# git store, they are not known at the repository level, i.e. they are
-# not seen in the management database.
+# The github derivation of the plain git VCS makes use of the `git
+# hub` tooling to detect and report forks. The higher parts of the
+# system will then add them as remotes.
 
 # The majority of the VCS operations are plain pass through, to git.
-# The exceptions are `update` and `setup`. They perform the necessary
-# operations to detect all applicable forks after calling on the git
-# operation.
+# The main exceptions are `update` and `setup`. They perform the
+# necessary operations to detect all applicable forks after calling on
+# the git operation.
 
 # This package has knowledge of the internals of m::vcs::git, namely
 # the various execution helpers, to avoid having to define its own.
@@ -65,17 +62,15 @@ namespace eval m::vcs {
 }
 namespace eval m::vcs::github {
     namespace import ::m::vcs::git::cleanup
-    #namespace import ::m::vcs::git::revs
     namespace import ::m::vcs::git::mergable?
     namespace import ::m::vcs::git::merge
     namespace import ::m::vcs::git::split
     namespace import ::m::vcs::git::export
 
     # Operation backend implementations
-    namespace export version setup cleanup mergable? merge split export
+    namespace export version setup cleanup update mergable? merge split export url-to-name
 
-    namespace export update \
-	detect remotes name-from-url revs
+    namespace export detect
     namespace ensemble create
 
     namespace import ::cmdr::color
@@ -85,14 +80,14 @@ namespace eval m::vcs::github {
 ## Operations implemented for separate process/backend
 #
 # [/] version                  | Local
-# [ ] setup       S U          | 
+# [/] setup       S U          | 
 # [/] cleanup     S            |       Inherited from git.
-# [ ] update      S U 1st      | 
+# [/] update      S U 1st      | 
 # [/] mergable?   SA SB        |       Inherited from git.
 # [/] merge       S-DST S-SRC  |       Inherited from git.
 # [/] split       S-SRC S-DST  |       Inherited from git.
 # [/] export      S            |       Inherited from git.
-# [ ] url-to-name U            | 
+# [/] url-to-name U            | 
 #
 
 # Operations backend: version
@@ -141,29 +136,28 @@ proc ::m::vcs::github::setup {path url} {
 	return
     }
 
-    set origin [join [lrange [file split $url] end-1 end] /]
-    
-    set forks [lsort -dict [m::vcs::git::Get hub forks --raw $origin]]
-    if {[m exec err-last-get]} {
-	set repo [GitOf $path]
-	file delete -force $repo
-	m ops client fail ; return
+    ReportForks $url
+    return
+}
+
+proc ::m::vcs::github::update {path url first} {
+    debug.m/vcs/github {}
+
+    m vcs git update $path $url $first
+    if {![m ops client ok?]} {
+	# git update has already cleaned up.
+	return
     }
 
-    foreach fork $forks {
-	# unverified estimate (saved)
-	m ops client fork $fork
+    if {$first} {
+	ReportForks $url
     }
     return
 }
 
-# update
-# url-to-name
-
-# # ## ### ##### ######## ############# #####################
-
-proc ::m::vcs::github::name-from-url {url} {
+proc ::m::vcs::github::url-to-name {url} {
     debug.m/vcs/github {}
+
     lappend map "https://"        {}
     lappend map "http://"         {}
     lappend map "git@github.com:" {}
@@ -175,7 +169,7 @@ proc ::m::vcs::github::name-from-url {url} {
     set name  [lindex [m futil grep Name [::split $uinfo \n]] 0]
 
     try {
-	set desc [m exec get git hub repo-get $owner/$repo description]
+	set desc [string trim [m exec get git hub repo-get $owner/$repo description]]
     } on error {e o} {
 	set desc {}
 	puts stderr $e
@@ -183,7 +177,7 @@ proc ::m::vcs::github::name-from-url {url} {
     }
 
     if {$desc ne {}} {
-	append n "$desc"
+	append n $desc
     } else {
 	append n $repo
     }
@@ -195,8 +189,12 @@ proc ::m::vcs::github::name-from-url {url} {
 	append n "@gh - $owner"
     }
 
-    return $n
+    m ops client result $n
+    m ops client ok
+    return
 }
+
+# # ## ### ##### ######## ############# #####################
 
 proc ::m::vcs::github::detect {url} {
     debug.m/vcs/github {}
@@ -216,188 +214,25 @@ proc ::m::vcs::github::detect {url} {
     return -code return github
 }
 
-proc ::m::vcs::github::update {path urls first} {
-    debug.m/vcs/github {}
-
-    set forks [ForksRemote $path $first] ;# first => skip query
-    set old   [ForksLocal  $path]
-
-    debug.m/vcs/github {Got  [llength $forks]}
-    debug.m/vcs/github {Have [llength $old]}
-
-    lassign [struct::set intersect3 $old $forks] _ gone new
-
-    debug.m/vcs/github {Same [llength $_]}
-    debug.m/vcs/github {New  [llength $new]}
-    debug.m/vcs/github {Gone [llength $gone]}
-    foreach _ $new  { debug.m/vcs/github {New  ($_)} }
-    foreach _ $gone { debug.m/vcs/github {Gone ($_)} }
-
-    # Note about order: Drop removed forks first before adding any
-    # new.  The drop/add may be a rename done by a dev, and in that
-    # case adding first fails as the dev already has a remote.
-
-    set git [m::vcs::git::GitOf $path]
-
-    foreach fork $gone {
-	lassign [::split $fork /] user repo
-	set label m-vcs-github-fork-$user
-
-	# Convert all branches defined by this remote (i.e. user or
-	# org) into a versioned tag. The versioning means that there
-	# will be no naming conflicts if this fork is added later
-	# again, removed again, etc.
-
-	# __Attention__: This code knows a bit about the internal
-	# organization of a git repository, directory wise. It uses
-	# this to extract the branch names and associated uuids for a
-	# remote. Writing the tags however is done through `git`
-	# itself.
-
-	if {[file exists $git/refs/remotes/$label]} {
-	    foreach branch [fileutil::find $git/refs/remotes/$label] {
-		if {[file isdirectory $branch]} continue
-		debug.m/vcs/github {Branch $branch}
-
-		set uuid   [string trim [m futil cat $branch]]
-		set branch [file tail $branch]
-		set tag    [Tag $git/refs/tags ${user}/${branch}]
-
-		debug.m/vcs/github {Tag    $uuid $tag}
-		m::vcs::git::Git tag $tag $uuid
-	    }
-	}
-
-	debug.m/vcs/github {Remove  $label}
-	m::vcs::git::Git remote remove $label
-    }
-        
-    foreach fork $new {
-	lassign [::split $fork /] org repo
-	set label m-vcs-github-fork-$org
- 	set url https://github.com/$fork
-
-	debug.m/vcs/github {Add     $label $url}
-	m::vcs::git::Git remote add $label $url
-    }
-
-    set counts [m vcs git update $path $urls $first]
-    return [linsert $counts end $forks]
-}
-
-proc ::m::vcs::github::remotes {path} {
-    debug.m/vcs/github {}
-    set urls {}
-    foreach fork [ForksLocal $path] {
-	lappend urls https://github.com/$fork
-    }
-    return [list Forks $urls]
-}
-
 # # ## ### ##### ######## ############# #####################
 ## Helpers
 
-proc ::m::vcs::github::Tag {path label} {
+proc ::m::vcs::github::ReportForks {url} {
     debug.m/vcs/github {}
-    set n 1
-    while {1} {
-	set tag attic/${label}/$n
-	if {![file exists $path/$tag]} { return $tag }
-	incr n
-    }
-}
-
-proc ::m::vcs::github::OriginSave {path origin} {
-    debug.m/vcs/github {}
-    m futil write $path/origin $origin
-    return
-}
-
-proc ::m::vcs::github::OriginLoad {path} {
-    debug.m/vcs/github {}
-    return [string trim [m futil cat $path/origin]]
-}
-
-proc ::m::vcs::github::ForksSave {path suffix forks} {
-    debug.m/vcs/github {}
-    m futil write $path/forks$suffix [join $forks \n]\n
-    return
-}
-
-proc ::m::vcs::github::ForksLoad {path suffix} {
-    debug.m/vcs/github {}
-    return [::split [string trim [m futil cat $path/forks$suffix]] \n]
-}
-
-proc ::m::vcs::github::ForksRemote {path {skip 0} {verified 1}} {
-    debug.m/vcs/github {}
-
-    if {!$skip} {
-	global env
-	set env(TERM) xterm
-	#puts -nonewline \nFORKS\t ; flush stdout
-
-	# Pull the origin to query about forks
-	set origin [OriginLoad $path]
-
-	try {
-	    set possibleforks [lsort -dict [m::vcs::git::Get hub forks --raw $origin]]
-	} trap CHILDSTATUS {e o} {
-	    set possibleforks {}
-	}
-
-	ForksSave $path -remote-unverified $possibleforks
-    } else {
-	set possibleforks [ForksLoad $path -remote-unverified]
-    }
-
-    if {!$verified} { return $possibleforks }
+    upvar 1 path path ;# for `git::Get` - TODO - redesign with proper state in the low-level code.
     
-    set forks {}
-    foreach fork $possibleforks {
-	debug.m/vcs/github {Verify $fork}
+    set origin [join [lrange [file split $url] end-1 end] /]
+    set forks  [lsort -dict [m::vcs::git::Get hub forks --raw $origin]]
 
-	set url https://github.com/$fork
-	# Check if the fork is actually available :: The git hub REST
-	# api reports all forks regardless of status wrt the rest of
-	# the system. I.e. a user/repo marked as suspicious and hidden
-	# is still reported here. Checking against the regular web
-	# interface allows us to filter these out.
-
-	#puts -nonewline . ; flush stdout
-	if {[m url ok $url _]} {
-	    debug.m/vcs/github {    Ok $url}
-	    lappend forks $fork
-	} else {
-	    # report a missing fork
-	    debug.m/vcs/github {  FAIL $url}
-	}
+    if {[m exec err-last-get]} {
+	m ops client fail ; return
     }
 
-    #puts PULLED
-    ForksSave $path -remote $forks
-    return $forks
-}
-
-proc ::m::vcs::github::ForksLocal {path} {
-    debug.m/vcs/github {}
-
-    lassign [m futil grep {\(fetch\)$} \
-		 [::split [m::vcs::git::Get remote -v] \n]] \
-	forks _
-
-    set r {}
-    foreach fork [lsort -dict $forks] {
-	lassign $fork label url _
-	if {![string match m-vcs-github-fork-* $label]} continue
-	set fk [join [lrange [::split $url /] end-1 end] /]
-	
-	debug.m/vcs/github {$label = $url => $fk}
-	lappend r $fk
+    foreach fork $forks {
+	# unverified estimate (saved)
+	m ops client fork $fork
     }
-
-    ForksSave $path -local $r
-    return $r
+    return
 }
 
 # # ## ### ##### ######## ############# #####################

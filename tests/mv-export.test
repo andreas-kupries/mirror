@@ -1,7 +1,7 @@
 # -*- tcl -*- tcl.tk//DSL tcltest//EN//2.0 tcl.tk//DSL tcltest//EN//2.0
 ## (c) 2019 Andreas Kupries
 # # ## ### ##### ######## ############# #####################
-## mirror-vcs . . export .
+## mirror-vcs . . export STORE
 
 kt check Tcl     8.5
 kt check tcltest 2

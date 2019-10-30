@@ -43,11 +43,12 @@ namespace eval m::vcs {
 }
 namespace eval m::vcs::fossil {
     # Operation backend implementations
-    namespace export version setup cleanup mergable? merge split export
+    namespace export version \
+	setup cleanup update mergable? merge split \
+	export url-to-name
 
     # Regular implementations not yet moved to operations.
-    namespace export update \
-        detect remotes name-from-url revs
+    namespace export detect
     namespace ensemble create
 }
 
@@ -57,12 +58,12 @@ namespace eval m::vcs::fossil {
 # [/] version
 # [/] setup       S U
 # [/] cleanup     S
-# [ ] update      S U 1st
+# [/] update      S U 1st
 # [/] mergable?   SA SB
 # [/] merge       S-DST S-SRC
 # [/] split       S-SRC S-DST
 # [/] export      S
-# [ ] url-to-name U
+# [/] url-to-name U
 #
 
 proc ::m::vcs::fossil::version {} {
@@ -84,30 +85,14 @@ proc ::m::vcs::fossil::setup {path url} {
     debug.m/vcs/fossil {}
     
     set repo [FossilOf $path]
-
     Fossil clone $url $repo
+
     if {[m exec err-last-get]} {
 	m ops client fail ; return
     }
     
     Fossil remote-url off -R $repo
-    if {[m exec err-last-get]} {
-	m ops client fail ; return
-    }
-
-    set count [Count $path]
-    if {[m exec err-last-get]} {
-	m ops client fail ; return
-    }
-
-    set kb [m exec diskuse $path]
-    if {[m exec err-last-get]} {
-	m ops client fail ; return
-    }
-    
-    m ops client commits $count
-    m ops client size    $kb
-    m ops client ok
+    PostPull $path
     return
 }
 
@@ -118,7 +103,14 @@ proc ::m::vcs::fossil::cleanup {path} {
     return
 }
 
-# update
+proc ::m::vcs::fossil::update {path url first} {
+    debug.m/vcs/fossil {}
+
+    set repo [FossilOf $path]
+    Fossil pull $url --once -R $repo
+    PostPull $path
+    return
+}
 
 proc ::m::vcs::fossil::mergable? {primary other} {
     debug.m/vcs/fossil {}
@@ -153,18 +145,20 @@ proc ::m::vcs::fossil::export {path} {
     return
 }
 
-# url-to-name
-
-# # ## ### ##### ######## ############# ######################
-## Old code
-
-proc ::m::vcs::fossil::name-from-url {url} {
+proc ::m::vcs::fossil::url-to-name {url} {
     debug.m/vcs/fossil {}
     
     regsub -- {/index$}    $url {} url
     regsub -- {/timeline$} $url {} url
-    return [lindex [file split $url] end]
+    set name [lindex [file split $url] end]
+
+    m ops client result $name
+    m ops client ok
+    return
 }
+
+# # ## ### ##### ######## ############# ######################
+## Old code
 
 proc ::m::vcs::fossil::detect {url} {
     debug.m/vcs/fossil {}
@@ -180,32 +174,31 @@ proc ::m::vcs::fossil::detect {url} {
     return -code return fossil
 }
 
-#proc ::m::vcs::fossil::revs {path} {
-#    debug.m/vcs/fossil {}
-#    return [Count $path]
-#}
-
-proc ::m::vcs::fossil::update {path urls first} {
-    debug.m/vcs/fossil {}
-    set repo   [FossilOf $path]
-    set before [Count $path]
-
-    foreach url $urls {
-	# TODO: capture stdout/err, post process both for better error
-	# detection. Show errors. Store status.
-	Fossil pull $url --once -R $repo
-    }
-
-    return [list $before [Count $path]]
-}
-
-proc ::m::vcs::fossil::remotes {path} {
-    debug.m/vcs/fossil {}
-    return
-}
-
 # # ## ### ##### ######## ############# #####################
 ## Helpers
+
+proc ::m::vcs::fossil::PostPull {path} {
+    debug.m/vcs/fossil {}
+
+    if {[m exec err-last-get]} {
+	m ops client fail ; return
+    }
+    
+    set count [Count $path]
+    if {[m exec err-last-get]} {
+	m ops client fail ; return
+    }
+
+    set kb [m exec diskuse $path]
+    if {[m exec err-last-get]} {
+	m ops client fail ; return
+    }
+    
+    m ops client commits $count
+    m ops client size    $kb
+    m ops client ok
+    return
+}
 
 proc ::m::vcs::fossil::Count {path} {
     debug.m/vcs/fossil {}

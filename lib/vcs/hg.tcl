@@ -43,11 +43,12 @@ namespace eval m::vcs {
 }
 namespace eval m::vcs::hg {
     # Operation backend implementations
-    namespace export version setup cleanup mergable? merge split export
+    namespace export version \
+	setup cleanup update mergable? merge split \
+	export url-to-name
 
     # Regular implementations not yet moved to operations.
-    namespace export update \
-	detect remotes name-from-url revs
+    namespace export detect
     namespace ensemble create
 }
 
@@ -57,12 +58,12 @@ namespace eval m::vcs::hg {
 # [/] version
 # [/] setup       S U
 # [/] cleanup     S
-# [ ] update      S U 1st
+# [/] update      S U 1st
 # [/] mergable?   SA SB
 # [/] merge       S-DST S-SRC
 # [/] split       S-SRC S-DST
 # [/] export      S
-# [ ] url-to-name U
+# [/] url-to-name U
 #
 
 # Operations backend: version
@@ -91,23 +92,7 @@ proc ::m::vcs::hg::setup {path url} {
 
     set repo [HgOf $path]
     Hg clone --noupdate $url $repo
-    if {[m exec err-last-get]} {
-	m ops client fail ; return
-    }
-
-    set count [Count $path]
-    if {[m exec err-last-get]} {
-	m ops client fail ; return
-    }
-
-    set kb [m exec diskuse $path]
-    if {[m exec err-last-get]} {
-	m ops client fail ; return
-    }
-    
-    m ops client commits $count
-    m ops client size    $kb
-    m ops client ok
+    PostPull $path
     return
 }
 
@@ -117,7 +102,14 @@ proc ::m::vcs::hg::cleanup {path} {
     return
 }
 
-# update
+proc ::m::vcs::hg::update {path url first} {
+    debug.m/vcs/hg {}
+
+    set repo [HgOf $path]
+    Hg pull $url -R $repo
+    PostPull $path
+    return
+}
 
 proc ::m::vcs::hg::mergable? {primary other} {
     debug.m/vcs/hg {}
@@ -149,14 +141,13 @@ proc ::m::vcs::hg::export {path} {
     return
 }
 
-# url-to-name
-
-# # ## ### ##### ######## ############# ######################
-
-proc ::m::vcs::hg::name-from-url {url} {
+proc ::m::vcs::hg::url-to-name {url} {
     debug.m/vcs/hg {}
+    m ops client fail
     return
 }
+
+# # ## ### ##### ######## ############# ######################
     
 proc ::m::vcs::hg::detect {url} {
     debug.m/vcs/hg {}
@@ -172,31 +163,31 @@ proc ::m::vcs::hg::detect {url} {
     return -code return hg
 }
 
-proc ::m::vcs::hg::revs {path} {
-    debug.m/vcs/hg {}
-    return [Count $path]
-}
-
-proc ::m::vcs::hg::update {path urls first} {
-    debug.m/vcs/hg {}
-    set repo   [HgOf $path]
-    set before [Count $path]
-
-    foreach url $urls {
-	Hg pull $url -R $repo
-    }
-
-    return [list $before [Count $path]]
-}
-
-proc ::m::vcs::hg::remotes {path} {
-    debug.m/vcs/hg {}
-    # No automatic forks to track
-    return
-}
-
 # # ## ### ##### ######## ############# #####################
 ## Helpers
+
+proc ::m::vcs::hg::PostPull {path} {
+    debug.m/vcs/hg {}
+
+    if {[m exec err-last-get]} {
+	m ops client fail ; return
+    }
+
+    set count [Count $path]
+    if {[m exec err-last-get]} {
+	m ops client fail ; return
+    }
+
+    set kb [m exec diskuse $path]
+    if {[m exec err-last-get]} {
+	m ops client fail ; return
+    }
+    
+    m ops client commits $count
+    m ops client size    $kb
+    m ops client ok
+    return
+}
 
 proc ::m::vcs::hg::Count {path} {
     debug.m/vcs/hg {}

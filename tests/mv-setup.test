@@ -1,7 +1,7 @@
 # -*- tcl -*- tcl.tk//DSL tcltest//EN//2.0 tcl.tk//DSL tcltest//EN//2.0
 ## (c) 2019 Andreas Kupries
 # # ## ### ##### ######## ############# #####################
-## mirror-vcs . . setup . .
+## mirror-vcs . . setup STORE URL
 
 kt check Tcl     8.5
 kt check tcltest 2
@@ -23,7 +23,7 @@ foreach {vcs urlcmd} {
 	mvcs $vcs LOG setup
     } -result [err mirror-vcs/setup/wrongargs]
     
-    test mirror-vcs-${vcs}-setup-1.1 "mirror-vcs $vcs setup - wrong args, too many" -body {
+    test mirror-vcs-${vcs}-setup-1.1 "mirror-vcs $vcs setup - wrong args, not enough" -body {
 	mvcs $vcs LOG setup STORE
     } -result [err mirror-vcs/setup/wrongargs]
     

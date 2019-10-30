@@ -1,0 +1,5 @@
+note {> git --git-dir STORE/source.git remote}*
+note {> git --git-dir STORE/source.git remote add m-vcs-git-BADURL BADURL}
+note {> git --git-dir STORE/source.git fetch --tags m-vcs-git-BADURL}
+error {fatal: 'BADURL' does not appear to be a git repository}
+error {fatal: Could not read from remote repository.}*

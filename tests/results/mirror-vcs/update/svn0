@@ -1,0 +1,10 @@
+note {> svn update STORE/source.svn}
+info {Updating 'STORE/source.svn':}
+info {At revision *.}
+note {> svn info -r HEAD --show-item revision STORE/source.svn}
+info *
+note {> du -sk STORE}
+info {*	STORE}
+commits *
+size *
+ok

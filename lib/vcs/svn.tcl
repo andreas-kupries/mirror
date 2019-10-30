@@ -43,11 +43,12 @@ namespace eval m::vcs {
 }
 namespace eval m::vcs::svn {
     # Operation backend implementations
-    namespace export version setup cleanup mergable? merge split export
+    namespace export version \
+	setup cleanup update mergable? merge split \
+	export url-to-name
 
     # Regular implementations not yet moved to operations.
-    namespace export update \
-	detect remotes name-from-url revs
+    namespace export detect
     namespace ensemble create
 }
 
@@ -57,12 +58,12 @@ namespace eval m::vcs::svn {
 # [/] version
 # [/] setup       S U
 # [/] cleanup     S
-# [ ] update      S U 1st
+# [/] update      S U 1st
 # [/] mergable?   SA SB
 # [/] merge       S-DST S-SRC
 # [/] split       S-SRC S-DST
 # [/] export      S
-# [ ] url-to-name U
+# [/] url-to-name U
 #
 
 proc ::m::vcs::svn::version {} {
@@ -89,23 +90,7 @@ proc ::m::vcs::svn::setup {path url} {
 
     set repo [SvnOf $path]
     Svn checkout $url $repo
-    if {[m exec err-last-get]} {
-	m ops client fail ; return
-    }
-
-    set count [Count $path]
-    if {[m exec err-last-get]} {
-	m ops client fail ; return
-    }
-
-    set kb [m exec diskuse $path]
-    if {[m exec err-last-get]} {
-	m ops client fail ; return
-    }
-    
-    m ops client commits $count
-    m ops client size    $kb
-    m ops client ok
+    PostPull $path
     return
 }
 
@@ -115,7 +100,14 @@ proc ::m::vcs::svn::cleanup {path} {
     return
 }
 
-# update
+proc ::m::vcs::svn::update {path url first} {
+    debug.m/vcs/svn {}
+
+    set repo [SvnOf $path]
+    Svn update $repo
+    PostPull $path
+    return
+}
 
 proc ::m::vcs::svn::mergable? {primary other} {
     debug.m/vcs/svn {}
@@ -144,14 +136,13 @@ proc ::m::vcs::svn::export {path} {
     return
 }
 
-# url-to-name
-
-# # ## ### ##### ######## ############# ######################
-
-proc ::m::vcs::svn::name-from-url {url} {
+proc ::m::vcs::svn::url-to-name {url} {
     debug.m/vcs/svn {}
+    m ops client fail
     return
 }
+
+# # ## ### ##### ######## ############# ######################
     
 proc ::m::vcs::svn::detect {url} {
     debug.m/vcs/svn {}
@@ -168,29 +159,31 @@ proc ::m::vcs::svn::detect {url} {
     return -code return svn
 }
 
-proc ::m::vcs::svn::revs {path} {
-    debug.m/vcs/svn {}
-    return [Count $path]
-}
-
-proc ::m::vcs::svn::update {path urls first} {
-    debug.m/vcs/svn {}
-    set repo   [SvnOf $path]
-    set before [Count $path]
-
-    Svn update $repo
-
-    return [list $before [Count $path]]
-}
-
-proc ::m::vcs::svn::remotes {path} {
-    debug.m/vcs/svn {}
-    # No automatic forks to track
-    return
-}
-
 # # ## ### ##### ######## ############# #####################
 ## Helpers
+
+proc ::m::vcs::svn::PostPull {path} {
+    debug.m/vcs/svn {}
+
+    if {[m exec err-last-get]} {
+	m ops client fail ; return
+    }
+
+    set count [Count $path]
+    if {[m exec err-last-get]} {
+	m ops client fail ; return
+    }
+
+    set kb [m exec diskuse $path]
+    if {[m exec err-last-get]} {
+	m ops client fail ; return
+    }
+    
+    m ops client commits $count
+    m ops client size    $kb
+    m ops client ok
+    return
+}
 
 proc ::m::vcs::svn::Count {path} {
     debug.m/vcs/svn {}

@@ -44,11 +44,12 @@ namespace eval m::vcs {
 }
 namespace eval m::vcs::git {
     # Operation backend implementations
-    namespace export version cleanup mergable? merge split export
+    namespace export version \
+	setup cleanup update mergable? merge split \
+	export url-to-name
 
     # Regular implementations not yet moved to operations.
-    namespace export setup update \
-	detect remotes name-from-url revs
+    namespace export detect
     namespace ensemble create
 }
 
@@ -58,12 +59,12 @@ namespace eval m::vcs::git {
 # [/] version
 # [/] setup       S U
 # [/] cleanup     S
-# [ ] update      S U 1st
+# [/] update      S U 1st
 # [/] mergable?   SA SB
 # [/] merge       S-DST S-SRC
 # [/] split       S-SRC S-DST
 # [/] export      S
-# [ ] url-to-name U
+# [/] url-to-name U
 #
 
 proc ::m::vcs::git::version {} {
@@ -90,45 +91,25 @@ proc ::m::vcs::git::version {} {
 proc ::m::vcs::git::setup {path url} {
     debug.m/vcs/git {}
 
-    set repo [GitOf $path]
+    set repo   [GitOf $path]
+    set remote [RemoteOf $url]
 
     m exec get+route \
 	::m::vcs::git::Router \
 	git --bare --git-dir $repo init
     # Cannot use `Git` ? --bare must be front ?!
     if {[m exec err-last-get]} {
-	file delete -force $repo
 	m ops client fail ; return
     }
 
-    RemoteAdd $url
+    RemoteAdd $remote $url
     if {[m exec err-last-get]} {
-	file delete -force $repo
 	m ops client fail ; return
     }
     
     # Initial update
-    Git fetch --all --tags
-    if {[m exec err-last-get]} {
-	file delete -force $repo
-	m ops client fail ; return
-    }
-    
-    set count [Count $path]
-    if {[m exec err-last-get]} {
-	file delete -force $repo
-	m ops client fail ; return
-    }
-
-    set kb [m exec diskuse $path]
-    if {[m exec err-last-get]} {
-	file delete -force $repo
-	m ops client fail ; return
-    }
-    
-    m ops client commits $count
-    m ops client size    $kb
-    m ops client ok
+    Git fetch --tags $remote
+    PostPull $path
     return
 }
 
@@ -139,7 +120,21 @@ proc ::m::vcs::git::cleanup {path} {
     return
 }
 
-# update
+proc ::m::vcs::git::update {path url first} {
+    debug.m/vcs/git {}
+
+    set remote [RemoteOf $url]
+    if {$remote ni [Get remote]} {
+	RemoteAdd $remote $url
+	if {[m exec err-last-get]} {
+	    m ops client fail ; return
+	}
+    }
+
+    Git fetch --tags $remote
+    PostPull $path
+    return
+}
 
 proc ::m::vcs::git::mergable? {primary other} {
     debug.m/vcs/git {}
@@ -170,27 +165,32 @@ proc ::m::vcs::git::export {path} {
     return
 }
 
-# url-to-name
-
-# # ## ### ##### ######## ############# ######################
-
-proc ::m::vcs::git::name-from-url {url} {
+proc ::m::vcs::git::url-to-name {url} {
     debug.m/vcs/git {}
 
     set gl [string match *gitlab* $url]
 
+    # Remove schema information first.
     lappend map "https://"        {}
     lappend map "http://"         {}
     lappend map "git@github.com:" {}
-
+    
     set url [string map $map $url]
 
+    # Extract a name from the end of the remainder, with special case
+    # for gitlab projects.
     if {$gl} {
-	return [join [lrange [file split $url] end-1 end] /]@gl
+	set name [join [lrange [file split $url] end-1 end] /]@gl
     } else {
-	return [lindex [file split $url] end]
+	set name [lindex [file split $url] end]
     }
+
+    m ops client result $name
+    m ops client ok
+    return
 }
+
+# # ## ### ##### ######## ############# ######################
 
 proc ::m::vcs::git::detect {url} {
     debug.m/vcs/git {}
@@ -203,55 +203,34 @@ proc ::m::vcs::git::detect {url} {
     return -code return git
 }
 
-proc ::m::vcs::git::revs {path} {
-    debug.m/vcs/git {}
-    if {[catch {
-	return [Count $path]
-    }]} {
-	return 0
-    }
-}
-
-proc ::m::vcs::git::update {path urls first} {
-    debug.m/vcs/git {}
-    set remotes [Remotes $path]
-    # remotes = (remote-url ...)
-
-    lassign [struct::set intersect3 $remotes $urls] _ gone new
-
-    # Steps
-    # - Remove remotes for urls not managed anymore
-    # - Add    remotes for urls newly managed
-    # - Fetch from all remotes.
-    #
-    # __Attention__: Using `--prune` would kill all the branches from
-    # the non-origin remotes, followed by a full refetch :( Thus, no
-    # pruning.
-
-    foreach url $gone { RemoteRemove $url }
-    foreach url $new  { RemoteAdd    $url }
-
-    if {$first} {
-	# Cannot count git revs before the initial fetch.
-	set before 0
-    } else {
-	set before [Count $path]
-    }
-
-    Git fetch --all --tags
-
-    return [list $before [Count $path]]
-}
-
-proc ::m::vcs::git::remotes {path} {
-    debug.m/vcs/git {}
-    return
-}
-
 # # ## ### ##### ######## ############# #####################
 ## Helpers
 
+proc ::m::vcs::git::PostPull {path} {
+    debug.m/vcs/git {}
+    
+    if {[m exec err-last-get]} {
+	m ops client fail ; return
+    }
+    
+    set count [Count $path]
+    if {[m exec err-last-get]} {
+	m ops client fail ; return
+    }
+
+    set kb [m exec diskuse $path]
+    if {[m exec err-last-get]} {
+	m ops client fail ; return
+    }
+    
+    m ops client commits $count
+    m ops client size    $kb
+    m ops client ok
+    return
+}
+
 proc ::m::vcs::git::Router {rv line} {
+    debug.m/vcs/git {}
     upvar 1 $rv route
     # Route all non-errors written from error log to standard log.
     foreach pattern {
@@ -276,29 +255,29 @@ proc ::m::vcs::git::R {to} {
     return -code return
 }
 
-proc ::m::vcs::git::RemoteAdd {url} {
+proc ::m::vcs::git::RemoteAdd {name url} {
     debug.m/vcs/git {}
     upvar 1 path path
-    Git remote add [RemoteOf $url] $url
+    Git remote add $name $url
     return
 }
 
-proc ::m::vcs::git::RemoteRemove {url} {
-    debug.m/vcs/git {}
-    upvar 1 path path
-    Git remote remove [RemoteOf $url]
-    return
-}
-
-proc ::m::vcs::git::Remotes {path} {
-    debug.m/vcs/git {}
-    set result {}
-    foreach r [Get remote] {
-	if {![Owned $r]} continue
-	lappend result [UrlOf $r]
-    }
-    return $result
-}
+# proc ::m::vcs::git::RemoteRemove {url} {
+#     debug.m/vcs/git {}
+#     upvar 1 path path
+#     Git remote remove [RemoteOf $url]
+#     return
+# }
+#
+# proc ::m::vcs::git::Remotes {path} {
+#     debug.m/vcs/git {}
+#     set result {}
+#     foreach r [Get remote] {
+# 	if {![Owned $r]} continue
+# 	lappend result [UrlOf $r]
+#     }
+#     return $result
+# }
 
 proc ::m::vcs::git::Count {path} {
     debug.m/vcs/git {}
@@ -307,17 +286,17 @@ proc ::m::vcs::git::Count {path} {
     return $count
 }
 
-proc ::m::vcs::git::Owned {remote} {
-    debug.m/vcs/git {}
-    return [string match m-vcs-git-* $remote]
-}
-
-proc ::m::vcs::git::UrlOf {remote} {
-    debug.m/vcs/git {}
-    return [string map \
-		{%3a : %2f / %3A : %2F /} \
-		[string range $remote [string length m-vcs-git-] end]]
-}
+# proc ::m::vcs::git::Owned {remote} {
+#     debug.m/vcs/git {}
+#     return [string match m-vcs-git-* $remote]
+# }
+#
+# proc ::m::vcs::git::UrlOf {remote} {
+#     debug.m/vcs/git {}
+#     return [string map \
+# 		{%3a : %2f / %3A : %2F /} \
+# 		[string range $remote [string length m-vcs-git-] end]]
+# }
 
 proc ::m::vcs::git::RemoteOf {url} {
     debug.m/vcs/git {}
