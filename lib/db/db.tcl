@@ -672,12 +672,13 @@ proc ::m::db::SETUP-202207020000 {} {
     C fork_origin     INTEGER		 ^repository
     C is_active	      INTEGER  NOT NULL
     C has_issues      INTEGER  NOT NULL
-    C checked	      INTEGER  NOT NULL
+    C checked	      INTEGER  NOT NULL ;# epoch
     C min_duration    INTEGER  NOT NULL ;# overall minimum time spent on update
     C max_duration    INTEGER  NOT NULL ;# overall maximum time spent on update
     C window_duration STRING   NOT NULL ;# time spent on last N updates (list of int)
-    < repository id url mset vcs -1 1 1 0 0 0 0 ''
-
+    < repository id url mset vcs -1    NULL active 0    0   0   0   ''
+    #               url proj vcs store fork act    issu chk min max win
+    
     # Store linkage and store_times related information needs code.
     foreach {id mset vcs} [R {
 	SELECT id
