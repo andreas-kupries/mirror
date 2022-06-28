@@ -745,9 +745,9 @@ proc ::m::db::SETUP-202207020000 {} {
     ## Drop various tables which became superfluous due to the
     ## preceding changes.
 
-#    / mset_pending
-#    / store_github_forks
-#    / store_times
+    / mset_pending
+    / store_github_forks
+    / store_times
 
     return
 }
