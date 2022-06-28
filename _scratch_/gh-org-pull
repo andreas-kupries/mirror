@@ -1,6 +1,7 @@
 #!/usr/bin/env tclsh
 ## -*- tcl -*-
 # # ## ### ##### ######## ############# ######################
+## Syntax: $0 user-or-org ?name?
 
 # Pull a list of github repositories for a person or org.
 # Resolve forked repositories to the main repository.

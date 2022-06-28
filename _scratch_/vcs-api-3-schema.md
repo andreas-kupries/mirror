@@ -32,7 +32,6 @@ Flag for attend.
 Note: Need a command to re-parent|elect-new-primary
       Query github to determine parent of a repo.
 
-
 ## Magic remote
 
 ### Success

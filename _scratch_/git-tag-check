@@ -1,6 +1,7 @@
 #!/usr/bin/env tclsh
 ## -*- tcl -*-
 # # ## ### ##### ######## ############# ######################
+## Syntax: $0 gitdir
 
 package require Tcl 8.6
 package require m::futil
