@@ -116,6 +116,7 @@ proc ::m::vcs::hg::mergable? {primary other} {
     # Hg repositories can be merged at will.  Disparate projects
     # simply cause storage of a forest of independent trees.  The user
     # is responsible for keeping disparate projects apart.
+    m ops client result 1
     m ops client ok
     return    
 }

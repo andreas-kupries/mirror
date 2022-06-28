@@ -68,7 +68,9 @@ namespace eval m::vcs::github {
     namespace import ::m::vcs::git::export
 
     # Operation backend implementations
-    namespace export version setup cleanup update mergable? merge split export url-to-name
+    namespace export version \
+	setup cleanup update mergable? merge split \
+	export url-to-name
 
     namespace export detect
     namespace ensemble create

@@ -115,10 +115,11 @@ proc ::m::vcs::fossil::update {path url first} {
 proc ::m::vcs::fossil::mergable? {primary other} {
     debug.m/vcs/fossil {}
     if {[ProjectCode $primary] eq [ProjectCode $other]} {
-	m ops client ok
+	m ops client result 1
     } else {
-	m ops client fail
+	m ops client result 0
     }
+    m ops client ok
     return
 }
 

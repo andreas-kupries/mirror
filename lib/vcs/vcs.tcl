@@ -121,7 +121,8 @@ proc ::m::vcs::setup {store vcs name url} {
 
     # Ask plugin to fill the store.
     
-    Operation ::m::vcs::OpComplete $vcode setup {*}[OpCmd $vcode $path $url]
+    Operation ::m::vcs::OpComplete $vcode setup \
+	{*}[OpCmd $vcode $path $url]
     set state [OpWait]
 
     dict with state {}
@@ -175,7 +176,34 @@ proc ::m::vcs::update {store vcs urls} {
 	return {-1 -1 {}}
     }
 
-    try {
+    # Ask plugin to update the store.
+    # Redirect through an external command. This command is currently
+    # always `mirror-vcs VCS LOG setup STORE URL`.
+    
+    Operation ::m::vcs::OpComplete $vcode update \
+	{*}[OpCmd $vcode $path $urls 0]
+    set state [OpWait]
+
+    dict with state {}
+    # [x] ok
+    # [x] commits
+    # [x] size
+    # [x] forks
+    # [ ] results
+    # [x] msg
+    # [x] duration
+
+    if {!$ok} {
+	# Fake 'no changes', and error.
+	# Note, CAP already saved the errorInfo into %stderr
+	return {-1 -1 {}}
+    }
+
+
+
+
+    
+    try {	
 	CAP $path {
 	    set counts [$vcode update $path $urls 0]
 	}
@@ -202,13 +230,33 @@ proc ::m::vcs::cleanup {store vcs} {
     debug.m/vcs {}
     # store id -> Using for path.
     # vcs   id -> Decode to plugin name
-    set path [Path $store]
+    set path  [Path $store]
     set vcode [code $vcs]
 
     # TODO MAYBE: check vcode against contents of $path/%vcs.
-    
-    # Release vcs-specific special resources, if any
-    $vcode cleanup $path
+
+    # Ask plugin to fill the store.
+    # Redirect through an external command. This command is currently
+    # always `mirror-vcs VCS LOG cleanup STORE`.
+
+    Operation ::m::vcs::OpComplete $vcode cleanup \
+	{*}[OpCmd $vcode $path]
+    set state [OpWait]
+
+    dict with state {}
+    # [x] ok
+    # [ ] commits
+    # [ ] size
+    # [ ] forks
+    # [ ] results
+    # [x] msg
+    # [ ] duration
+
+    if {!$ok} {
+	# Do not perform any filesystem changes.
+	# Rethrow as something more distinguished for trapping
+	return -code error -errorcode {M VCS CHILD} $msg
+    }
 
     # ... and the store directory
     file delete -force -- $path
@@ -252,8 +300,34 @@ proc ::m::vcs::check {vcs storea storeb} {
     set pathb [Path $storeb]
     set vcode [code $vcs]
 
-    # Check if the two stores are mergable
-    return [$vcode check $patha $pathb]
+    upvar 1 $iv issues
+    set issues {}
+
+    # Redirect through an external command. This command is currently
+    # always `mirror-vcs VCS LOG mergable?`.
+
+    Operation ::m::vcs::OpComplete $vcode mergable? \
+	{*}[OpCmd $vcode $patha $pathb]
+    set state [OpWait]
+
+    dict with state {}
+    # [x] ok
+    # [ ] commits
+    # [ ] size
+    # [ ] forks
+    # [x] results
+    # [x] msg
+    # [ ] duration
+
+    if {!$ok} {
+	if {[llength $msg]}     { lappend issues {*}$msg     }
+	if {[llength $results]} { lappend issues {*}$results }
+	return
+    } else {
+	set flag [lindex $results 0]
+	debug.m/vcs {--> $flag}
+	return $flag
+    }
 }
 
 proc ::m::vcs::merge {vcs target origin} {
@@ -262,9 +336,31 @@ proc ::m::vcs::merge {vcs target origin} {
     set porigin [Path $origin]
     set vcode   [code $vcs]
 
-    # Merge vcs specific special resources, if any ...
-    $vcode merge $ptarget $porigin
+    upvar 1 $iv issues
+    set issues {}
 
+    # Redirect through an external command. This command is currently
+    # always `mirror-vcs VCS LOG merge`.
+    
+    Operation ::m::vcs::OpComplete $vcode merge \
+	{*}[OpCmd $vcode $ptarget $porigin]
+    set state [OpWait]
+
+    dict with state {}
+    # [x] ok
+    # [ ] commits
+    # [ ] size
+    # [ ] forks
+    # [ ] results
+    # [x] msg
+    # [ ] duration
+
+    if {!$ok} {
+	if {[llength $msg]}     { lappend issues {*}$msg     }
+	if {[llength $results]} { lappend issues {*}$results }
+	return
+    }
+    
     # Destroy the merged store
     cleanup $origin $vcs
     return
@@ -284,7 +380,30 @@ proc ::m::vcs::cleave {vcs origin dst dstname} {
     m futil write $pdst/%name $dstname
     
     # Split/create vcs specific special resources, if any ...
-    $vcode cleave $porigin $pdst
+
+    upvar 1 $iv issues
+    set issues {}
+
+    # Redirect through an external command. This command is currently
+    # always `mirror-vcs VCS LOG split`.
+    
+    Operation ::m::vcs::OpComplete $vcode split \
+	{*}[OpCmd $vcode $porigin $pdst]
+    set state [OpWait]
+
+    dict with state {}
+    # [x] ok
+    # [ ] commits
+    # [ ] size
+    # [ ] forks
+    # [ ] results
+    # [x] msg
+    # [ ] duration
+
+    if {!$ok} {
+	if {[llength $msg]}     { lappend issues {*}$msg     }
+	if {[llength $results]} { lappend issues {*}$results }
+    }
     return
 }
 
@@ -312,7 +431,8 @@ proc ::m::vcs::export {vcs store} {
 
     # Ask plugin for CGI script to access the store.
     
-    Operation ::m::vcs::OpComplete $vcode export {*}[OpCmd $vcode $path]
+    Operation ::m::vcs::OpComplete $vcode export \
+	{*}[OpCmd $vcode $path]
     set state [OpWait]
 
     dict with state {}
@@ -346,7 +466,8 @@ proc ::m::vcs::version {vcode iv} {
     # Redirect through an external command. This command is currently
     # always `mirror-vcs VCS LOG version`.
     
-    Operation ::m::vcs::OpComplete $vcode version {*}[OpCmd $vcode]
+    Operation ::m::vcs::OpComplete $vcode version \
+	{*}[OpCmd $vcode]
     set state [OpWait]
 
     dict with state {}
@@ -414,7 +535,34 @@ proc ::m::vcs::url-norm {vcode url} {
 
 proc ::m::vcs::name-from-url {vcode url} {
     debug.m/vcs {}
-    return [$vcode name-from-url $url]
+    upvar 1 $iv issues
+    set issues {}
+
+    # Redirect through an external command. This command is currently
+    # always `mirror-vcs VCS LOG url-to-name`.
+    
+    Operation ::m::vcs::OpComplete $vcode url-to-name \
+	{*}[OpCmd $vcode $url]
+    set state [OpWait]
+
+    dict with state {}
+    # [x] ok
+    # [ ] commits
+    # [ ] size
+    # [ ] forks
+    # [x] results
+    # [x] msg
+    # [ ] duration
+
+    if {!$ok} {
+	if {[llength $msg]}     { lappend issues {*}$msg     }
+	if {[llength $results]} { lappend issues {*}$results }
+	return
+    } else {
+	set name [lindex $results 0]
+	debug.m/vcs {--> $name}
+	return $name
+    }
 }
 
 # # ## ### ##### ######## ############# #####################
@@ -567,6 +715,9 @@ proc ::m::vcs::Operation {done vcs op args} {
     dict set ops $opsid done     $done
     #
     dict set ops $opsid pipe [m exec job $jdone $jout {*}$args]
+
+    ## TODO: Operation timeout ...
+
     return $opsid
 }
 
@@ -587,8 +738,8 @@ proc ::m::vcs::OpProgress {opsid line} {
 	return
     }
 
-    # When not verbose limit reporting to (potential) trouble,
-    # i.e. warnings and higher.
+    # When not in verbose mode, limit reporting to (potential)
+    # trouble, i.e. warnings and higher.
 
     set level [dict get {
 	info 0 note 1 warn 2 error 3 fatal 4

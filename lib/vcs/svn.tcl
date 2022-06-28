@@ -113,7 +113,8 @@ proc ::m::vcs::svn::mergable? {primary other} {
     debug.m/vcs/svn {}
     # Cannot merge SVN checkouts.
     # Each has a single origin url.
-    m ops client fail
+    m ops client result 0
+    m ops client ok
     return
 }
 
