@@ -4,10 +4,10 @@
 
 # @@ Meta Begin
 # Package db::setup 0
-# Meta author   {Andreas Kupries}
+# Meta author	{Andreas Kupries}
 # Meta location https://core.tcl.tk/akupries/????
 # Meta platform tcl
-# Meta summary     Database setup, migration management
+# Meta summary	   Database setup, migration management
 # Meta description Database setup, migration management
 # Meta subject {database setup} {migration processing} {schema management}
 # Meta require {Tcl 8.5-}
@@ -33,7 +33,7 @@ debug prefix db/setup {[debug caller] | }
 
 namespace eval db::setup {
     namespace import ::db::track::it ; rename it track
-    namespace export D C U T T^ I I+ > >+ X < <= /
+    namespace export D C U T T^ I I+ > >+ X < <= / R
 }
 
 namespace eval db {
@@ -166,9 +166,9 @@ proc db::setup::<= {table select} {
     debug.db/setup {}
     T new_${table}
 
-    # constraint: do no lose rows. count, then count again.
+    # constraint: to not lose rows in the change we count before, then count again after
     set old [lindex [R "SELECT count (*) FROM $table"] 0]
-    
+
     lappend map @@ $table
     set select [string map $map $select]
     lappend sql "INSERT INTO new_${table} $select"
@@ -240,7 +240,7 @@ proc db::setup::InitializeAndGetVersion {db} {
     debug.db/setup {}
     return [$db eval [string map [list \t {}] {
 	CREATE TABLE IF NOT EXISTS schema
-	( key     TEXT    NOT NULL PRIMARY KEY
+	( key	  TEXT	  NOT NULL PRIMARY KEY
 	, version INTEGER NOT NULL
 	)
 	;
