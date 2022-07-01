@@ -605,6 +605,10 @@ proc ::m::db::SETUP-201910032120 {} {
     # information is table `mirror_set`. Fold the data into a
     # modified `mirror_set`. Further drop the auto-increment.
 
+    # Note: The table `name` was intended as the hook for other
+    # systems (project indices, etc.) to link into this schema. With
+    # this change `mirror_set` itself becomes the place to hook into.
+
     D m::db
     # - -- --- ----- -------- -------------
 
