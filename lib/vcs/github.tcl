@@ -221,7 +221,8 @@ proc ::m::vcs::github::detect {url} {
 
 proc ::m::vcs::github::ReportForks {url} {
     debug.m/vcs/github {}
-    upvar 1 path path ;# for `git::Get` - TODO - redesign with proper state in the low-level code.
+    upvar 1 path path
+    # for `git::Get` - TODO - redesign with proper state in the low-level code.
     
     set origin [join [lrange [file split $url] end-1 end] /]
     set forks  [lsort -dict [m::vcs::git::Get hub forks --raw $origin]]
@@ -232,7 +233,7 @@ proc ::m::vcs::github::ReportForks {url} {
 
     foreach fork $forks {
 	# unverified estimate (saved)
-	m ops client fork $fork
+	m ops client fork https://github.com/$fork
     }
     return
 }

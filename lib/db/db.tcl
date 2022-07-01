@@ -624,7 +624,6 @@ proc ::m::db::SETUP-201910032120 {} {
     return
 }
 
-
 proc ::m::db::SETUP-202207020000 {} {
     debug.m/db {}
 
@@ -680,10 +679,11 @@ proc ::m::db::SETUP-202207020000 {} {
     #               url proj vcs store fork act    issu chk min max win
     
     # Store linkage and store_times related information needs code.
-    foreach {id mset vcs} [R {
+    foreach {repo mset vcs url} [R {
 	SELECT id
 	,      project
 	,      vcs
+	,      url
 	FROM   repository
     }] {
 	# Locate store for repository
@@ -694,6 +694,14 @@ proc ::m::db::SETUP-202207020000 {} {
 	    AND	   vcs	= :vcs
 	}]]
 
+	lassign [R [string map [list :store $store] {
+	    SELECT mset, vcs
+	    FROM store
+	    WHERE id = :store
+	}]] msets vcss
+	
+	#puts stderr "XXX repo = $url/$mset/$vcs => S$store/$msets/$vcss"
+	
 	# Get time information
 	lassign [R [string map [list :store $store] {
 	    SELECT min_seconds
@@ -704,7 +712,7 @@ proc ::m::db::SETUP-202207020000 {} {
 	}]] min max win
 
 	# update repository with store and times
-	R [string map [list :id $id :min $min :max $max :win $win :store $store] {
+	R [string map [list :id $repo :min $min :max $max :win $win :store $store] {
 	    UPDATE repository
 	    SET store		= :store
 	    ,	min_duration	= :min

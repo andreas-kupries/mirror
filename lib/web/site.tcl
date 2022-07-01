@@ -26,7 +26,7 @@ package require m::db
 package require m::exec
 package require m::format
 package require m::futil
-package require m::mset
+package require m::project
 package require m::site
 package require m::state
 package require m::store
@@ -78,6 +78,17 @@ proc ::m::web::site::build {{mode verbose}} {
 	Submit
 	Stores
 
+	# Statistics page
+	#   - cycle information (start, end, duration, last duration)
+	#   - number of projects, repos, stores
+	#   - min, max, average, median n.commits, size.kb
+	# Project list    - # repos, link to details
+	# Project details - repo list, store links!
+
+	# constrained lists --
+	# -- just primaries, no forks
+	# -- per VCS, just managed by such
+	
 	set bytime   [m store updates]
 	set byname   [m store by-name]
 	set bysize   [m store by-size]
@@ -85,14 +96,14 @@ proc ::m::web::site::build {{mode verbose}} {
 	set issues   [m store issues] ;# excludes disabled
 	set disabled [m store disabled]
 
-	dict set stats issues   [llength $issues]
-	dict set stats disabled [llength $disabled]
-	dict set stats size     [m store total-size]
-	dict set stats nrepos   [m repo count]
-	dict set stats nmsets   [m mset count]
-	dict set stats nstores  [m store count]
-	dict set stats ccycle   [m state start-of-current-cycle]
-	dict set stats pcycle   [m state start-of-previous-cycle]
+	dict set stats issues    [llength $issues]
+	dict set stats disabled  [llength $disabled]
+	dict set stats size      [m store total-size]
+	dict set stats nrepos    [m repo count]
+	dict set stats nprojects [m project count]
+	dict set stats nstores   [m store count]
+	dict set stats ccycle    [m state start-of-current-cycle]
+	dict set stats pcycle    [m state start-of-previous-cycle]
 
 	List "By Last Change"     index.md          $bytime   $stats
 	List "By Name, VCS, Size" index_name.md     $byname   $stats
@@ -122,24 +133,130 @@ proc ::m::web::site::Site {mode action script} {
 
 proc ::m::web::site::Stores {} {
     debug.m/web/site {}
-    foreach {mset mname} [m mset all] {
-	foreach store [m mset stores $mset] {
-	    Store $mset $mname $store
+
+    foreach {project name} [m project all] {
+	foreach store [m project stores $project] {
+	    Store $project $name $store
 	}
     }
     return
 }
 
-proc ::m::web::site::Store {mset mname store} {
+proc ::m::web::site::RLink {repo {follow 1}} {
+    debug.m/web/site {}
+
+    set ri [m repo get $repo]
+    dict with ri {}
+    # active, issues, url, store
+
+    set active [expr {$active  ? "" : "[I images/off.svg "Offline"]"}]
+    set issues [expr {!$issues ? "" : "[I images/bad.svg "Attend"]"}]
+    if {!$follow} { set origin {} }
+    if {$origin ne {}} {
+	set origin " a [ForkLogo] from [OLink $origin]"
+    }
+    set label $active$issues$url
+    
+    return [LB $url $label]$origin
+}
+
+proc ::m::web::site::OLink {repo} {
+    debug.m/web/site {}
+
+    set ri [m repo get $repo]
+    dict with ri {}
+    # active, issues, url, store
+
+    set active [expr {$active  ? "" : "[I images/off.svg "Offline"]"}]
+    set issues [expr {!$issues ? "" : "[I images/bad.svg "Attend"]"}]
+    set label  $active$issues$url
+    
+    return [LB store_${store}.html $label]
+}
+
+proc ::m::web::site::StatsTime {min_sec max_sec win_sec} {
+    debug.m/web/site {}
+
+    # See also ::m::repo::times, ::m::glue::StatsTime
+    
+    set min_sec [expr {$min_sec < 0 ? "+Inf" : [m format interval $min_sec]}]
+    set max_sec [m format interval $max_sec]
+    set spent   "$min_sec ... $max_sec"
+    set win_sec [m format win $win_sec]
+    set n       [llength $win_sec]
+    if {$n} {
+	set win_sec [m format win-trim $win_sec [m state store-window-size]]
+	set total   [expr [join $win_sec +]]
+	set avg     [m format interval [format %.0f [expr {double($total)/$n}]]]
+	append spent " \[avg $avg (over $n)]"
+    }
+    return $spent
+}
+
+proc ::m::web::site::Commits {commits commitp} {
+    debug.m/web/site {}
+    
+    if {$commitp != $commits} {
+	set delta [expr {$commits - $commitp}]
+	if {$delta > 0} {
+	    set delta +$delta
+	}
+	append commits " ($commitp ($delta))"
+    }
+    return $commits
+}
+
+proc ::m::web::site::Size {size sizep} {
+    debug.m/web/site {}
+    
+    set dsize [m format size $size]
+    if {$sizep != $size} {
+	set dsizep [m format size $sizep]
+	if {$size < $sizep} {
+	    # shrink
+	    set delta -[m format size [expr {$sizep - $size}]]
+	} else {
+	    # grow
+	    set delta +[m format size [expr {$size - $sizep}]]
+	}
+	append dsize " ($dsizep ($delta))"
+    }
+    return $dsize
+}
+
+proc ::m::web::site::ExportStore {vcs store} {
+    debug.m/web/site {}
+    
+    set export [m vcs export $vcs $store]
+    if {$export ne {}} {
+	set path external/local_${store}
+	WX static/$path $export
+	set export [LB $path {Local Site}]
+    }
+
+    return $export
+}
+
+proc ::m::web::site::StoreForks {pname url store serial forks} {
+    debug.m/web/site {}
+
+    set series [m store getx $forks]
+    set page   store_${store}_forks_${serial}
+    set up     [LB store_${store}.html $url]
+    set title  "[llength $forks] [ForkLogo] of $up"
+
+    ListSimple $pname $title $page.md $series
+    return ${page}.html
+}
+
+proc ::m::web::site::Store {project pname store} {
     debug.m/web/site {}
 
     # Get page pieces ...
-
-    lassign [m store remotes $store] remotes plugin
-    lappend r Remotes $remotes
-    if {[llength $plugin]} {
-	lappend r {*}$plugin
-    }
+    
+    set urls  [m store remotes $store]
+    set repos [lmap u $urls  { m repo id $u }]
+    set links [lmap r $repos { RLink $r }]
 
     set sd  [m store get $store]
     dict with sd {}
@@ -155,66 +272,55 @@ proc ::m::web::site::Store {mset mname store} {
     #    remote
     #    min_sec, max_sec, win_sec
 
-    set min_sec [expr {$min_sec < 0 ? "+Inf" : [m format interval $min_sec]}]
-    set max_sec [m format interval $max_sec]
-
-    set spent "$min_sec ... $max_sec"
-
-    set win_sec [split [string trim $win_sec ,] ,]
-    set n       [llength $win_sec]
-    if {$n} {
-	set maxn [m state store-window-size]
-	if {$n > $maxn} {
-	    set over    [expr {$n - $maxn}]
-	    set win_sec [lreplace $win_sec 0 ${over}-1]
-	    set n       [llength $win_sec]
-	}
-	set total [expr [join $win_sec +]]
-	set avg   [m format interval [format %.0f [expr {double($total)/$n}]]]
-	append spent " ($avg * $n)"
-    }
-    
-    set simg [StatusRefs $attend $active $remote]
+    set spent [StatsTime $min_sec $max_sec $win_sec]
 
     lassign [m vcs caps $store] stdout stderr
     set logo [T "Operation" $stdout]
     set loge [T "Notes & Errors" $stderr]
 
-    if {$commitp != $commits} {
-	set delta [expr {$commits - $commitp}]
-	if {$delta > 0} {
-	    set delta +$delta
-	}
-	append commits " ($commitp ($delta))"
-    }
-
-    set dsize [m format size $size]
-    if {$sizep != $size} {
-	set dsizep [m format size $sizep]
-	if {$size < $sizep} {
-	    # shrink
-	    set delta -[m format size [expr {$sizep - $size}]]
-	} else {
-	    # grow
-	    set delta +[m format size [expr {$size - $sizep}]]
-	}
-	append dsize " ($dsizep ($delta))"
-    }
-
-    set export [m vcs export $vcs $store]
-    if {$export ne {}} {
-	set f external/local_${store}
-	WX static/$f $export
-	set export [LB $f {Local Site}]
-    }
-
+    set commits [Commits $commits $commitp]
+    set dsize   [Size $size $sizep]
+    set export  [ExportStore $vcs $store]
+    set vcslogo [VCSLogo [m vcs code $vcs] $vcsname]
+    
     # Assemble page ...
 
-    append text [H $mname]
+    append text [H $pname]
     append text |||| \n
-    append text |---|---|---| \n
+    append text |---|---:|---| \n
 
-    R $simg   {} "[IH 32 images/logo/[m vcs code $vcs].svg $vcsname] $vcsname"
+    if {![llength $urls]} {
+	R $vcslogo {} {}
+    } else {
+	set threshold 5
+	
+	set left $vcslogo
+	foreach r $repos l $links u $urls {
+	    R $left {} $l
+	    set left {}
+
+	    # For each repo show the forks, up to a threshold. If
+	    # there are more than that a separate page is created for
+	    # the list and linked.
+	    
+	    set forks [m repo forks $r]
+	    set nforks [llength $forks]
+	    if {$nforks} {
+		incr m
+		set links [lmap f $forks { OLink $f }]
+		foreach link $links {
+		    R {} [ForkLogo] $link
+		    incr k
+		    if {$k < $threshold} continue
+		    set more [expr {$nforks - $threshold}]
+		    R {} {} [LB [StoreForks $pname $u $store $m $forks] "+ $more more"]
+		    break
+		}
+		unset k
+	    }
+	}
+    }
+    
     R Size    {} $dsize
     R Commits {} $commits
     if {$export ne {}} {
@@ -225,26 +331,6 @@ proc ::m::web::site::Store {mset mname store} {
     R {Last Check}   {} [set lc [m format epoch $updated]]
     R Created        {} [m format epoch $created]
 
-    set active 1
-    foreach {label urls} $r {
-	R $label {}
-	foreach url [lsort -dict $urls] {
-	    incr id
-	    set u [LB $url $url]
-	    set a {}
-	    if {$active} {
-		set a [dict get	[m repo get [m repo id $url]] active]
-		if {$a} {
-		    set a "" ;#[I images/ok.svg "&nbsp;"]
-		} else {
-		    set a [I images/off.svg "-"]
-		}
-	    }
-	    R ${id}. $a $u
-	}
-	unset -nocomplain id
-	incr active -1
-    }
     append text \n
 
     append text "## Messages as of last check on $lc" \n\n
@@ -252,6 +338,7 @@ proc ::m::web::site::Store {mset mname store} {
     append text $loge \n
     append text \n
     append text [F]
+
     W pages/store_${store}.md $text
     return
 }
@@ -264,34 +351,90 @@ proc ::m::web::site::Contact {} {
     return
 }
 
-proc ::m::web::site::List {suffix page series stats} {
+proc ::m::web::site::ListSimple {title subtitle page series} {
+    # A cut down form of `List`. No sorting. No other stats.
+    
     debug.m/web/site {}
 
+    set hvcs     VCS
+    set hsize    Size
+    set hname    Project
+    set hchan    Changed
+
+    append text [H $title]
+    append text $subtitle \n
+    append text \n
+
+    append text "||$hname|Repository||$hvcs|$hsize|$hchan|Updated|Created|" \n
+    append text "|---|---|---|---|---|---:|---|---|---|" \n
+
+    set fork [ForkLogo]
+
+    set mname {}
+    set last {}
+    foreach row $series {
+	dict with row {}
+	
+	# store mname vcode changed updated created size active remote attend
+	# -- origin url
+	set tag {}
+
+	if {$created eq "."} {
+	    append text "||||||||||" \n
+	    continue
+	}
+
+	set img     [StatusRefs $attend $active $remote]
+	set size    [m format size $size]
+	set changed [m format epoch $changed]
+	set updated [m format epoch $updated]
+	set created [m format epoch $created]
+
+	set vcode   [VCSLogo $vcode $vcode]
+       	set vcode   [LB store_${store}.html $vcode]
+	
+	if {$mname  ne {}} { set mname [LB store_${store}.html $mname] }
+	set url                        [LB store_${store}.html $url]
+	if {$origin ne {}} { append tag $fork }
+	
+	append text "|$img|$mname|$url|$tag|$vcode|$size|$changed|$updated|$created|" \n
+	set last $mname
+    }
+    append text \n\n
+
+    append text [F]
+    W pages/$page $text
+    return
+}
+
+proc ::m::web::site::List {suffix page series stats} {
+    debug.m/web/site {}
+    
     dict with stats {}
     # issues
     # disabled
     # size
     # nrepos
-    # nmsets
+    # nprojects
     # nstores
     # ccycle
     # pcycle
 
     append text [H "Index ($suffix)"]
 
-    set hvcs     [L index_vcs.html      VCS          ]
-    set hsize    [L index_size.html     Size         ]
-    set hname    [L index_name.html     {Mirror Set} ]
-    set hchan    [L index.html          Changed      ]
-    set issues   [L index_issues.html   "Issues: $issues" ]
+    set hvcs     [L index_vcs.html      VCS                   ]
+    set hsize    [L index_size.html     Size                  ]
+    set hname    [L index_name.html     Project               ]
+    set hchan    [L index.html          Changed               ]
+    set issues   [L index_issues.html   "Issues: $issues"     ]
     set disabled [L index_disabled.html "Disabled: $disabled" ]
-
+    
     set ccf [m format epoch $ccycle]
     set pcf [m format epoch $pcycle]
     set dt  [expr {$ccycle - $pcycle}]
     set dtf [m format interval $dt]
 
-    append text  "Sets: " $nmsets ,
+    append text  "Projects: " $nprojects ,
     append text " Repos: " $nrepos ,
     append text " Stores: " $nstores ,
     append text " Size: " [m format size $size] ,
@@ -301,23 +444,28 @@ proc ::m::web::site::List {suffix page series stats} {
     append text "Cycles: Current began __" $ccf "__, "
     append text            "Last began __" $pcf "__, taking __" $dtf "__" \n
     append text \n
-    append text "||$hname|$hvcs|$hsize|$hchan|Updated|Created|" \n
-    append text "|---|---|---|---:|---|---|---|" \n
+    append text "||$hname|Repository||$hvcs|$hsize|$hchan|Updated|Created|" \n
+    append text "|---|---|---|---|---|---:|---|---|---|" \n
 
     # Disable insertion of cycle flags for all tables but sorted by change.
     if {$page ne "index.md"} {
 	set pcycle -1
 	set ccycle -1
     }
-    
+
+    set fork [ForkLogo]
+
     set mname {}
     set last {}
     foreach row $series {
 	dict with row {}
+
 	# store mname vcode changed updated created size active remote attend
+	# -- origin url
+	set tag {}
 
 	if {$created eq "."} {
-	    append text "||||||||" \n
+	    append text "||||||||||" \n
 	    continue
 	}
 
@@ -338,13 +486,14 @@ proc ::m::web::site::List {suffix page series stats} {
 	set updated [m format epoch $updated]
 	set created [m format epoch $created]
 
-	set vcode   "[IH 32 images/logo/${vcode}.svg $vcode] $vcode"
+	set vcode   [VCSLogo $vcode $vcode]
        	set vcode   [LB store_${store}.html $vcode]
 	
-	if {$mname ne {}} {
-	    set mname [LB store_${store}.html $mname]
-	}
-	append text "|$img|$mname|$vcode|$size|$changed|$updated|$created|" \n
+	if {$mname  ne {}} { set mname [LB store_${store}.html $mname] }
+	set url                        [LB store_${store}.html $url]
+	if {$origin ne {}} { append tag $fork }
+	
+	append text "|$img|$mname|$url|$tag|$vcode|$size|$changed|$updated|$created|" \n
 	set last $mname
     }
     append text \n\n
@@ -354,9 +503,19 @@ proc ::m::web::site::List {suffix page series stats} {
     return
 }
 
+proc ::m::web::site::VCSLogo {vcode vcsname} {
+    debug.m/web/site {}
+    return "[IH 32 images/logo/$vcode.svg $vcsname] $vcsname"
+}
+
+proc ::m::web::site::ForkLogo {} {
+    debug.m/web/site {}
+    IH 32 images/fork.svg Fork
+}
+
 proc ::m::web::site::Export {} {
     debug.m/web/site {}
-    W static/spec.txt [m mset spec]
+    W static/spec.txt [m project spec]
     return
 }
 
@@ -449,16 +608,14 @@ proc ::m::web::site::Sync {} {
 
     # Data flows
     # - Main
-    #   - mset_pending			local, no sync
+    #   - repo_pending			local, no sync
     #   - reply				local, no sync
     #   - rolodex			local, no sync
     #   - schema			local, no sync
     #
-    #   - mirror_set			[1] join/view pushed to site
-    #   - name				[1] store_index, total replacement
-    #   - repository			[1]
+    #   - project			[1] join/view pushed to site
+    #   - repository			[1] store_index, total replacement
     #   - store				[1]
-    #   - store_times			[1]
     #   - version_control_system	[1], plus copy to vcs
     #
     #   - rejected			push to site rejected, total replacement
@@ -623,33 +780,20 @@ proc ::m::web::site::FillIndex {} {
     # m store search '' (inlined, simply all)
     m db eval {
 	SELECT S.id      AS store
-	,      N.name    AS mname
+	,      (SELECT max (P.name) FROM project P, repository R WHERE P.id = R.project AND R.store = S.id) AS pname
 	,      V.code    AS vcode
-	,      T.changed AS changed
-	,      T.updated AS updated
-	,      T.created AS created
-	,      T.attend  AS attend
+	,      S.changed AS changed
+	,      S.updated AS updated
+	,      S.created AS created
+	,      (SELECT sum (has_issues) FROM repository R WHERE R.store = S.id) AS attend
 	,      S.size_kb AS size
-	,      (SELECT count (*)
-		FROM  repository R
-		WHERE R.mset = S.mset
-		AND   R.vcs  = S.vcs) AS remote
-	,      (SELECT count (*)
-		FROM  repository R
-		WHERE R.mset = S.mset
-		AND   R.vcs  = S.vcs
-		AND   R.active) AS active
-	FROM store_times            T
-	,    store                  S
-	,    mirror_set             M
+	,      (SELECT count (*)         FROM repository R WHERE R.store = S.id) AS remote
+	,      (SELECT sum   (is_active) FROM repository R WHERE R.store = S.id) AS active
+	FROM store                  S
 	,    version_control_system V
-	,    name                   N
-	WHERE T.store   = S.id
-	AND   S.mset    = M.id
-	AND   S.vcs     = V.id
-	AND   M.name    = N.id
+	WHERE S.vcs = V.id
     } {
-	# store, mname, vcode, changed, updated, created, size, remote, active, attend
+	# store, pname, vcode, changed, updated, created, size, remote, active, attend
 
 	set page    store_${store}.html
 	set status  [StatusIcons $attend $active $remote]
@@ -658,11 +802,10 @@ proc ::m::web::site::FillIndex {} {
 	    FROM repository R
 	    ,    store      S
 	    WHERE S.id   = :store
-	    AND   S.vcs  = R.vcs
-	    AND   S.mset = R.mset
+	    AND   S.id   = R.store
 	}]
 	
-	lappend remotes $mname
+	lappend remotes $pname
 	set remotes [string tolower [join $remotes { }]]
 	# We are using the remotes field for the entire text we can
 	# search over.  Should rename the field, not bothering until
@@ -672,15 +815,26 @@ proc ::m::web::site::FillIndex {} {
 	    INSERT
 	    INTO store_index
 	    VALUES ( NULL,
-		     :mname, :vcode, :page, :remotes, :status,
+		     :pname, :vcode, :page, :remotes, :status,
 		     :size, :changed, :updated, :created )
 	}
     }
 
     # Copy the VCS information
 
-    m site eval { DELETE FROM vcs }
+    # Logically this ...
+    if 0 {m site eval {
+	DELETE FROM vcs
+	;
+	INSERT INTO VCS
+	SELECT id, code, name
+	FROM   version_control_system
+    }}
 
+    # It is done like below because we are operating on two databases
+    # here. And it is simpler than to attach/detach one of the
+    # databases into the other connection.
+    m site eval { DELETE FROM vcs }
     m db eval {
 	SELECT id
 	,      code
@@ -1148,3 +1302,7 @@ comments {
 static/images/bad.svg<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width='32' height='32' viewBox='0 0 100 100'><circle cx='50' cy='50' r='40' fill='red'/></svg>
 static/images/off.svg<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width='32' height='32' viewBox='0 0 100 100'><circle cx='50' cy='50' r='40' fill='black'/></svg>
 static/images/yellow.svg<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width='32' height='32' viewBox='0 0 100 100'><circle cx='50' cy='50' r='40' fill='yellow'/></svg>
+static/images/fork.svg<?xml version="1.0" encoding="utf-8"?>
+<!-- Origin: https://seekicon.com/free-icon/fork_4 2022-07-01 License: SIL (OFL) -->
+<!-- Generator: Adobe Illustrator 24.1.1, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
+<svg version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" viewBox="0 0 512 512" style="enable-background:new 0 0 512 512;" xml:space="preserve"><g><path d="M18,399.3h79.4V326c0-23.2,11.3-48.8,33-70.3C152,234.2,184.2,210.9,237,174c53.1-37.2,85.1-57.8,99.6-70.7 c14.4-12.9,13.2-10.8,13.2-29.6V0.9V0h63.1v0.9v72.7c0,28.2-11.8,56.6-34.2,76.6c-22.4,20-53.4,39-105.5,75.4 c-52.3,36.6-83.3,59.9-98.4,74.9c-15.1,15-14.3,15.6-14.3,25.5v73.4h82.8L130.7,512L18,399.3z M268.7,399.3h81.1V326 c0-9.8,0.8-10.5-14.3-25.5c-10-9.9-27.8-24-53.2-42.6c3.2-2.3,5.7-4.1,9.1-6.4c18.6-13,32.1-22,46-31.5 c17.7,13.4,31.5,24.8,42.5,35.7c21.7,21.4,33,47.1,33,70.3v73.4H494L381.4,512L268.7,399.3z"/></g></svg>

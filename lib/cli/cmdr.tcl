@@ -205,19 +205,19 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	linenoise lines
     }] }
 
-    common .optional-mirror-set {
-	input mirror-set {
-	    The mirror set to operate on.
+    common .optional-project {
+	input project {
+	    The project to operate on.
 	} { optional
-	    validate [m::cmdr::vt mset]
-	    generate [m::cmdr::call glue gen_current_mset]
+	    validate [m::cmdr::vt project]
+	    generate [m::cmdr::call glue gen_current_project]
 	}
     }
 
-    common .list-optional-mirror-set {
-	input mirror-sets {
-	    Repositories to operate on.
-	} { list ; optional ; validate [m::cmdr::vt mset] }
+    common .list-optional-project {
+	input projects {
+	    Projects to operate on.
+	} { list ; optional ; validate [m::cmdr::vt project] }
     }
 
     common .optional-repository {
@@ -285,11 +285,11 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 
 	private take {
 	    description {
-		Query/change the number of mirror sets processed per
+		Query/change the number of repositories processed per
 		update cycle.
 	    }
 	    input take {
-		New number of mirror sets to process in one update.
+		New number of projects to process in one update.
 	    } { optional ; validate cmdr::validate::posint }
 	} [m::cmdr::call glue cmd_take]
 
@@ -384,10 +384,13 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	use .cms
 	description {
 	    Add repository. The new repository is placed into its own
-	    mirror set. Command tries to auto-detect vcs type if not
+	    project. Command tries to auto-detect vcs type if not
 	    specified. Command derives a name from the url if not
 	    specified. New repository becomes current.
 	}
+	option track-forks {
+	    Force tracking when seeing a large number of forks.
+	} { presence }
 	option vcs {
 	    Version control system handling the repository.
 	} {
@@ -404,7 +407,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	    Location of the repository to add.
 	} { validate [m::cmdr::vt url] }
 	option name {
-	    Name for the mirror set to hold the repository.
+	    Name for the project to hold the repository.
 	} {
 	    alias N
 	    validate str
@@ -415,42 +418,42 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
     private rename {
 	use .cms
 	description {
-	    Change the name of the specified mirror set, or the mirror
-	    set indicated by the current repository.
+	    Change the name of the specified project, or
+	    the project indicated by the current repository.
 
 	    The rolodex does not change.
 	}
-	use .optional-mirror-set
+	use .optional-project
 	input name {
-	    New name for the mirror set.
+	    New name for the project.
 	} { validate str }
     } [m::cmdr::call glue cmd_rename]
 
     private merge {
 	use .cms
 	description {
-	    Merges the specified mirror sets into a single mirror
-	    set. When only one mirror set is specified the set of the
+	    Merges the specified projects into a single project.
+	    When only one project is specified the set of the
 	    current repository is used as the merge target. When no
-	    mirror sets are specified at all the mirror sets of
+	    projects are specified at all the projects of
 	    current and previous repositories are merged, using
-	    the mirror set of current as merge target
+	    the prooject of current as merge target
 
-	    The name of the primary mirror set becomes the name of the
+	    The name of the primary project becomes the name of the
 	    merge.
 
 	    The rolodex does not change.
 	}
-	use .list-optional-mirror-set
+	use .list-optional-project
     } [m::cmdr::call glue cmd_merge]
 
     private split {
 	use .cms
 	description {
-	    Split the specified or current repository from its mirror
-	    set. Generates a new mirror set for the repository. The
-	    name will be derived from the original name. The
-	    referenced repository becomes current.
+	    Split the specified or current repository from its project.
+	    Generates a new project for the repository. The name will be
+	    derived from the original name. The referenced repository
+	    becomes current.
 
 	    If the referenced repository is a standalone already then
 	    nothing is done.
@@ -469,7 +472,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
     private export {
 	use .cms.ex
 	description {
-	    Write the known set of repositories and mirror sets to
+	    Write the known set of repositories and projects to
 	    stdout, in a form suitable for (re)import.
 	}
     } [m::cmdr::call glue cmd_export]
@@ -477,15 +480,15 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
     private import {
 	use .cms.ex
 	description {
-	    Read a set of repositories and mirror sets from the
-	    specified file, or stdin, and add them here. Ignores known
-	    repositories. Makes new mirror sets on name
-	    conflicts. Ignores mirror sets with no repositories
-	    (including only ignored repositories). Processes the
-	    format generated by export.
+	    Read a set of repositories and projects from the
+	    specified file, or stdin, and add them here. Ignores
+	    known repositories. Makes projects on name conflicts.
+	    Ignores projects with no repositories (including only
+	    ignored repositories). Processes the format generated
+	    by export.
 	}
 	option dated {
-	    Add datestamp to the generated mirror sets.
+	    Add datestamp to the generated projects.
 	} { presence }
 	input spec {
 	    Path to the file to read the import specification from.
@@ -514,13 +517,13 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
     private update {
 	use .cms
 	description {
-	    Runs an update cycle on the specified mirror sets. When no
-	    mirror sets are specified use the next `take` number of
-	    mirror sets from the list of pending mirror sets. If no
-	    mirror sets are pending refill the list with the entire
-	    set of mirror sets and then take from the list.
+	    Runs an update cycle on the specified repositories. When no
+	    repositories are specified use the next `take` number of
+	    repositories from the list of pending repositories. If no
+	    repositories are pending refill the list with the entire
+	    set of repositories and then take from the list.
 	}
-	use .list-optional-mirror-set
+	use .list-optional-repository
     } [m::cmdr::call glue cmd_update]
 
     private updates {
@@ -535,9 +538,9 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
     private pending {
 	use .cms.in
 	description {
-	    Show list of currently pending mirror sets. I.e mirror
-	    sets waiting for an update.  Order shown is the order they
-	    are taken, from the top down.
+	    Show list of currently pending repositories. I.e repositories
+	    waiting for an update.  Order shown is the order they are taken,
+	    from the top down.
 	}
     } [m::cmdr::call glue cmd_pending]
 
@@ -578,7 +581,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	input pattern {
 	    When specified, search for repositories matching the
 	    pattern.  This is a case-insensitive substring search on
-	    repository urls and mirror set names. A search overrides
+	    repository urls and project names. A search overrides
 	    and voids any and all repository and limit specifications.
 	    This also keeps the cursor unchanged. The rolodex however
 	    is filled with the search results.
@@ -643,7 +646,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 		generate [m::cmdr::call glue gen_vcs_code]
 	    }
 	    option name {
-		Name for the future mirror set to hold the submitted repository.
+		Name for the future project to hold the submitted repository.
 	    } {
 		alias N
 		validate str
@@ -669,6 +672,9 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 		validate [m::cmdr::vt vcs]
 		generate [m::cmdr::call glue gen_submit_vcs]
 	}
+	    option track-forks {
+		Force tracking when seeing a large number of forks.
+	    } { presence }
 	    option nomail {
 		Disable generation and sending of acceptance mail.
 	    } { presence }
@@ -684,7 +690,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 		generate [m::cmdr::call glue gen_submit_url]
 	    }
 	    option name {
-		Name for the mirror set to hold the repository.
+		Name for the project to hold the repository.
 		Overrides the name from the submission.
 	    } {
 		alias N
@@ -954,11 +960,11 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	    }
 	} [m::cmdr::call glue cmd_test_vt_repository]
 
-	private test-vt-mset {
+	private test-vt-project {
 	    description {
-		Show the knowledge map used by the mirror-set validator.
+		Show the knowledge map used by the project validator.
 	    }
-	} [m::cmdr::call glue cmd_test_vt_mset]
+	} [m::cmdr::call glue cmd_test_vt_project]
 
 	private test-vt-submission {
 	    description {

@@ -56,7 +56,7 @@ namespace eval ::m::vcs {
 	setup cleanup update check cleave merge \
 	rename id supported all code name \
 	detect url-norm name-from-url version \
-	move size caps remotes export path revs
+	move size caps export path revs
     namespace ensemble create
 
     namespace import ::cmdr::color
@@ -104,7 +104,7 @@ proc ::m::vcs::setup {store vcs name url} {
     debug.m/vcs {}
     # store id -> Using for path.
     # vcs   id -> Decode to plugin name
-    # name     -  mset name
+    # name     -  project name
     # url      -  repo url
     set path  [Path $store]
     set vcode [code $vcs]
@@ -113,7 +113,7 @@ proc ::m::vcs::setup {store vcs name url} {
     file delete -force -- $path
     file mkdir            $path
 
-    m futil write $path/%name $name  ;# Mirror set
+    m futil write $path/%name $name  ;# Project
     m futil write $path/%vcs  $vcode ;# Manager
 
     # Redirect through an external command. This command is currently
@@ -139,15 +139,17 @@ proc ::m::vcs::setup {store vcs name url} {
 	file delete -force -- $path
 
 	# Rethrow as something more distinguished for trapping
-	return -code error -errorcode {M VCS CHILD} $msg
+	E $msg CHILD
     }
 
     dict unset state results
     dict unset state msg
+    dict unset state ok
+    # commits, size, forks, duration
     return $state
 }
 
-proc ::m::vcs::update {store vcs urls} {
+proc ::m::vcs::update {store vcs url primary} {
     debug.m/vcs {}
     # store id -> Using for path.
     # vcs   id -> Decode to plugin name
@@ -156,24 +158,20 @@ proc ::m::vcs::update {store vcs urls} {
     set path  [Path $store]
     set vcode [code $vcs]
 
-    # Validate incoming urls to ensure that they are still present. No
-    # need to go for the vcs client when we know that it must
-    # fail. That said, we store our failure as a pseudo error log for
-    # other parts to pick up on.
+    # Validate the url to ensure that it is still present. No need to
+    # go for the vcs client when we know that it must fail. That said,
+    # we store our failure as a pseudo error log for other parts to
+    # pick up on.
 
     m futil write $path/%stderr ""
-    m futil write $path/%stdout "Verifying urls ...\n"
-    set failed 0
-    foreach u $urls {
-	debug.m/vcs {Verifying $u ...}
-	if {[m url ok $u xr]} continue
+    m futil write $path/%stdout "Verifying url ...\n"
+    debug.m/vcs {Verifying $url ...}
+    set ok [m url ok $url xr]
+    if {!$ok} {
 	m futil append $path/%stderr "  Bad url: $u\n"
-	set failed 1
-    }
-    if {$failed} {
-	m futil append $path/%stderr "Unable to reach remotes\n"
-	# Fake 'no changes', and error
-	return {-1 -1 {}}
+	m futil append $path/%stderr "Unable to reach remote\n"
+	# Fake an error state ...
+	return {ok 0 commits 0 size 0 forks {} results {} msg {Invalid url} duration 0}
     }
 
     # Ask plugin to update the store.
@@ -181,9 +179,11 @@ proc ::m::vcs::update {store vcs urls} {
     # always `mirror-vcs VCS LOG setup STORE URL`.
     
     Operation ::m::vcs::OpComplete $vcode update \
-	{*}[OpCmd $vcode $path $urls 0]
+	{*}[OpCmd $vcode $path $url $primary]
     set state [OpWait]
 
+    return $state
+    
     dict with state {}
     # [x] ok
     # [x] commits
@@ -192,29 +192,6 @@ proc ::m::vcs::update {store vcs urls} {
     # [ ] results
     # [x] msg
     # [x] duration
-
-    if {!$ok} {
-	# Fake 'no changes', and error.
-	# Note, CAP already saved the errorInfo into %stderr
-	return {-1 -1 {}}
-    }
-
-
-
-
-    
-    try {	
-	CAP $path {
-	    set counts [$vcode update $path $urls 0]
-	}
-    } on error {e o} {
-	# Fake 'no changes', and error.
-	# Note, CAP already saved the errorInfo into %stderr
-	return {-1 -1 {}}
-    }
-    if {[llength $counts] < 3} { lappend counts {} }
-    debug.m/vcs {==> ($counts)}
-    return $counts
 }
 
 proc ::m::vcs::rename {store name} {
@@ -255,7 +232,7 @@ proc ::m::vcs::cleanup {store vcs} {
     if {!$ok} {
 	# Do not perform any filesystem changes.
 	# Rethrow as something more distinguished for trapping
-	return -code error -errorcode {M VCS CHILD} $msg
+	E $msg CHILD
     }
 
     # ... and the store directory
@@ -300,9 +277,6 @@ proc ::m::vcs::check {vcs storea storeb} {
     set pathb [Path $storeb]
     set vcode [code $vcs]
 
-    upvar 1 $iv issues
-    set issues {}
-
     # Redirect through an external command. This command is currently
     # always `mirror-vcs VCS LOG mergable?`.
 
@@ -322,7 +296,7 @@ proc ::m::vcs::check {vcs storea storeb} {
     if {!$ok} {
 	if {[llength $msg]}     { lappend issues {*}$msg     }
 	if {[llength $results]} { lappend issues {*}$results }
-	return
+	E [join $issues \n] CHILD
     } else {
 	set flag [lindex $results 0]
 	debug.m/vcs {--> $flag}
@@ -335,9 +309,6 @@ proc ::m::vcs::merge {vcs target origin} {
     set ptarget [Path $target]
     set porigin [Path $origin]
     set vcode   [code $vcs]
-
-    upvar 1 $iv issues
-    set issues {}
 
     # Redirect through an external command. This command is currently
     # always `mirror-vcs VCS LOG merge`.
@@ -358,7 +329,7 @@ proc ::m::vcs::merge {vcs target origin} {
     if {!$ok} {
 	if {[llength $msg]}     { lappend issues {*}$msg     }
 	if {[llength $results]} { lappend issues {*}$results }
-	return
+	E [join $issues \n] CHILD
     }
     
     # Destroy the merged store
@@ -381,9 +352,6 @@ proc ::m::vcs::cleave {vcs origin dst dstname} {
     
     # Split/create vcs specific special resources, if any ...
 
-    upvar 1 $iv issues
-    set issues {}
-
     # Redirect through an external command. This command is currently
     # always `mirror-vcs VCS LOG split`.
     
@@ -403,6 +371,7 @@ proc ::m::vcs::cleave {vcs origin dst dstname} {
     if {!$ok} {
 	if {[llength $msg]}     { lappend issues {*}$msg     }
 	if {[llength $results]} { lappend issues {*}$results }
+	E [join $issues \n] CHILD
     }
     return
 }
@@ -410,15 +379,6 @@ proc ::m::vcs::cleave {vcs origin dst dstname} {
 proc ::m::vcs::path {store} {
     debug.m/vcs {}
     return [Path $store]
-}
-
-proc ::m::vcs::remotes {vcs store} {
-    debug.m/vcs {}
-    set path  [Path $store]
-    set vcode [code $vcs]
-
-    # Ask plugin for remotes it may have.
-    return [$vcode remotes $path]
 }
 
 proc ::m::vcs::export {vcs store} {
@@ -434,7 +394,7 @@ proc ::m::vcs::export {vcs store} {
     Operation ::m::vcs::OpComplete $vcode export \
 	{*}[OpCmd $vcode $path]
     set state [OpWait]
-
+    
     dict with state {}
     # [x] ok
     # [ ] commits
@@ -446,9 +406,9 @@ proc ::m::vcs::export {vcs store} {
 
     if {!$ok} {
 	if {![llength $results]} {
-	    lappend results "Failed to retrieve export script for $vcs on $path"
+	    lappend results "Failed to retrieve export script for $vcode on $path"
 	}
-	return -errorcode {MIRROR VCS EXPORT} -code error [join $results \n]
+	E [join $results \n] EXPORT
     } else {
 	set script [join $results \n]
 	debug.m/vcs {--> $script}
@@ -460,6 +420,7 @@ proc ::m::vcs::export {vcs store} {
 
 proc ::m::vcs::version {vcode iv} {
     debug.m/vcs {}
+
     upvar 1 $iv issues
     set issues {}
 
@@ -503,7 +464,7 @@ proc ::m::vcs::detect {url} {
     svn    detect $url
     fossil detect $url
 
-    return -code error "Unable to determine vcs for $url"
+    E "Unable to determine vcs for $url" DETECT
 }
 
 proc ::m::vcs::url-norm {vcode url} {
@@ -535,8 +496,6 @@ proc ::m::vcs::url-norm {vcode url} {
 
 proc ::m::vcs::name-from-url {vcode url} {
     debug.m/vcs {}
-    upvar 1 $iv issues
-    set issues {}
 
     # Redirect through an external command. This command is currently
     # always `mirror-vcs VCS LOG url-to-name`.
@@ -557,7 +516,7 @@ proc ::m::vcs::name-from-url {vcode url} {
     if {!$ok} {
 	if {[llength $msg]}     { lappend issues {*}$msg     }
 	if {[llength $results]} { lappend issues {*}$results }
-	return
+	E [join $issues \n] CHILD
     } else {
 	set name [lindex $results 0]
 	debug.m/vcs {--> $name}
@@ -625,7 +584,7 @@ proc ::m::vcs::id {x} {
     }
 
     if {$id eq {}} {
-	return -code error "Invalid vcs code or name"
+	E "Invalid vcs code or name" INTERNAL
     }
 
     return $id
@@ -660,6 +619,10 @@ proc ::m::vcs::Path {dir} {
     return $path
 }
 
+proc ::m::vcs::E {msg args} {
+    return -code error -errorcode [linsert $args 0 MIRROR VCS] $msg
+}
+
 # # ## ### ##### ######## ############# #####################
 ## Background operations. Based on jobs.
 #
@@ -677,6 +640,9 @@ proc ::m::vcs::OpComplete {state} {
 proc ::m::vcs::OpWait {} {
     debug.m/vcs {}
     vwait ::m::vcs::opsresult
+
+    #array set __ $::m::vcs::opsresult ; parray __
+
     return $::m::vcs::opsresult
 }
 

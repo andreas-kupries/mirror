@@ -42,7 +42,7 @@ namespace eval m::ops {
 }
 namespace eval m::ops::client {
     namespace export set main \
-	info note warn err fatal \
+        info note warn err fatal \
 	result ok fail commits fork size \
 	ok?
     namespace ensemble create
@@ -100,6 +100,19 @@ proc ::m::ops::client::Cmdline {v} {
 	Usage "Not enough arguments"
     }
     set argv [lassign $argv vcs logfile operation]
+
+    # All issues, including syntax errors, bad arguments, etc are
+    # reported through the log and stdout. This is in an internal
+    # support application the user normally will not invoke directly.
+    # Thus the log has to be initialized before anything other checks.
+    if {[catch {
+	LogTo $logfile
+    } msg]} {
+	err $msg
+	fail
+	return 0
+    }
+
     set ops {
 	setup       {Store Url}
 	cleanup     {Store}
@@ -120,13 +133,6 @@ proc ::m::ops::client::Cmdline {v} {
     }
     foreach a $argv t $types {
 	if {![$t $a]} { Usage "Expected $t, got '$a'" }
-    }
-    if {[catch {
-	LogTo $logfile
-    } msg]} {
-	err $msg
-	fail
-	return 0
     }
     upvar 1 $v cmd
     set cmd [linsert $argv 0 $vcs $operation]

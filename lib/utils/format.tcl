@@ -31,7 +31,7 @@ debug prefix m/format {[debug caller] | }
 ## Definition
 
 namespace eval m::format {
-    namespace export size epoch epoch/short interval
+    namespace export size epoch epoch/short interval win win-trim
     namespace ensemble create
 }
 namespace eval m {
@@ -41,7 +41,27 @@ namespace eval m {
 
 # # ## ### ##### ######## ############# ######################
 
+proc m::format::win {lastn} {
+    # CSV to list, remove bubbles (empty elements)
+    return [lmap x [split $lastn ,] { if {$x eq {}} continue ; set x }]
+}
+
+proc m::format::win-trim {lastn max} {
+    set len [llength $lastn]
+    # As new entries are added at the end trimming is done from the front.
+    # This is a naive trimmer, removing elements one by one.
+    # Considered ok because we usually need only remove one element anyway.
+    while {$len > $max} {
+	set lastn [lrange  $lastn 1 end]
+	set len   [llength $lastn]
+    }
+    return $lastn
+}
+
+# # ## ### ##### ######## ############# ######################
+
 proc m::format::size {x} {
+    # x is in [KB].
     debug.m/format {}
                               if {$x < 1024} { return ${x}K }
     set x [expr {$x/1024.}] ; if {$x < 1024} { return [format %.1f $x]M }

@@ -114,6 +114,8 @@ repo_pending -->\
 |                       |key                    |text   |PK                     |fix: `version` |
 |                       |version                |int    |                       |               |
 |~                      |~                      |~      |~                      |~              |
+|__Main Database__      |                       |       |                       |               |
+|~                      |~                      |~      |~                      |~              |
 |project                |                       |       |                       |               |
 |                       |id                     |int    |PK                     |               |
 |                       |name                   |text   |unique                 |               |
@@ -140,7 +142,8 @@ repo_pending -->\
 |                       |has_issues             |bool   |                       |Has issues     |
 |                       |min_duration           |int    |                       |               |
 |                       |max_duration           |int    |                       |               |
-|                       |window_seconds         |text   |                       |CSV, last N    |
+|                       |window_duration        |text   |                       |CSV, last N    |
+|                       |checked                |int    |                       |epoch          |
 |rolodex                |                       |       |                       |               |
 |                       |id                     |int    |PK                     |               |
 |                       |repository             |int    |unique, FK repository  |               |
@@ -173,6 +176,35 @@ repo_pending -->\
 |                       |id                     |int    |PK                     |               |
 |                       |code                   |text   |unique                 |Short tag      |
 |                       |name                   |text   |unique                 |Human Readable |
+|~                      |~                      |~      |~                      |~              |
+|__Site Database__      |                       |       |                       |               |
+|~                      |~                      |~      |~                      |~              |
+|cache_desc             |                       |       |                       |               |
+|                       |expiry                 |int    |                       |epoch          |
+|                       |url                    |text   |unique                 |               |
+|                       |desc                   |text   |                       |               |
+|cache_url              |                       |       |                       |               |
+|                       |expiry                 |int    |                       |epoch          |
+|                       |url                    |text   |unique                 |               |
+|                       |ok                     |int    |                       |               |
+|                       |resolved               |text   |                       |               |
+|rejected               |                       |       |                       |               |
+|                       |main.rejected          |       |                       |               |
+|store_index            |                       |       |                       |               |
+|                       |id                     |int    |PK                     |               |
+|                       |name                   |text   | __unique 1__          |index 1        |
+|                       |vcode                  |text   | __unique 1__          |               |
+|                       |page                   |text   |                       |               |
+|                       |remotes                |text   |                       |index 2        |
+|                       |status                 |text   |                       |               |
+|                       |size_kb                |int    |                       |               |
+|                       |changed                |int    |                       |epoch          |
+|                       |updated                |int    |                       |epoch          |
+|                       |created                |int    |                       |epoch          |
+|submission             |                       |       |                       |               |
+|                       |main.submission        |       |                       |               |
+|vcs                    |                       |       |                       |               |
+|                       |main.version_control_system|   |                       |               |
 
 ## State keys and semantics
 

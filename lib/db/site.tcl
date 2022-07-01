@@ -254,5 +254,38 @@ proc ::m::site::SETUP-201901092300 {} {
     return
 }
 
+proc ::m::site::SETUP-202207020000 {} {
+    debug.m/db {}
+
+    D m::site
+    # - -- --- ----- -------- -------------
+
+    # Move to schema V3
+    # - It is now possible to have multiple stores of the same
+    #   kind for a project. Due to forks of a github repository
+    #   being explicit, with separate stores.
+    #
+    # => Drop constraint UNIQUE(name, vcode)
+
+    I+
+    C name     TEXT     NOT NULL
+    C vcode    TEXT     NOT NULL
+    C page     TEXT     NOT NULL  UNIQUE
+    C remotes  TEXT     NOT NULL
+    C status   TEXT     NOT NULL -- icon name
+    C size_kb  INTEGER  NOT NULL
+    C changed  INTEGER  NOT NULL
+    C updated  INTEGER  NOT NULL
+    C created  INTEGER  NOT NULL
+
+    < store_index  \
+	id name vcode page remotes status size_kb changed updated created
+
+    X name
+    X remotes
+
+    return
+}
+
 # # ## ### ##### ######## ############# #####################
 return

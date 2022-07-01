@@ -57,9 +57,12 @@ proc ::m::mailer::to {receiver corpus} {
 
     try {
 	set res [smtp::sendmessage $token -header [list To $receiver] {*}[Config]]
+	# XXX REVISIT This may exit on issues, instead of throwing an error ?!
 	foreach item $res {
 	    m msg "    ERR $item"
 	}
+    } on error {e o} {
+	m msg [color bad $e]
     } finally {
     }
     
