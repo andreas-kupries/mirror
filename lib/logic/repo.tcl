@@ -340,7 +340,7 @@ proc ::m::repo::search {substring} {
 	} continue
 	lappend series [dict create \
 		primary [expr {$origin eq {}}] \
-		name    $name \
+		name    [Norm $name] \
 		url     $url \
 		id      $rid \
 		vcode   $vcode \
@@ -405,7 +405,7 @@ proc ::m::repo::get-n {first n} {
     } {
 	lappend replist [dict create \
 		primary [expr {$origin eq {}}] \
-		name    $name \
+		name    [Norm $name] \
 		url     $url \
 		id      $rid \
 		vcode   $vcode \
@@ -625,6 +625,17 @@ proc ::m::repo::FIRST {} {
 }
 
 # # ## ### ##### ######## ############# ######################
+
+proc ::m::repo::Norm {x} {
+    debug.m/repo {}
+    # Remove leading/trailing whitespace
+    set x [string trim $x]
+    # Force into a single line, and do tab/space replacement
+    set x [string map [list \r\n { } \r { } \n { } \t { }] $x]
+    # Compress internal runs of white space.
+    regsub -all { +} $x { } x
+    return $x
+}
 
 proc ::m::repo::K {x y} { set x }
 

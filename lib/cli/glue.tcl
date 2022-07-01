@@ -3016,7 +3016,7 @@ proc ::m::glue::StatsTime {mins maxs lastn} {
     set total   [expr [join $lastn +]]
     set avg     [m format interval [format %.0f [expr {double($total)/$n}]]]
 
-    append text " \[avg $avg (over $n)]"
+    append text " \[avg (last $n) $avg ([join $lastn ,]))]"
     return $text
 }
 

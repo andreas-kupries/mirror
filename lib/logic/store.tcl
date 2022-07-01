@@ -609,6 +609,17 @@ proc ::m::store::move-location {newpath} {
 
 # # ## ### ##### ######## ############# ######################
 
+proc ::m::store::Norm {x} {
+    debug.m/store {}
+    # Remove leading/trailing whitespace
+    set x [string trim $x]
+    # Force into a single line, and do tab/space replacement
+    set x [string map [list \r\n { } \r { } \n { } \t { }] $x]
+    # Compress internal runs of white space.
+    regsub -all { +} $x { } x
+    return $x
+}
+
 proc ::m::store::Srow {sv} {	;# XXX REWORK move to repo package
     debug.m/store {}
     upvar 1 \
@@ -618,7 +629,8 @@ proc ::m::store::Srow {sv} {	;# XXX REWORK move to repo package
         origin origin url url			    
 
     debug.m/store {s=$store, m=$mname, v=$vcode, ch=$changed, up=$updated, cr=$created, sz=$size, r=$remote/$active, trouble=$attend, oring=4origin, url=$url}
-    
+
+    set mname [Norm $mname]
     set row [dict create \
 		url     $url \
 		origin  $origin \
@@ -646,7 +658,8 @@ proc ::m::store::Srow+origin {sv} {	;# XXX REWORK move to repo package
 	origin origin url url rid rid
 
     debug.m/store {s=$store, m=$mname, v=$vcode, ch=$changed, up=$updated, cr=$created, sz=$size, r=$remote/$active, trouble=$attend, origin=$origin, url=$url, rid=$rid}
-    
+
+    set mname [Norm $mname]
     set row [dict create \
 		rid     $rid \
 		url     $url \
@@ -676,7 +689,8 @@ proc ::m::store::Srow+delta {sv} {	;# XXX REWORK move to repo package
 	maxs maxs lastn lastn origin origin url url
 
     debug.m/store {s=$store, m=$mname, v=$vcode, ch=$changed, up=$updated, cr=$created, sz=$size, r=$remote/$active, trouble=$attend}
-    
+
+    set mname [Norm $mname]
     set row [dict create \
 		url     $url \
 	        origin  $origin \
@@ -710,7 +724,8 @@ proc ::m::store::Srow+rid+url {sv} {	;# XXX REWORK move to repo package
 	rid rid url url origin origin
 
     debug.m/store {s=$store, m=$mname, v=$vcode, ch=$changed, up=$updated, cr=$created, sz=$size, r=$remote/$active, trouble=$attend, rid=$rid, url=$url, origin=$origin}
-    
+
+    set mname [Norm $mname]
     set row [dict create \
 		store   $store \
 		mname   $mname \

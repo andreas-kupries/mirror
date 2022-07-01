@@ -71,6 +71,7 @@ proc ::m::web::site::build {{mode verbose}} {
     debug.m/web/site {}
     Site $mode Generating {
 	Init
+	!! "Completed setup"
 	! "= Data dependent content ..."
 	Contact
 	Export		;# (See `export`)
@@ -188,7 +189,8 @@ proc ::m::web::site::StatsTime {min_sec max_sec win_sec} {
 	set win_sec [m format win-trim $win_sec [m state store-window-size]]
 	set total   [expr [join $win_sec +]]
 	set avg     [m format interval [format %.0f [expr {double($total)/$n}]]]
-	append spent " \[avg $avg (over $n)]"
+
+	append spent " \[&Oslash; (last $n) $avg ([join $win_sec ,]))]"
     }
     return $spent
 }
@@ -552,6 +554,7 @@ proc ::m::web::site::Init {} {
     debug.m/web/site {}
     variable self
     variable dst
+    variable base [clock seconds]
 
     ! "= Clearing web, web_out ..."
     file delete -force $dst ${dst}_out
@@ -577,9 +580,12 @@ proc ::m::web::site::Init {} {
 proc ::m::web::site::Fin {} { #return
     debug.m/web/site {}
     variable dst
+    !! "Completed markdown generation"
     ! "= SSG build web ..."
     SSG build $dst ${dst}_out
 
+    !! "Completed site generation"
+    
     # dst     = path/web     = site input
     # dst_out = path/web_out = site stage
     #           path/site    = site serve
@@ -994,6 +1000,15 @@ proc ::m::web::site::M {} {
     lappend map @-year-@       [clock format [clock seconds] -format %Y]
     proc ::m::web::site::M {} [list return $map]
     return $map
+}
+
+proc ::m::web::site::!! {text} {
+    variable base
+    set delta [expr {[clock seconds] - $base}]
+    set delta [m format interval $delta]
+
+    m msg "($delta) $text"
+    return
 }
 
 proc ::m::web::site::! {text} {
