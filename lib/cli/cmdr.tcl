@@ -667,11 +667,12 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	    } { validate [m::cmdr::vt submission] }
 	    option vcs {
 		Version control system handling the repository.
-		Override the submission.
+		Override the vcs from the submission.
 	    } {
+		alias V
 		validate [m::cmdr::vt vcs]
 		generate [m::cmdr::call glue gen_submit_vcs]
-	}
+	    }
 	    option track-forks {
 		Force tracking when seeing a large number of forks.
 	    } { presence }
@@ -684,9 +685,12 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	    } {
 		generate [m::cmdr::call glue gen_vcs_code]
 	    }
-	    state url {
-		Location of the repository. Taken from the submission.
-	    } { validate str
+	    option url {
+		Location of the repository.
+		Overrides the url from the submission.
+	    } {
+		alias U
+		validate str
 		generate [m::cmdr::call glue gen_submit_url]
 	    }
 	    option name {
