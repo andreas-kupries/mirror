@@ -48,7 +48,17 @@ namespace eval ::m::url {
 # # ## ### ##### ######## ############# #####################
 
 proc ::m::url::ok {url rv {follow yes}} {
-    debug.m/url {[proc ::http::Log {args} { package require cmdr::color ; puts [cmdr::color magenta [join $args { }]] }]}
+    debug.m/url {}
+    debug.m/url {httpLog setup [proc ::http::Log {args} { package require cmdr::color ; puts [cmdr::color magenta HTTP:[join $args { }]] }]}
+    debug.m/url {tls callback  [proc ::intercept {args} { package require cmdr::color ; puts [cmdr::color magenta TLS:[join $args { }]] ; return 1 }]}
+    debug.m/url {tls intercept [http::register https 443 {tls::socket -command ::intercept}]}
+    debug.m/url {http [package provide http]}
+    debug.m/url {tls  [package provide tls]}
+    debug.m/url {ssl  [tls::version]}
+    debug.m/url {}
+    debug.m/url {cmd  [package ifneeded http [package provide http]]}
+    debug.m/url {cmd  [package ifneeded tls [package provide tls]]}
+    debug.m/url {}
     upvar 1 $rv resolved
 
     try {
