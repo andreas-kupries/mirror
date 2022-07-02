@@ -974,7 +974,6 @@ proc ::m::web::site::M {} {
     if {![string match */ $u]} { append u / }
 
     set logo [m state site-logo]
-
     if {$logo ne {}} {
 	if {[file exists $logo]} {
 	    variable dst
@@ -986,15 +985,24 @@ proc ::m::web::site::M {} {
 	set logo "<img src='$logo' style='height: 33px; margin-top: -10px;'>"
     }
 
+    set ru [m state site-related-url]
+    set rl [m state site-related-label]
+
+    if {$ru ne {}} {
+	if {$rl eq {}} { set rl "&#x2197;&#xfe0f;Back" }
+	lappend nav "	[list $rl] [list $ru]"
+    }
+    
+    lappend nav {	Contact        $rootDirPath/contact.html}
+    lappend nav {	{Content Spec} $rootDirPath/spec.txt	}
+    lappend nav {	Search         $rootDirPath/search	}
+    lappend nav {	Submit         $rootDirPath/submit	}
+
+    
     lappend map @-logo-@       $logo
     lappend map @-mail-@       [m state site-mgr-mail]
     lappend map @-management-@ [m state site-mgr-name]
-    lappend map @-nav-@        {
-	Contact        $rootDirPath/contact.html
-	{Content Spec} $rootDirPath/spec.txt
-	Search         $rootDirPath/search
-	Submit         $rootDirPath/submit
-    }
+    lappend map @-nav-@        [join $nav \n]
     lappend map @-title-@      [m state site-title]
     lappend map @-url-@        $u
     lappend map @-year-@       [clock format [clock seconds] -format %Y]

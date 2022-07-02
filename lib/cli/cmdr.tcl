@@ -768,12 +768,14 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	default
 
 	foreach {cmd k v d} {
-	    location site-store    rwpath {location of web site}
-	    mail     site-mgr-mail str    {mail address of site manager}
-	    manager  site-mgr-name str    {name of site manager}
-	    title    site-title    str    {title of site itself}
-	    url      site-url      str    {publication url of site}
-	    logo     site-logo     str    {path or url to site logo image}
+	    location      site-store         rwpath {location of web site}
+	    mail          site-mgr-mail      str    {mail address of site manager}
+	    manager       site-mgr-name      str    {name of site manager}
+	    title         site-title         str    {title of site itself}
+	    url           site-url           str    {publication url of site}
+	    logo          site-logo          str    {path or url to site logo image}
+	    related-url   site-related-url   str    {url of related site}
+	    related-label site-related-label str    {label of related site}
 	} {
      	    private $cmd [string map [list V $v K $k D $d] {
 		section Website Configuration

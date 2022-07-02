@@ -60,6 +60,8 @@ namespace eval ::m::state {
 	    site-store
 	    site-title
 	    site-url
+	    site-related-url
+	    site-related-label
 
 	    start-of-current-cycle
 	    start-of-previous-cycle

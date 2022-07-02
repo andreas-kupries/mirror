@@ -765,5 +765,25 @@ proc ::m::db::SETUP-202207020000 {} {
     return
 }
 
+proc ::m::db::SETUP-202207022300 {} {
+    debug.m/db {}
+    # Added more site configuration to the general state table
+
+    D m::db
+    # - -- --- ----- -------- -------------
+    T^ state
+    #				-- Debugging
+    > 'site-related-url'   '' ;# Url of a related site (*) ...
+    > 'site-related-label' '' ;# ... and its name
+
+    # (*) While a related site could be any site we want the hoard to
+    # link to the expectation is that this is the site the hoard is a
+    # part of, and the link enables users of the hoard to get back to
+    # the wider site without the browser's help (i.e. back button).
+    
+    return
+}
+
+
 # # ## ### ##### ######## ############# #####################
 return

@@ -2702,13 +2702,19 @@ proc ::m::glue::SiteConfigShow {t {prefix {}}} {
     debug.m/glue {[debug caller] | }
 
     $t add ${prefix}State [Bool [m state site-active]]
-    $t add {*}[InvalE ${prefix}Url       site-url]
-    $t add ${prefix}Logo       [m state  site-logo]
-    $t add {*}[InvalE ${prefix}Title     site-title]
+    #
+    $t add {*}[InvalE "${prefix}Location" site-store]
+    $t add {*}[InvalE ${prefix}Url        site-url]
+    $t add ${prefix}Logo       [m state   site-logo]
+    $t add {*}[InvalE ${prefix}Title      site-title]
+    #
     $t add ${prefix}Manager  {}
-    $t add {*}[InvalE "${prefix}- Name"  site-mgr-name]
-    $t add {*}[InvalE "${prefix}- Mail"  site-mgr-mail]
-    $t add {*}[InvalE ${prefix}Location  site-store]
+    $t add {*}[InvalE "${prefix}- Name"   site-mgr-name]
+    $t add {*}[InvalE "${prefix}- Mail"   site-mgr-mail]
+    #
+    $t add ${prefix}Related  {}
+    $t add "${prefix}- Url"    [m state site-related-url]
+    $t add "${prefix}- Label"  [m state site-related-label]
     return
 }
 
