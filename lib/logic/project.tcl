@@ -30,9 +30,8 @@ namespace eval ::m {
 }
 namespace eval ::m::project {
     namespace export \
-	all add remove rename has \
-	name used-vcs has-vcs size \
-	stores known spec id count
+	all add remove rename has name used-vcs has-vcs size \
+	stores known spec id count get get-n search a-repo
     namespace ensemble create
 }
 
@@ -185,10 +184,10 @@ proc ::m::project::has {name} {
     }]
 }
 
-proc ::m::project::stores {project} {
+proc ::m::project::stores {project} {	;# XXX REWORK still used ?
     debug.m/project {}
     return [m db eval {
-	SELECT S.id
+	SELECT DISTINCT S.id
 	FROM   store      S
 	,      repository R
 	WHERE  S.id = R.store
@@ -196,7 +195,7 @@ proc ::m::project::stores {project} {
     }]
 }
 
-proc ::m::project::used-vcs {project} {
+proc ::m::project::used-vcs {project} {	;# XXX REWORK still used ?
     debug.m/project {}
     return [m db eval {
 	SELECT DISTINCT vcs
@@ -214,7 +213,7 @@ proc ::m::project::size {project} {
     }]
 }
 
-proc ::m::project::has-vcs {project vcs} {
+proc ::m::project::has-vcs {project vcs} {	;# XXX REWORK still used ?
     debug.m/project {}
     return [m db onecolumn {
 	SELECT count (*)
@@ -230,6 +229,138 @@ proc ::m::project::name {project} {
 	SELECT name
 	FROM   project
 	WHERE  id = :project
+    }]
+}
+
+proc ::m::project::get {project} {
+    debug.m/project {}
+    return [m db onecolumn {
+	SELECT 'name'   , P.name
+	,      'nrepos' , (SELECT count (*)                               FROM repository A WHERE A.project = P.id)
+	,      'nstores', (SELECT count (*) FROM (SELECT DISTINCT B.store FROM repository B WHERE B.project = P.id))
+	FROM   project P
+	WHERE  id = :project
+    }]
+}
+
+proc ::m::project::get-n {first n} {
+    debug.m/project {}
+
+    # project : id of first project to pull.
+    #        Default to 1st if not specified
+    # n    : Number of projects to retrieve.
+    #
+    # Taking n+1 projects, last becomes top for next call.  If we get
+    # less than n, top shall be empty, to reset the cursor.
+
+    if {$first eq {}} {
+	set first [FIRST]
+	debug.m/project {first = ($first)}
+    }
+
+    set lim [expr {$n + 1}]
+    set results {}    
+    m db eval {
+	SELECT P.name AS name
+	,      (SELECT count (*)                               FROM repository A WHERE A.project = P.id)  AS nrepos
+	,      (SELECT count (*) FROM (SELECT DISTINCT B.store FROM repository B WHERE B.project = P.id)) AS nstores
+	FROM   project P
+	-- cursor start clause ...
+	WHERE (P.name >= :first)
+	ORDER BY P.name ASC
+	LIMIT :lim
+    } {
+	lappend results [dict create \
+			     name    $name \
+			     nrepos  $nrepos \
+			     nstores $nstores ]
+    }
+
+    debug.m/project {reps = (($results))}
+    
+    set have [llength $results]
+    debug.m/project {have $have of $n requested}
+
+    if {$have <= $n} {
+	# Short read. Reset to top.
+	set next {}
+	debug.m/project {short}
+    } else {
+	# Full read. Data from the last element is next top, and not
+	# part of the shown list.
+	set next    [dict get [lindex $results end] name]
+	set results [lrange $results 0 end-1]
+	debug.m/project {cut}
+    }
+    
+    return [list $next $results]
+}
+
+proc ::m::project::search {substring} {
+    debug.m/project {}
+
+    set sub [string tolower $substring]
+    set series {}
+    set have {}
+    m db eval {
+	SELECT P.id   AS id
+	,      P.name AS name
+	,      R.url  AS url
+	FROM   project    P
+	,      repository R
+	WHERE R.project = P.id
+	ORDER BY P.name ASC
+    } {
+	# Ignore all already collected
+	if {[dict exists $have $id]} continue
+	# Ignore non-matches
+	if {
+	    ([string first $sub [string tolower $name]] < 0) &&
+	    ([string first $sub [string tolower $url ]] < 0)
+	} continue
+
+	# Compute derived values only for matches
+	m db eval {
+	    SELECT (SELECT count (*)                               FROM repository A WHERE A.project = P.id)  AS nrepos
+	    ,      (SELECT count (*) FROM (SELECT DISTINCT B.store FROM repository B WHERE B.project = P.id)) AS nstores
+	    FROM project P
+	    WHERE P.id = :id
+	} {}
+	# Collect
+	lappend results [dict create \
+			     name    $name \
+			     nrepos  $nrepos \
+			     nstores $nstores ]
+
+	# Record collection
+	dict set have $id .
+    }
+
+    return $results
+}
+
+proc ::m::project::a-repo {project} {
+    debug.m/project {}
+    return [m db eval {
+	SELECT R.id
+	FROM   repository R
+	WHERE  R.project = :project
+	LIMIT 1
+    }]
+}
+
+# # ## ### ##### ######## ############# ######################
+
+proc ::m::project::FIRST {} {
+    debug.m/project {}
+    # First known project
+    # Ordered by project name
+
+    return [m db onecolumn {
+	SELECT P.name
+	FROM   project    P
+	ORDER BY P.name ASC
+	LIMIT 1
     }]
 }
 

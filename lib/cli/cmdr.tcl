@@ -419,14 +419,22 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	use .cms
 	description {
 	    Change the name of the specified project, or
-	    the project indicated by the current repository.
+	    the project containing the current repository.
 
 	    The rolodex does not change.
+
+	    The change is rejected if the new name exists as a project.
+	    Except if option --merge is provided. In that case the
+	    repositories of the source project are bulk moved into the
+	    destination, and the source project removed.
 	}
 	use .optional-project
 	input name {
 	    New name for the project.
 	} { validate str }
+	option merge {
+	    Merge the source project into the destination.
+	} { alias M ; presence }
     } [m::cmdr::call glue cmd_rename]
 
     private merge {
@@ -525,7 +533,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	}
 	use .list-optional-repository
     } [m::cmdr::call glue cmd_update]
-
+    
     private updates {
 	use .cms.in
 	description {
@@ -601,6 +609,33 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	    Like list, going backward through the set of repositories.
 	}
     } [m::cmdr::call glue cmd_rewind]
+
+    private projects {
+	use .cms.in
+	description {
+	    Show (partial) list of the known projects.
+	}
+	option project {
+	    Project to start the listing with.
+	} {
+	    alias P
+	    validate [m::cmdr::vt project]
+	}
+	option limit {
+	    Number of projects to show.
+	    Defaults to the `limit`.
+	} {
+	    alias L
+	    validate [m::cmdr::vt limit]
+	    generate [m::cmdr::call glue gen_limit]
+	}
+	input pattern {
+	    When specified, search for projects matching the
+	    pattern.  This is a case-insensitive substring search on
+	    repository urls and project names. A search overrides
+	    and voids any and all project and limit specifications.
+	} { optional ; validate str }
+    } [m::cmdr::call glue cmd_projects]
 
     # # ## ### ##### ######## ############# ######################
 

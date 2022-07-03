@@ -903,6 +903,7 @@ proc ::m::glue::cmd_enable {flag config} {
 proc ::m::glue::cmd_rename {config} {
     debug.m/glue {[debug caller] | }
     package require m::project
+    package require m::repo
     package require m::store
 
     m db transaction {
@@ -910,19 +911,32 @@ proc ::m::glue::cmd_rename {config} {
 	set newname [$config @name]    ; debug.m/glue {new name: $newname}
 	set oldname [m project name $project]
 
-	m msg "Renaming [color note $oldname] ..."
+	set merge  [$config @merge]
+	set action [expr {$merge ? "Merging" : "Renaming"}]
+	set al [string length $action]
+	
+	m msg "$action [color note $oldname] ..."
 	if {$newname eq $oldname} {
 	    m::cmdr::error \
 		"The new name is the same as the current name." \
 		NOP
 	}
+
+	m msg "[format %${al}s to] [color note $newname]"
+	m msg {}
+	
 	if {[m project has $newname]} {
-	    m::cmdr::error \
-		"New name [color note $newname] already present" \
-		HAVE_ALREADY NAME
+	    if {!$merge} {
+		m::cmdr::error \
+		    "New name [color note $newname] already present" \
+		    HAVE_ALREADY NAME
+	    }
+	} else {
+	    # Destination does not exist. Merge is nonsense
+	    set merge 0
 	}
 
-	Rename $project $newname
+	Rename $merge $project $newname
     }
 
     ShowCurrent $config
@@ -1489,6 +1503,81 @@ proc ::m::glue::cmd_limit {config} {
 	set e [expr {$n == 1 ? "entry" : "entries"}]
 	m msg "Per list/rewind, show up to [color note $n] $e"
     }
+    OK
+}
+
+proc ::m::glue::cmd_projects {config} {
+    debug.m/glue {[debug caller] | }
+    package require m::project
+    package require m::state
+
+    m db transaction {
+	if {[$config @pattern set?]} {
+	    # Search, shows all results. Does not move the cursor.
+	    set pattern [$config @pattern]
+	    set series [m project search $pattern]
+	} else {
+	    # No search, show a chunk of the list as per options.
+	    if {[$config @project set?]} {
+		set project [$config @project]
+		set pi [m project get $project]
+		dict with pi {}
+		# - name nrepos nforks
+		set first $name
+		debug.m/glue {from request: $first}
+		unset name nrepos nforks
+	    } else {
+		# Note: top is repository, use containing project.
+		set first [m repo project [m state top]]
+		debug.m/glue {from state: $first}
+	    }
+	    set limit [$config @limit]
+	    if {$limit == 0} {
+		set limit [expr {[$p config @th]-7}]
+	    }
+
+	    lassign [m project get-n $first $limit] next series
+
+	    debug.m/glue {next   ($next)}
+	    # next is project -> chose any repo in it as new top.
+	    m state top [m project a-repo $next]
+	}
+	# series = list (dict (name #repos $stores))
+	# #x, for x in set-of-vcs ?
+
+	debug.m/glue {series ($series)}
+
+	set idx -1
+	set table {}
+
+	set trepos  0
+	set tstores 0
+	
+	foreach row $series {
+	    dict with row {}
+	    # name nrepos nstores
+	    lappend table [list $name $nrepos $nstores]
+	    # ................. 0     1       2
+	    incr trepos $nrepos
+	    incr tstores $nstores
+	}
+    }
+
+    set seprepos  [string repeat - [string length $trepos]]
+    set sepstores [string repeat - [string length $tstores]]
+    
+    lassign [TruncW \
+		 {Project #Repositories #Stores} \
+		 {1       0             0} \
+		 $table [$config @tw]] \
+	titles series
+    [table t $titles {
+	foreach row $series {
+	    $t add {*}[C $row 0 note] ;# 0 => name
+	}
+	$t add {}     $seprepos $sepstores
+	$t add Totals $trepos $tstores
+    }] show
     OK
 }
 
@@ -2087,7 +2176,7 @@ proc ::m::glue::Import1 {date mname repos} {
 	    } trap {M VCS CHILD} {e o} {
 		# Revert creation of mset and repository
 		set repo [m rolodex top]
-		set mset [m repo mset $repo]
+		set mset [m repo project $repo]
 		m repo remove  $repo
 		m rolodex drop $repo
 		m project remove  $mset
@@ -2129,7 +2218,7 @@ proc ::m::glue::Import1 {date mname repos} {
 	} trap {M VCS CHILD} {e o} {
 	    # Revert creation of mset and repository
 	    set repo [m rolodex top]
-	    set mset [m repo mset $repo]
+	    set mset [m repo project $repo]
 	    m repo remove  $repo
 	    m rolodex drop $repo
 	    m project remove  $mset
@@ -2582,7 +2671,7 @@ proc ::m::glue::MergeFill {msets} {
 		"No previously current repository to indicate merge source" \
 		MISSING PREVIOUS
 	}
-	lappend msets [m repo mset $target] [m repo mset $origin]
+	lappend msets [m repo project $target] [m repo project $origin]
 	return $msets
     }
     if {$n == 1} {
@@ -2594,19 +2683,29 @@ proc ::m::glue::MergeFill {msets} {
 		"No current repository to indicate merge target" \
 		MISSING CURRENT
 	}
-	return [linsert $msets 0 [m repo mset $target]]
+	return [linsert $msets 0 [m repo project $target]]
     }
     return $msets
 }
 
-proc ::m::glue::Rename {mset newname} {
+proc ::m::glue::Rename {merge project newname} {
     debug.m/glue {[debug caller] | }
-    m project rename $mset $newname
 
-    # TODO MAYBE: stuff cascading logic into `mset rename` ?
-    foreach store [m project stores $mset] {
+    # Update all stores under the project to the new name.
+    foreach store [m project stores $project] {
 	m store rename $store $newname
     }
+    
+    if {$merge} {
+	# Bulk move the repositories to the existing destination
+	m repo move/project $project [m project id $newname]
+	m project remove    $project
+	
+    } else {
+	# Just change the source to the new name.
+	m project rename $project $newname
+    }
+
     return
 }
 
@@ -2640,7 +2739,7 @@ proc ::m::glue::Merge {target origin} {
 	    MISMATCH
     }
 
-    # Move or merge the stores, dependong presence in the target.
+    # Move or merge the stores, depending presence in the target.
     foreach vcs $vcss {
 	set ostore [m store id $vcs $origin]
 	if {![m store has $vcs $target]} {

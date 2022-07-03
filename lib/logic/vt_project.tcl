@@ -61,7 +61,7 @@ debug prefix m/validate/project {[debug caller] | }
 
 proc ::m::validate::project::release  {p x} { return }
 proc ::m::validate::project::default  {p}   {
-    return [m repo mset [m rolodex top]]
+    return [m repo project [m rolodex top]]
 }
 proc ::m::validate::project::complete {p x} {
     debug.m/validate/project {} 10

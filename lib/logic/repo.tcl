@@ -220,7 +220,7 @@ proc ::m::repo::add {vcs project store url duration {origin {}}} {
 }
 
 proc ::m::repo::for {project} {
-    debug.m/project {}
+    debug.m/repo {}
     return [m db eval {
 	SELECT id
 	FROM   repository
@@ -229,7 +229,7 @@ proc ::m::repo::for {project} {
 }
 
 proc ::m::repo::forks {repo} {
-    debug.m/project {}
+    debug.m/repo {}
     return [m db eval {
 	SELECT id
 	FROM   repository
@@ -238,7 +238,7 @@ proc ::m::repo::forks {repo} {
 }
 
 proc ::m::repo::fork-locations {repo} {
-    debug.m/project {}
+    debug.m/repo {}
     return [m db eval {
 	SELECT url
 	FROM   repository
@@ -258,7 +258,7 @@ proc ::m::repo::project {repo} {
 }
 
 proc ::m::repo::store {repo} {
-    debug.m/project {}
+    debug.m/repo {}
     return [m db eval {
 	SELECT store
 	FROM   repository
@@ -439,7 +439,6 @@ proc ::m::repo::get-n {first n} {
     
     return [list $next $replist]
 }
-
 
 proc ::m::repo::remove {repo} {
     debug.m/repo {}
