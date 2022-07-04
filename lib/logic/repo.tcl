@@ -39,7 +39,7 @@ namespace eval ::m::repo {
 	add remove enable move/project move/1 has get name \
 	store known get-n for forks project search id count \
 	claim count-pending add-pending drop-pending pending \
-	take-pending declaim times fork-locations
+	take-pending declaim times fork-locations store!
     namespace ensemble create
 }
 
@@ -450,6 +450,15 @@ proc ::m::repo::remove {repo} {
 	UPDATE repository
 	SET    fork_origin = NULL
 	WHERE  fork_origin = :repo
+    }]
+}
+
+proc ::m::repo::store! {repo newstore} {
+    debug.m/repo {}
+    return [m db eval {
+	UPDATE repository
+	SET    store = :newstore
+	WHERE  id    = :repo
     }]
 }
 

@@ -440,31 +440,28 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
     private merge {
 	use .cms
 	description {
-	    Merges the specified projects into a single project.
-	    When only one project is specified the set of the
-	    current repository is used as the merge target. When no
-	    projects are specified at all the projects of
-	    current and previous repositories are merged, using
-	    the prooject of current as merge target
-
-	    The name of the primary project becomes the name of the
-	    merge.
+	    Merges the specified repositories into a single store.
+	    When only one repository is specified the current
+	    repository is used as the merge target. When no
+	    repositories are specified at all the current and previous
+	    repositories are merged, using current as merge target
 
 	    The rolodex does not change.
 	}
-	use .list-optional-project
+	use .list-optional-repository
     } [m::cmdr::call glue cmd_merge]
 
     private split {
 	use .cms
 	description {
-	    Split the specified or current repository from its project.
-	    Generates a new project for the repository. The name will be
-	    derived from the original name. The referenced repository
-	    becomes current.
+	    Split the store of the specified or current repository
+	    from any other repositories it currently shares the store
+	    with.
 
-	    If the referenced repository is a standalone already then
-	    nothing is done.
+	    The referenced repository becomes current.
+
+	    If the referenced repository does not share its store
+	    already then nothing is done.
 	}
 	use .optional-repository
     } [m::cmdr::call glue cmd_split]

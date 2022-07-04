@@ -84,15 +84,19 @@ proc ::m::store::merge {target origin} {
     return
 }
 
-proc ::m::store::cleave {store msetnew} {
+proc ::m::store::cleave {store pname} {
     debug.m/store {}
 
     set vcs  [VCS $store]
-    set new  [Add $vcs $msetnew ]
-    set name [MSName $msetnew]
-    m vcs cleave $vcs $store $new $name
-    Size $new
-    return
+    set new  [Add $vcs]
+    
+    m vcs cleave $vcs $store $new $pname
+
+    # Copy size information
+    Size $new [m db onecolumn {
+	SELECT size_kb FROM store WHERE id = :store
+    }]
+    return $new
 }
 
 proc ::m::store::has-issues {store} {

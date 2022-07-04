@@ -953,24 +953,24 @@ proc ::m::glue::cmd_merge {config} {
     package require m::vcs
 
     m db transaction {
-	set msets [Dedup [MergeFill [$config @projects]]]
+	set repos [Dedup [MergeFill [$config @repositories]]]
 	# __Attention__: Cannot place the mergefill into a generate
 	# clause, the parameter logic is too simple (set / not set) to
 	# handle the case of `set only one`.
-	debug.m/glue {msets = ($msets)}
+	debug.m/glue {repos = ($repos)}
 
-	if {[llength $msets] < 2} {
+	if {[llength $repos] < 2} {
 	    m::cmdr::error \
-		"All repositories are already in the same project." \
+		"Not enough repositories to merge stores" \
 		NOP
 	}
 
-	set secondaries [lassign $msets primary]
-	m msg "Target:  [color note [m project name $primary]]"
+	set secondaries [lassign $repos primary]
+	m msg "Target:  [color note [m repo name $primary]]"
 
 	foreach secondary $secondaries {
-	    m msg "Merging: [color note [m project name $secondary]]"
-	    Merge $primary $secondary
+	    m msg "Merging: [color note [m repo name $secondary]]"
+	    MergeR $primary $secondary
 	}
     }
 
@@ -991,49 +991,35 @@ proc ::m::glue::cmd_split {config} {
 	set repo [$config @repository]
 	set rinfo [m repo get $repo]
 	dict with rinfo {}
-	# -> url    : repo url
+	#    url    : repo url
 	#    vcs    : vcs id
 	#    vcode  : vcs code
 	#    project: project id
 	#    name   : project name
-	#    store  : id of backing store for repo
+	# -> store  : id of backing store for repo
 
-	m msg "Attempting to separate"
-	m msg "  Repository [color note $url]"
-	m msg "  Managed by [color note [m vcs name $vcs]]"
-	m msg "From"
-	m msg "  Project    [color note $name]"
+	m rolodex push $repo
+	m rolodex commit
 
-	if {[m project size $mset] < 2} {
+	m msg "Separating [m vcs name $vcs] repository [color note $url]"
+	m msg "from any other repository it shares its store with"
+
+	set sharers [m store repos $store]
+
+	if {[llength $sharers] < 2} {
+	    # Store is unshared.
 	    m::cmdr::error \
-		"The project is to small for splitting" \
+		"The repository already has its own store." \
 		ATOMIC
+
 	}
 
-	set newname    [MakeName $name]
-	set projectnew [m project add $newname]
+	m msg* "Splitting store ..."
+	
+	set newstore [m store cleave $store $name]
+	m repo store! $repo $newstore
 
-	m msg "New"
-	m msg "  Project    [color note $newname]"
-
-	m repo move/1 $repo $projectnew
-
-	if {![m project has-vcs $mset $vcs]} {
-	    # The moved repository was the last user of its vcs in the
-	    # original project. We can simply move its store over
-	    # to the new holder to be ok.
-
-	    m msg "  Move store ..."
-
-	    m store move $store $projectnew
-	} else {
-	    # The originating mset still has users for the store used
-	    # by the moved repo. Need a new store for the moved repo.
-
-	    m msg "  Split store ..."
-
-	    m store cleave $store $projectnew
-	}
+	OKx
     }
 
     ShowCurrent $config
@@ -2651,41 +2637,41 @@ proc ::m::glue::Dedup {values} {
     return $res
 }
 
-proc ::m::glue::MergeFill {msets} {
+proc ::m::glue::MergeFill {repos} {
     debug.m/glue {[debug caller] | }
-    set n [llength $msets]
+    set n [llength $repos]
 
     if {!$n} {
-	# No project. Use the projects for current and previous
-	# repository as merge target and source
+	# No repositories. Use the current and previous repositories
+	# as merge target and source
 
 	set target [m rolodex top]
 	if {$target eq {}} {
 	    m::cmdr::error \
-		"No current repository to indicate merge target" \
+		"No current repository as merge target" \
 		MISSING CURRENT
 	}
 	set origin [m rolodex next]
 	if {$origin eq {}} {
 	    m::cmdr::error \
-		"No previously current repository to indicate merge source" \
+		"No previously current repository as merge source" \
 		MISSING PREVIOUS
 	}
-	lappend msets [m repo project $target] [m repo project $origin]
-	return $msets
+	lappend repos $target $origin
+	return $repos
     }
     if {$n == 1} {
-	# A single project is the merge origin. Use the project of the
-	# current repository as merge target.
+	# A single repository is the merge origin. Use the current
+	# repository as merge target.
 	set target [m rolodex top]
 	if {$target eq {}} {
 	    m::cmdr::error \
-		"No current repository to indicate merge target" \
+		"No current repository as merge target" \
 		MISSING CURRENT
 	}
-	return [linsert $msets 0 [m repo project $target]]
+	return [linsert $repos 0 $target]
     }
-    return $msets
+    return $repos
 }
 
 proc ::m::glue::Rename {merge project newname} {
@@ -2709,7 +2695,43 @@ proc ::m::glue::Rename {merge project newname} {
     return
 }
 
-proc ::m::glue::Merge {target origin} {
+
+proc ::m::glue::MergeR {target origin} {
+    debug.m/glue {[debug caller] | }
+    # Target and origin are repositories
+
+    # Check that the repositories have compatible stores
+    #  - Same VCS
+    #  - VCS allows merging
+
+    set oinfo [m repo get $origin]
+    set tinfo [m repo get $target]
+    
+    set ovcs [dict get $oinfo vcs]
+    set tvcs [dict get $tinfo vcs]
+
+    if {$ovcs != $tvcs} {
+	m::cmdr::error \
+	    "Merge rejected due to VCS mismatch ([m vcs name $ovcs] vs [m vcs name $tvcs])" \
+	    MISMATCH
+    }
+
+    set ostore [dict get $oinfo store]
+    set tstore [dict get $tinfo store]
+    
+    if {![m store check $tstore $ostore]} {
+	m::cmdr::error \
+	    "Merge rejected by [m vcs name $ovcs]" \
+	    MISMATCH
+    }
+
+    m store merge  $tstore $ostore
+    m repo store!  $origin $tstore
+    
+    return
+}
+
+proc ::m::glue::Merge {target origin} { error XXX	;#	XXX REWORK import! to fix
     debug.m/glue {[debug caller] | }
 
     # Target and origin are projects

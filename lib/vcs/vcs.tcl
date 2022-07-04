@@ -331,9 +331,9 @@ proc ::m::vcs::merge {vcs target origin} {
 	if {[llength $results]} { lappend issues {*}$results }
 	E [join $issues \n] CHILD
     }
-    
-    # Destroy the merged store
-    cleanup $origin $vcs
+
+    # The merged store is not destroyed here. This is done by the
+    # store controller calling this command.
     return
 }
 
