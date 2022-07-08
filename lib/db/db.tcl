@@ -784,6 +784,80 @@ proc ::m::db::SETUP-202207022300 {} {
     return
 }
 
+proc ::m::db::SETUP-202207041400 {} {
+    debug.m/db {}
+
+    # Drop the auto-increment modifier from the primary key of all
+    # tables which have it. This is a dis-recommended thing.
+    
+    D m::db
+    # - -- --- ----- -------- -------------
+
+    I
+    C code  TEXT  NOT NULL  UNIQUE ; # Short semi-internal tag
+    C name  TEXT  NOT NULL  UNIQUE ; # Human readable name
+    < version_control_system \
+	id code name
+
+    I
+    C name	TEXT	NOT NULL UNIQUE
+    C automail	INTEGER NOT NULL
+    C isdefault INTEGER NOT NULL
+    C text	TEXT	NOT NULL
+    < reply \
+	id name automail isdefault text
+
+    I
+    C url    TEXT NOT NULL UNIQUE
+    C reason TEXT NOT NULL
+    < rejected \
+	id url reason
+
+    I
+    C session	  TEXT NOT NULL
+    C url	  TEXT NOT NULL
+    C vcode	  TEXT
+    C description TEXT
+    C email	  TEXT NOT NULL
+    C submitter	  TEXT
+    C sdate	  INTEGER NOT NULL
+    U session url
+    < submission  \
+	id session url vcode description email submitter sdate
+    X sdate
+    X url
+
+    I
+    C url	      TEXT     NOT NULL	 UNIQUE
+    C project	      INTEGER  NOT NULL	 ^project
+    C vcs	      INTEGER  NOT NULL	 ^version_control_system
+    C store	      INTEGER  NOT NULL	 ^store
+    C fork_origin     INTEGER		 ^repository
+    C is_active	      INTEGER  NOT NULL
+    C has_issues      INTEGER  NOT NULL
+    C checked	      INTEGER  NOT NULL ;# epoch
+    C min_duration    INTEGER  NOT NULL ;# overall minimum time spent on update
+    C max_duration    INTEGER  NOT NULL ;# overall maximum time spent on update
+    C window_duration STRING   NOT NULL ;# time spent on last N updates (list of int)
+    < repository \
+	id url project vcs store fork_origin is_active has_issues checked \
+	min_duration max_duration window_duration
+    
+    I
+    C vcs	       INTEGER	NOT NULL  ^version_control_system
+    C size_kb	       INTEGER	NOT NULL
+    C size_previous    INTEGER	NOT NULL
+    C commits_current  INTEGER	NOT NULL
+    C commits_previous INTEGER	NOT NULL
+    C created	       INTEGER	NOT NULL
+    C updated	       INTEGER	NOT NULL
+    C changed	       INTEGER	NOT NULL
+    < store \
+	id vcs size_kb size_previous commits_current commits_previous \
+	created updated changed
+    
+    return
+}
 
 # # ## ### ##### ######## ############# #####################
 return

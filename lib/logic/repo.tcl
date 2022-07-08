@@ -36,7 +36,7 @@ namespace eval ::m {
 }
 namespace eval ::m::repo {
     namespace export \
-	add remove enable move/project move/1 has get name \
+	add remove enable move/project move/1 has get name url \
 	store known get-n for forks project search id count \
 	claim count-pending add-pending drop-pending pending \
 	take-pending declaim times fork-locations store!
@@ -96,6 +96,15 @@ proc ::m::repo::name {repo} {
 	,      project    P
 	WHERE  R.id = :repo
 	AND    P.id = R.project
+    }]
+}
+
+proc ::m::repo::url {repo} {
+    debug.m/repo {}
+    return [m db onecolumn {
+	SELECT url
+	FROM   repository
+	WHERE  id = :repo
     }]
 }
 

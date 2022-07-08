@@ -223,6 +223,9 @@ proc ::m::vcs::git::PostPull {path} {
     if {[m exec err-last-get]} {
 	m ops client fail ; return
     }
+
+    # TODO :: Execute conversion of git repository to fossil
+    # TODO :: Run in background
     
     m ops client commits $count
     m ops client size    $kb

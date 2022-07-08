@@ -16,11 +16,12 @@
 # # ## ### ##### ######## ############# ######################
 
 package require Tcl 8.5
+package require debug
+package require debug::caller
 package require m::db
 package require m::repo
 package require m::rolodex
-package require debug
-package require debug::caller
+package require m::store
 
 # # ## ### ##### ######## ############# ######################
 
@@ -31,7 +32,8 @@ namespace eval ::m {
 namespace eval ::m::project {
     namespace export \
 	all add remove rename has name used-vcs has-vcs size \
-	stores known spec id count get get-n search a-repo
+	stores known spec id count get get-n search a-repo \
+	statistics get-all
     namespace ensemble create
 }
 
@@ -42,24 +44,168 @@ debug prefix m/project {[debug caller] | }
 
 # # ## ### ##### ######## ############# ######################
 
+proc ::m::project::statistics {} {
+    debug.m/project {}
+
+    m db transaction {
+	set cc [m state start-of-current-cycle]
+	set pc [m state start-of-previous-cycle]
+
+	set ncc 0
+	set npc 0
+	foreach row [m store updates] {
+	    dict with row {}
+	    # store mname vcode changed updated created size active remote
+	    # sizep commits commitp mins maxs lastn
+	    if {$created eq "."} continue ;# ignore separations
+	    if {$changed >= $cc} { incr ncc ; continue }
+	    if {$changed >= $pc} { incr npc ; continue }
+	}
+
+	dict set stats ncc $ncc
+	dict set stats npc $npc
+	
+	dict set stats np [m project count]
+	dict set stats nr [m repo count]
+	dict set stats ns [m store count]
+	dict set stats nl [llength [m store lost]]
+	dict set stats sz [m store total-size]
+
+	dict set stats cc $cc
+	dict set stats pc $pc
+
+	dict set stats ni [llength [m store issues]] ;# excludes disabled
+	dict set stats nd [llength [m store disabled]]
+
+	dict set stats st [m store statistics]
+    }
+
+    return $stats
+}
+
 proc ::m::project::spec {} {
     debug.m/project {}
 
-    set lines {}
+    # A repository belongs to a single project.
+    # A repository uses a single store.
+    #
+    # Conversely
+    #
+    # A project contains one or more repositories.
+    # A store is used by one or more repositories.
+    #
+    # Nothing in the above claims that the repositories of a store are
+    # always contained in the same project.
+    #
+    # Desired for the export spec:
+    #  - Human readability
+    #  - Human editability
+    #  - Compact
+    #  - Easy machine parsing
+    #
+    # The main issue with the first three is how to represent the
+    # shared stores. Projects and repositories can be represented
+    # hierarchically, flattened. The stores can cut across that.
+    #
+    # To make decisions easier for the emitter, collect all
+    # information first, in a way which makes it easy to see if we
+    # even have cross cuts.
+    #
+    # And then there is of course compatibility with old specs.
+
+    # Design:
+    # - command based, as before.
+    # - commands
+    #   - `P name`	Specify project. Contains preceding repositories.
+    #	- `R vcs url`	Specify repository by location and manager.
+    #	- `E vcs url`	As `R`, share store with previous repository.
+    #   - `B url`	Set a base repository for sharing.
+    #   - `M vcs url`	Not generated. Still recognized. Behaves as `P`.
+    #
+    # - Extended command names - Generated
+    #   - proj
+    #   - repo
+    #   - extR
+    #   - base
+    #
+    # - Import accepts both short and long forms. Case-insensitive.
+    #    
+    # - `B` is only generated when a shared store cuts across projects.
+    # - Everything else uses `E`, which uses an implicit base from the
+    #   precending `R`. In other words, the sequence
+    #
+    #     R ... foo
+    #     E ... bar
+    #
+    #   is internally effectively handled as
+    #     
+    #     R ... foo
+    #     B     foo
+    #     E ... foo
+    
+    set p {} ;# dict (name -> id)
+    set v {} ;# dict (url -> vcs)		vcs per repo, all repos!
+    set g {} ;# dict (pname -> store -> url -> .)
+    set b {} ;# dict (store -> url)		store base
+
+    # Collect projects
     foreach {project pname} [all] {
+	debug.m/project {P $project $pname}
+	
+	dict set p $pname $project
+    }
+
+    # Collect per-project repositories and stores
+    dict for {pname project} $p {
 	foreach repo [m repo for $project] {
 	    set ri [m repo get $repo]
 	    dict with ri {}
 	    # -> url	: repo url
-	    #    vcs	: vcs id
 	    # -> vcode	: vcs code
-	    #    project: project id
-	    #    name	: project name
-	    #    store  : id of backing store for repo
-	    lappend lines [list R $vcode $url]
+	    # -> store  : id of backing store for repo
+	    dict set v $url   $vcode
+	    dict set b $store {} ;# initially no base
+	    dict set g $pname $store $url .
 	}
-	lappend lines [list P $pname]
     }
+
+    # Spec emitter
+
+    #puts ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    #array set _p $p ; parray _p
+    #array set _v $v ; parray _v
+    #array set _g $g ; parray _g
+    #array set _b $b ; parray _b
+    
+    set lines {}
+    foreach pname [lsort -dict [dict keys $p]] {
+	set groups [dict get $g $pname]
+	# dict (store -> url -> .)
+
+	foreach store [lsort -dict [dict keys $groups]] {
+	    #puts /$store
+	    
+	    set urls [lsort -dict [dict keys [dict get $groups $store]]]
+	    set base [dict get $b $store]
+	    if {$base ne {}} {
+		lappend lines [list base $base]
+		set cmd extR
+	    } else {
+		set cmd repo
+	    }
+	    foreach u $urls {
+		set vcs [dict get $v $u]
+		lappend lines [list $cmd $vcs $u]
+		set cmd extR
+	    }
+	    # Save store base for possible cross cut
+	    dict set b $store $u
+	}
+	lappend lines [list proj $pname]
+    }
+
+    #puts ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    
     return [join $lines \n]
 }
 
@@ -258,10 +404,11 @@ proc ::m::project::get-n {first n} {
 	debug.m/project {first = ($first)}
     }
 
-    set lim [expr {$n + 1}]
     set results {}    
+    set lim [expr {$n + 1}]
     m db eval {
-	SELECT P.name AS name
+	SELECT P.id   AS id
+	,      P.name AS name
 	,      (SELECT count (*)                               FROM repository A WHERE A.project = P.id)  AS nrepos
 	,      (SELECT count (*) FROM (SELECT DISTINCT B.store FROM repository B WHERE B.project = P.id)) AS nstores
 	FROM   project P
@@ -270,10 +417,7 @@ proc ::m::project::get-n {first n} {
 	ORDER BY P.name ASC
 	LIMIT :lim
     } {
-	lappend results [dict create \
-			     name    $name \
-			     nrepos  $nrepos \
-			     nstores $nstores ]
+	lappend results [dict create   id $id name $name nrepos $nrepos nstores $nstores]
     }
 
     debug.m/project {reps = (($results))}
@@ -294,6 +438,33 @@ proc ::m::project::get-n {first n} {
     }
     
     return [list $next $results]
+}
+
+proc ::m::project::get-all {} {
+    debug.m/project {}
+
+    # project : id of first project to pull.
+    #        Default to 1st if not specified
+    # n    : Number of projects to retrieve.
+    #
+    # Taking n+1 projects, last becomes top for next call.  If we get
+    # less than n, top shall be empty, to reset the cursor.
+
+    set results {}    
+    m db eval {
+	SELECT P.id   AS id
+	,      P.name AS name
+	,      (SELECT count (*)                               FROM repository A WHERE A.project = P.id)  AS nrepos
+	,      (SELECT count (*) FROM (SELECT DISTINCT B.store FROM repository B WHERE B.project = P.id)) AS nstores
+	FROM   project P
+	ORDER BY P.name ASC
+    } {
+	lappend results [dict create   id $id name $name nrepos $nrepos nstores $nstores]
+    }
+
+    debug.m/project {reps = (($results))}
+
+    return $results
 }
 
 proc ::m::project::search {substring} {

@@ -34,10 +34,10 @@ namespace eval ::m {
 }
 namespace eval ::m::store {
     namespace export \
-	add remove move rename merge cleave update has check path \
+	all add remove move rename merge cleave update has check path \
 	id vcs-name updates by-name by-size by-vcs move-location \
 	get getx repos remotes total-size count search issues disabled \
-	has-issues
+	has-issues lost clear-lost statistics
     namespace ensemble create
 }
 
@@ -47,6 +47,53 @@ debug level  m/store
 debug prefix m/store {[debug caller] | }
 
 # # ## ### ##### ######## ############# ######################
+
+proc ::m::store::all {} {
+    debug.m/store {}
+    return [m db eval {
+	SELECT id
+	FROM   store
+    }]
+}
+
+proc ::m::store::statistics {} {
+    debug.m/store {}
+
+    lassign {Inf -1 0 0} smin smax n tsz
+    lassign {Inf -1 0 0} cmin cmax n tcm
+    
+    m db eval {
+	SELECT size_kb         AS sz
+	,      commits_current AS cm
+	FROM store
+    } {
+	set smin [expr {min($smin,$sz)}]
+	set smax [expr {max($smax,$sz)}]
+	lappend sizes $sz
+	incr tsz $sz
+	set cmin [expr {min($cmin,$cm)}]
+	set cmax [expr {max($cmax,$cm)}]
+	lappend commits $cm
+	incr tcm $cm
+	incr n
+    }
+
+    set smean   [expr {$tsz/$n}]	;# naive mean - all integers
+    set cmean   [expr {$tcm/$n}]
+    set smedian [lindex [lsort -integer -increasing $sizes]   [expr {[llength $sizes  ]/2}]]
+    set cmedian [lindex [lsort -integer -increasing $commits] [expr {[llength $commits]/2}]]
+    
+    dict set stats sz_min    $smin
+    dict set stats sz_max    $smax
+    dict set stats sz_mean   $smean
+    dict set stats sz_median $smedian
+    dict set stats cm_min    $cmin	
+    dict set stats cm_max    $cmax
+    dict set stats cm_mean   $cmean
+    dict set stats cm_median $cmedian
+
+    return $stats
+}
 
 proc ::m::store::add {vcs name url} {
     debug.m/store {}
@@ -105,6 +152,7 @@ proc ::m::store::has-issues {store} {
 
 proc ::m::store::update {primary url store cycle now before} {
     debug.m/store {}
+    clear-lost
 
     set vcs   [VCS $store]
     set state [m vcs update $store $vcs $url $primary]
@@ -121,21 +169,6 @@ proc ::m::store::update {primary url store cycle now before} {
     }
 
     return [list $ok $duration $commits $size $forks]
-}
-
-proc ::m::store::move {store msetnew} {
-    debug.m/store {}
-    # copy of `m mset name` - outline? check for dependency circles
-    set newname [MSName $msetnew]
-    set vcs     [VCS $store]
-    m db eval {
-	UPDATE store
-	SET    mset = :msetnew
-	WHERE  id   = :store
-    }
-
-    m vcs rename $store $newname
-    return
 }
 
 proc ::m::store::rename {store newname} {
@@ -273,6 +306,21 @@ proc ::m::store::total-size {} {
     }]
     if {$sum eq {}} { set sum 0 }
     return $sum
+}
+
+proc ::m::store::clear-lost {} {
+    debug.m/store {}
+    foreach s [lost] { remove $s }
+    return
+}
+
+proc ::m::store::lost {} {
+    debug.m/store {}
+    return [m db eval {
+	SELECT id FROM store
+	EXCEPT
+	SELECT DISTINCT store FROM repository
+    }]
 }
 
 proc ::m::store::count {} {

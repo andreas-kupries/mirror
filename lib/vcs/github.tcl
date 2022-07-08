@@ -145,7 +145,16 @@ proc ::m::vcs::github::setup {path url} {
 proc ::m::vcs::github::update {path url first} {
     debug.m/vcs/github {}
 
+    # # ## ### ##### ######## #############
+    # # ## discard leftover v2 github state files
+    file delete $path/origin	      
+    file delete $path/forks-local     
+    file delete $path/forks-remote    
+    file delete $path/forks-unverified
+    # # ## ### ##### ######## #############
+    
     m vcs git update $path $url $first
+
     if {![m ops client ok?]} {
 	# git update has already cleaned up.
 	return

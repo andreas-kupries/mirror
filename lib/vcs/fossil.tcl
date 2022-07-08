@@ -141,7 +141,6 @@ proc ::m::vcs::fossil::export {path} {
     debug.m/vcs/fossil {}
     m ops client result "#!/usr/bin/env fossil"
     m ops client result "repository: [FossilOf $path]"
-    m ops client result ""
     m ops client ok
     return
 }

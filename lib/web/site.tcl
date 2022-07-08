@@ -27,6 +27,7 @@ package require m::exec
 package require m::format
 package require m::futil
 package require m::project
+package require m::repo
 package require m::site
 package require m::state
 package require m::store
@@ -77,14 +78,10 @@ proc ::m::web::site::build {{mode verbose}} {
 	Export		;# (See `export`)
 	Search
 	Submit
-	Stores
-
-	# Statistics page
-	#   - cycle information (start, end, duration, last duration)
-	#   - number of projects, repos, stores
-	#   - min, max, average, median n.commits, size.kb
-	# Project list    - # repos, link to details
-	# Project details - repo list, store links!
+	Stores	;# Incremental ? As communicated from `update`
+	Statistics
+	Private
+	Projects
 
 	# constrained lists --
 	# -- just primaries, no forks
@@ -132,13 +129,122 @@ proc ::m::web::site::Site {mode action script} {
     return
 }
 
+proc ::m::web::site::Projects {} {
+    debug.m/web/site {}
+
+    set series [m project get-all]
+
+    H Projects
+
+    Row Project Repos Stores
+    Align l r r
+
+    foreach p $series {
+	dict with p {}
+	# id, name, nrepos, nstores
+	set name [m::store::Norm $name]
+	
+        Project $id $name
+
+	set name    [L/Project $id $name]
+	set nrepos  [L/Project $id $nrepos]
+	set nstores [L/Project $id $nstores]
+	
+	Row $name $nrepos $nstores
+    }
+
+    F
+    W pages/projects.md
+    return
+}
+
+proc ::m::web::site::Project {id name} {
+    debug.m/web/site {}
+
+    set series {}
+    foreach repo [m repo for $id] {
+	set ri [m repo get $repo]
+	dict with ri {}
+	# -> vcode, store, active, issues, url, origin
+
+	lappend series [list [expr {$origin ne {}}] $issues $active $vcode $url $store]
+    }
+    
+    H $name
+
+    Row {} {} VCS Repository
+    Align l l l l
+
+    foreach item [lsort -dict -index 4 $series] {
+	lassign $item fork issues active vcode url store
+
+	set tags  [StatusRefs $issues $active 0]
+	if {$tags eq {}} { append tags { } }
+	set vcode [I/VCS $vcode]
+	set fork  [expr {!$fork ? " " : [I/Fork]}]	    
+
+	set tags  [L/Store $store $tags]
+       	set vcode [L/Store $store $vcode]
+       	set fork  [L/Store $store $fork]
+       	set repo  [L/Store $store $url]
+
+	Row $tags $fork $vcode $repo
+    }
+    
+    F
+    W pages/[file root [P/Project $id]].md
+}
+
+proc ::m::web::site::Statistics {} {
+    debug.m/web/site {}
+
+    set stats [m project statistics]
+
+    dict with stats {}
+    #array set _ $stats ; parray _
+    dict with st    {}
+    #unset _ ; array set _ $st ; parray _
+
+    set sz_min    [m format size $sz_min]
+    set sz_max    [m format size $sz_max]
+    set sz_mean   [m format size $sz_mean]
+    set sz_median [m format size $sz_median]
+
+    set duration  [m format interval [expr {$cc - $pc}]]
+    set sz        [m format size $sz]
+
+    set pc [m format epoch $pc]
+    set cc [m format epoch $cc]
+
+    set ni [L index_issues.html   "[I/Bad] $ni"]
+    set nd [L index_disabled.html "[I/Offline] $nd"]
+    
+    H Statistics
+
+    S 3
+    Align l l l
+    Row Projects     $np
+    Row Repositories "$nr $ni $nd"
+    Row Stores       "$ns &sum; $sz"
+    Row Size         "$sz_min ... $sz_max " "&Oslash; $sz_mean &#x27d0; $sz_median"
+    Row Commits      "$cm_min ... $cm_max " "&Oslash; $cm_mean &#x27d0; $cm_median"
+    NL
+
+    Row Cycle Start Changes Duration
+    Align l l l l
+    Row Previous $pc $npc $duration
+    Row Current  $cc $ncc {}
+    NL
+    
+    F
+    W pages/statistics.md
+}
+
 proc ::m::web::site::Stores {} {
     debug.m/web/site {}
 
-    foreach {project name} [m project all] {
-	foreach store [m project stores $project] {
-	    Store $project $name $store
-	}
+    foreach store [m store all] {
+	Store $store
     }
     return
 }
@@ -150,11 +256,11 @@ proc ::m::web::site::RLink {repo {follow 1}} {
     dict with ri {}
     # active, issues, url, store
 
-    set active [expr {$active  ? "" : "[I images/off.svg "Offline"]"}]
-    set issues [expr {!$issues ? "" : "[I images/bad.svg "Attend"]"}]
+    set active [expr {$active  ? "" : "[I/Offline]" }]
+    set issues [expr {!$issues ? "" : "[I/Bad]"}]
     if {!$follow} { set origin {} }
     if {$origin ne {}} {
-	set origin " a [ForkLogo] from [OLink $origin]"
+	set origin " a [I/Fork] from [OLink $origin]"
     }
     set label $active$issues$url
     
@@ -168,11 +274,11 @@ proc ::m::web::site::OLink {repo} {
     dict with ri {}
     # active, issues, url, store
 
-    set active [expr {$active  ? "" : "[I images/off.svg "Offline"]"}]
-    set issues [expr {!$issues ? "" : "[I images/bad.svg "Attend"]"}]
+    set active [expr {$active  ? "" : "[I/Offline]"}]
+    set issues [expr {!$issues ? "" : "[I/Bad]"}]
     set label  $active$issues$url
     
-    return [LB store_${store}.html $label]
+    return [L/Store $store $label]
 }
 
 proc ::m::web::site::StatsTime {min_sec max_sec win_sec} {
@@ -243,23 +349,27 @@ proc ::m::web::site::StoreForks {pname url store serial forks} {
     debug.m/web/site {}
 
     set series [m store getx $forks]
-    set page   store_${store}_forks_${serial}
-    set up     [LB store_${store}.html $url]
-    set title  "[llength $forks] [ForkLogo] of $up"
+    set page   [P/StoreForks $store $serial]
+    set up     [L/Store $store $url]
+    set title  "[llength $forks] [I/Fork] of $up"
 
-    ListSimple $pname $title $page.md $series
-    return ${page}.html
+    ListSimple $pname $title [file root $page].md $series
+    return $page
 }
 
-proc ::m::web::site::Store {project pname store} {
+proc ::m::web::site::Store {store} {
     debug.m/web/site {}
 
+    #...project pname 
+    
     # Get page pieces ...
     
     set urls  [m store remotes $store]
     set repos [lmap u $urls  { m repo id $u }]
     set links [lmap r $repos { RLink $r }]
 
+    set projects [lsort -unique [lmap r $repos { m repo project $r }]]
+    
     set sd  [m store get $store]
     dict with sd {}
     # -> size, sizep
@@ -283,22 +393,32 @@ proc ::m::web::site::Store {project pname store} {
     set commits [Commits $commits $commitp]
     set dsize   [Size $size $sizep]
     set export  [ExportStore $vcs $store]
-    set vcslogo [VCSLogo [m vcs code $vcs] $vcsname]
+    set vcslogo [I/VCS [m vcs code $vcs]]
     
     # Assemble page ...
 
-    append text [H $pname]
-    append text |||| \n
-    append text |---|---:|---| \n
+    H "Store $store"
+
+    # Projects the store takes part in
+    S 1
+    Align l
+    foreach p $projects {
+	Row [L/Project $p [m project name $p]]
+    }
+    NL
+
+    # Store details
+    S 3
+    Align l r l
 
     if {![llength $urls]} {
-	R $vcslogo {} {}
+	Row $vcslogo {} {}
     } else {
 	set threshold 5
 	
 	set left $vcslogo
 	foreach r $repos l $links u $urls {
-	    R $left {} $l
+	    Row $left {} $l
 	    set left {}
 
 	    # For each repo show the forks, up to a threshold. If
@@ -311,11 +431,11 @@ proc ::m::web::site::Store {project pname store} {
 		incr m
 		set links [lmap f $forks { OLink $f }]
 		foreach link $links {
-		    R {} [ForkLogo] $link
+		    Row {} [I/Fork] $link
 		    incr k
 		    if {$k < $threshold} continue
 		    set more [expr {$nforks - $threshold}]
-		    R {} {} [LB [StoreForks $pname $u $store $m $forks] "+ $more more"]
+		    Row {} {} [LB [StoreForks $pname $u $store $m $forks] "+ $more more"]
 		    break
 		}
 		unset k
@@ -323,33 +443,44 @@ proc ::m::web::site::Store {project pname store} {
 	}
     }
     
-    R Size    {} $dsize
-    R Commits {} $commits
+    Row Size    {} $dsize
+    Row Commits {} $commits
     if {$export ne {}} {
-	R {} {} $export
+	Row {} {} $export
     }
-    R {Update Stats} {} $spent
-    R {Last Change}  {} [m format epoch $changed]
-    R {Last Check}   {} [set lc [m format epoch $updated]]
-    R Created        {} [m format epoch $created]
+    Row {Update Stats} {} $spent
+    Row {Last Change}  {} [m format epoch $changed]
+    Row {Last Check}   {} [set lc [m format epoch $updated]]
+    Row Created        {} [m format epoch $created]
+    NL
 
-    append text \n
+    +L "## Messages as of last check on $lc"
+    NL
+    +L $logo
+    +L $loge
 
-    append text "## Messages as of last check on $lc" \n\n
-    append text $logo \n
-    append text $loge \n
-    append text \n
-    append text [F]
-
-    W pages/store_${store}.md $text
+    NL
+    F
+    W pages/[file root [P/Store $store]].md
     return
 }
 
 proc ::m::web::site::Contact {} {
     debug.m/web/site {}
-    append text [H Contact]
-    append text [F]
-    W pages/contact.md $text
+    H Contact
+    F
+    W pages/contact.md
+    return
+}
+
+proc ::m::web::site::Private {} {
+    debug.m/web/site {}
+    H Private
+
+    +L {Now what was expected to be seen here ?}
+    
+    F
+    W pages/index_private.md
     return
 }
 
@@ -363,14 +494,14 @@ proc ::m::web::site::ListSimple {title subtitle page series} {
     set hname    Project
     set hchan    Changed
 
-    append text [H $title]
-    append text $subtitle \n
-    append text \n
+    H $title
+    +L $subtitle
+    NL
 
-    append text "||$hname|Repository||$hvcs|$hsize|$hchan|Updated|Created|" \n
-    append text "|---|---|---|---|---|---:|---|---|---|" \n
-
-    set fork [ForkLogo]
+    Row {} $hname Repository {} $hvcs $hsize $hchan Updated Created
+    Align l l l l l r l l l
+    
+    set fork [I/Fork]
 
     set mname {}
     set last {}
@@ -381,10 +512,7 @@ proc ::m::web::site::ListSimple {title subtitle page series} {
 	# -- origin url
 	set tag {}
 
-	if {$created eq "."} {
-	    append text "||||||||||" \n
-	    continue
-	}
+	if {$created eq "."} { S 9 ; continue }
 
 	set img     [StatusRefs $attend $active $remote]
 	set size    [m format size $size]
@@ -392,20 +520,20 @@ proc ::m::web::site::ListSimple {title subtitle page series} {
 	set updated [m format epoch $updated]
 	set created [m format epoch $created]
 
-	set vcode   [VCSLogo $vcode $vcode]
-       	set vcode   [LB store_${store}.html $vcode]
+       	set vcode   [L/Store $store [I/VCS $vcode]]
 	
-	if {$mname  ne {}} { set mname [LB store_${store}.html $mname] }
-	set url                        [LB store_${store}.html $url]
+	if {$mname  ne {}} { set mname [L/Store $store $mname] }
+	set url                        [L/Store $store $url]
 	if {$origin ne {}} { append tag $fork }
-	
-	append text "|$img|$mname|$url|$tag|$vcode|$size|$changed|$updated|$created|" \n
+
+	Row $img $mname $url $tag $vcode $size $changed $updated $created
+
 	set last $mname
     }
-    append text \n\n
 
-    append text [F]
-    W pages/$page $text
+    NL ; NL
+    F
+    W pages/$page
     return
 }
 
@@ -422,8 +550,6 @@ proc ::m::web::site::List {suffix page series stats} {
     # ccycle
     # pcycle
 
-    append text [H "Index ($suffix)"]
-
     set hvcs     [L index_vcs.html      VCS                   ]
     set hsize    [L index_size.html     Size                  ]
     set hname    [L index_name.html     Project               ]
@@ -436,18 +562,21 @@ proc ::m::web::site::List {suffix page series stats} {
     set dt  [expr {$ccycle - $pcycle}]
     set dtf [m format interval $dt]
 
-    append text  "Projects: " $nprojects ,
-    append text " Repos: " $nrepos ,
-    append text " Stores: " $nstores ,
-    append text " Size: " [m format size $size] ,
-    append text " " $issues , \n
-    append text " " $disabled \n
-    append text \n
-    append text "Cycles: Current began __" $ccf "__, "
-    append text            "Last began __" $pcf "__, taking __" $dtf "__" \n
-    append text \n
-    append text "||$hname|Repository||$hvcs|$hsize|$hchan|Updated|Created|" \n
-    append text "|---|---|---|---|---|---:|---|---|---|" \n
+    H "Index ($suffix)"
+
+    # ++  "Projects: " $nprojects ,
+    # ++ " Repos: " $nrepos ,
+    # ++ " Stores: " $nstores ,
+    # ++ " Size: " [m format size $size] ,
+    # +L " " $issues ,
+    # +L " " $disabled
+    # NL
+    # ++ "Cycles: Current began __" $ccf "__, "
+    # +L            "Last began __" $pcf "__, taking __" $dtf "__"
+    # NL
+
+    Row {} $hname Repository {} $hvcs $hsize $hchan Updated Created
+    Align l l l l l r l l l
 
     # Disable insertion of cycle flags for all tables but sorted by change.
     if {$page ne "index.md"} {
@@ -455,7 +584,7 @@ proc ::m::web::site::List {suffix page series stats} {
 	set ccycle -1
     }
 
-    set fork [ForkLogo]
+    set fork [I/Fork]
 
     set mname {}
     set last {}
@@ -466,18 +595,14 @@ proc ::m::web::site::List {suffix page series stats} {
 	# -- origin url
 	set tag {}
 
-	if {$created eq "."} {
-	    append text "||||||||||" \n
-	    continue
-	}
-
+	if {$created eq "."} { S 9 ; continue }
 	if {$changed ne {}} {
 	    if {$changed < $ccycle} {
-		append text "||__$ccf Start Of Current Cycle__||||||" \n
+		Row {} "__$ccf Start Of Current Cycle__" {} {} {} {} {} {} {}
 		set ccycle -1 ;# Prevent further triggers
 	    }
 	    if {$changed < $pcycle} {
-		append text "||__$pcf Start Of Last Cycle__||||||" \n
+		Row {} "__$pcf Start Of Last Cycle__" {} {} {} {} {} {} {}
 		set pcycle -1 ;# Prevent further triggers
 	    }
 	}
@@ -487,37 +612,25 @@ proc ::m::web::site::List {suffix page series stats} {
 	set changed [m format epoch $changed]
 	set updated [m format epoch $updated]
 	set created [m format epoch $created]
-
-	set vcode   [VCSLogo $vcode $vcode]
-       	set vcode   [LB store_${store}.html $vcode]
+       	set vcode   [L/Store $store [I/VCS $vcode]]
 	
-	if {$mname  ne {}} { set mname [LB store_${store}.html $mname] }
-	set url                        [LB store_${store}.html $url]
+	if {$mname  ne {}} { set mname [L/Store $store $mname] }
+	set url                        [L/Store $store $url]
 	if {$origin ne {}} { append tag $fork }
-	
-	append text "|$img|$mname|$url|$tag|$vcode|$size|$changed|$updated|$created|" \n
+
+	Row $img $mname $url $tag $vcode $size $changed $updated $created
 	set last $mname
     }
-    append text \n\n
 
-    append text [F]
-    W pages/$page $text
+    NL ; NL
+    F
+    W pages/$page
     return
-}
-
-proc ::m::web::site::VCSLogo {vcode vcsname} {
-    debug.m/web/site {}
-    return "[IH 32 images/logo/$vcode.svg $vcsname] $vcsname"
-}
-
-proc ::m::web::site::ForkLogo {} {
-    debug.m/web/site {}
-    IH 32 images/fork.svg Fork
 }
 
 proc ::m::web::site::Export {} {
     debug.m/web/site {}
-    W static/spec.txt [m project spec]
+    W= static/spec.txt [m project spec]
     return
 }
 
@@ -541,13 +654,13 @@ proc ::m::web::site::CGI {app} {
     # - The CGI apps are siblings of the manager cli.
     # - The CGI database is a sibling of the main database.
     #   See `Sync` here for the code keeping it up-to-date.
-    #   However note that `m::site` automaitcally goes for the sibling
+    #   However note that `m::site` automatically goes for the sibling
     #   given the path to the main, so we do not do this here.
     
     set bindir [file dirname $argv0]    
-    append t "#![file normalize [file join $bindir $app]]" \n
-    append t "database: [m::db::location get]" \n
-    return $t
+    +L "#![file normalize [file join $bindir $app]]"
+    +L "database: [m::db::location get]"
+    return $text
 }
 
 proc ::m::web::site::Init {} {
@@ -572,7 +685,7 @@ proc ::m::web::site::Init {} {
 	D $child
     }
     dict for {child content} [m asset get $self] {
-	W $child $content
+	W= $child $content
     }
     return
 }
@@ -801,7 +914,7 @@ proc ::m::web::site::FillIndex {} {
     } {
 	# store, pname, vcode, changed, updated, created, size, remote, active, attend
 
-	set page    store_${store}.html
+	set page    [P/Store $store]
 	set status  [StatusIcons $attend $active $remote]
 	set remotes [m db eval {
 	    SELECT R.url
@@ -875,72 +988,169 @@ proc ::m::web::site::StatusRefs {attend active remote} {
     set img {}
 
     if {!$active} {
-	append img [I images/off.svg "-"]
+	append img [I/Offline]
     } elseif {$active < $remote} {
-	append img [I images/yellow.svg "/"]
+	append img [I/Warning]
     }
     if {$attend} {
-	append img [I images/bad.svg "ATTEND"]
+	append img [I/Bad]
     }
     return $img
     #set status images/ok.svg
     #set stext  OK
 }
 
+# # ## ### ##### ######## ############# #####################
+## Shorthands for images and page links
+
+proc ::m::web::site::P/Store {id} {
+    return store_${id}.html
+}
+
+proc ::m::web::site::P/StoreForks {id serial} {
+    return store_${id}_forks_${serial}.html
+}
+
+proc ::m::web::site::P/Project {id} {
+    return project_${id}.html
+}
+
+proc ::m::web::site::L/Store {id text} {
+    LB [P/Store $id] $text
+}
+
+proc ::m::web::site::L/Project {id text} {
+    LB [P/Project $id] $text
+}
+
+proc ::m::web::site::I/Warning {} { I     images/yellow.svg "-" }
+proc ::m::web::site::I/Offline {} { I     images/off.svg Offline }
+proc ::m::web::site::I/Bad     {} { I     images/bad.svg Attend  }
+proc ::m::web::site::I/Fork    {} { IH 32 images/fork.svg Fork   }
+
+proc ::m::web::site::I/VCS {vcode} {
+    debug.m/web/site {}
+    set name [dict get [V] $vcode]
+    append r [IH 32 images/logo/$vcode.svg $name]
+    append r " " $name
+    return $r
+}
+
+# # ## ### ##### ######## ############# #####################
+## Common generator commands.
+
+# Return an image link
 proc ::m::web::site::I {url {alt {}}} {
     debug.m/web/site {}
     return "<img src='$url' alt='$alt'>"
 }
 
+# Return an image link configured to a specific height
 proc ::m::web::site::IH {h url {alt {}}} {
     debug.m/web/site {}
     return "<img height='$h' src='$url' alt='$alt'>"
 }
 
+# Return a plain link
 proc ::m::web::site::L {url {label {}}} {
     debug.m/web/site {}
     if {$label eq {}} { set label $url }
     return "\[$label]($url)"
 }
 
+# Return a link opening in a new browser tab
 proc ::m::web::site::LB {url {label {}}} {
     debug.m/web/site {}
     if {$label eq {}} { set label $url }
-    return "<a target='_blank' href='$url'>$label </a>"
+    return "<a target='_blank' href='$url'>${label}</a>"
 }
 
-proc ::m::web::site::R {args} {
+# Add a table row, column alignments
+proc ::m::web::site::Align {args} {
     debug.m/web/site {}
     upvar 1 text text
-    append text |[join $args "|"]| \n
+    ++ |
+    foreach a $args { 
+    	++ [dict get {
+	    l :---
+	    c  --- {} ---
+	    r  ---:
+	} $a] |
+    }
+    NL
     return
 }
 
-proc ::m::web::site::T {label text} {
-    if {$text eq ""} { return "" }
-    append t $label \n\n
-    append t "```" \n
-    append t [string trim $text] \n
-    append t "```" \n
-    return $t
+# Add a table row, n empty columns
+proc ::m::web::site::S {n} {
+    debug.m/web/site {}
+    upvar 1 text text
+    incr n
+    +L [string repeat | $n]
+    return
 }
 
+# Add a table row
+proc ::m::web::site::Row {args} {
+    debug.m/web/site {}
+    upvar 1 text text
+    +L |[join $args "|"]|
+    return
+}
+
+proc ::m::web::site::nbSP {} { return "&nbsp;" }
+
+# Return a verbatim code block (multi-line)
+proc ::m::web::site::T {label str} {
+    if {$str eq ""} { return "" }
+    +L $label \n ; NL
+    +L "```"
+    +L [string trim $str]
+    +L "```"
+    return $text
+}
+
+# Extend page text, full line
+proc ::m::web::site::+L {args} {
+    debug.m/web/site {}
+    upvar 1 text text
+    ++ {*}$args ; NL
+    return
+}
+
+# Extend page text, partial line
+proc ::m::web::site::++ {args} {
+    debug.m/web/site {}
+    upvar 1 text text
+    append text {*}$args
+    return
+}
+
+# Break line
+proc ::m::web::site::NL {} { upvar 1 text text ; ++ \n }
+
+# Add standard page header (SSG configuration)
 proc ::m::web::site::H {title} {
     debug.m/web/site {}
-    append f "\{" \n
-    append f "    title \{$title\}" \n
-    append f "\}" \n\n
-    return $f
+    upvar 1 text text
+    +L "\{"
+    +L "    title \{$title\}"
+    +L "\}"
+    NL
+    return
 }
 
+# Add standard page footer
 proc ::m::web::site::F {} {
     debug.m/web/site {}
-    append f "# Contact information" \n
-    append f \n
-    append f "Mail to [L mailto:@-mail-@ @-management-@]"
-    return $f
+    upvar 1 text text
+    +L "# Contact information"
+    NL
+    +L "Mail to [L mailto:@-mail-@ @-management-@]"
+    return
 }
 
+# Delete site file
 proc ::m::web::site::D {child} {
     debug.m/web/site {}
     variable dst
@@ -950,13 +1160,23 @@ proc ::m::web::site::D {child} {
     return
 }
 
-proc ::m::web::site::WX {child content} {
+# Write site file from text buffer
+proc ::m::web::site::W {child} {
     debug.m/web/site {}
-    file attributes [W $child $content] -permissions u=rwx,go=r
+    upvar 1 text text
+    W= $child $text
     return
 }
 
-proc ::m::web::site::W {child content} {
+# Write __executable__ site file and fill with content
+proc ::m::web::site::WX {child content} {
+    debug.m/web/site {}
+    file attributes [W= $child $content] -permissions u=rwx,go=r
+    return
+}
+
+# Write site file and fill with content
+proc ::m::web::site::W= {child content} {
     debug.m/web/site {}
     variable dst
     set dstfile [file join $dst $child]
@@ -967,6 +1187,13 @@ proc ::m::web::site::W {child content} {
     return $dstfile
 }
 
+proc ::m::web::site::V {} {
+    set map [m vcs all]
+    proc ::m::web::site::V {} [list return $map]
+    return $map
+}
+
+# Get map of placeholders for standard elements - memoized
 proc ::m::web::site::M {} {
     debug.m/web/site {}
 
@@ -993,11 +1220,15 @@ proc ::m::web::site::M {} {
 	lappend nav "	[list $rl] [list $ru]"
     }
     
-    lappend nav {	Contact        $rootDirPath/contact.html}
-    lappend nav {	{Content Spec} $rootDirPath/spec.txt	}
-    lappend nav {	Search         $rootDirPath/search	}
-    lappend nav {	Submit         $rootDirPath/submit	}
-
+    lappend nav {	Issues         $rootDirPath/index_issues.html  }
+    lappend nav {	Disabled       $rootDirPath/index_disabled.html}
+    lappend nav {	Statistics     $rootDirPath/statistics.html    }
+    lappend nav {	Projects       $rootDirPath/projects.html      }
+    lappend nav {	Contact        $rootDirPath/contact.html       }
+    lappend nav {	Spec           $rootDirPath/spec.txt	       }
+    lappend nav {	Search         $rootDirPath/search	       }
+    lappend nav {	Submit         $rootDirPath/submit	       }
+    lappend nav {	Private        $rootDirPath/index_private.html }
     
     lappend map @-logo-@       $logo
     lappend map @-mail-@       [m state site-mgr-mail]

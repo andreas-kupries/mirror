@@ -592,7 +592,7 @@ proc ::m::glue::cmd_add {config} {
     package require m::store
 
     m db transaction {
-	Add $config
+	Add $config [$config @extend]
     }
     ShowCurrent $config
     SiteRegen
@@ -607,44 +607,49 @@ proc ::m::glue::cmd_remove {config} {
     package require m::store
 
     m db transaction {
-	set repo [$config @repository]
+	set repos [$config @repositories]
 
-        set rinfo [m repo get $repo]
-        dict with rinfo {}
-        # -> url    : repo url
-        #    vcs    : vcs id
-        # -> vcode  : vcs code
-        # -> project: project id
-        # -> name   : project name
-        # -> store  : id of backing store for repo
+	foreach repo $repos {
+	    set rinfo [m repo get $repo]
+	    dict with rinfo {}
+	    # -> url    : repo url
+	    #    vcs    : vcs id
+	    # -> vcode  : vcs code
+	    # -> project: project id
+	    # -> name   : project name
+	    # -> store  : id of backing store for repo
 
-	m msg "Removing $vcode repository [color note $url] ..."
-	m msg "from Project [color note $name]"
-	
-	m repo remove $repo
+	    m msg "Removing $vcode repository [color note $url] ..."
+	    
+	    m repo remove $repo
 
-	set siblings [m store remotes $store]
-	set nsiblings [llength $siblings]
-	if {!$nsiblings} {
-	    m msg "- Removing unshared $vcode store $store ..."
-	    m store remove $store
-	} else {
-	    set x [expr {($nsiblings == 1) ? "repository" : "repositories"}]
-	    m msg "- Keeping $vcode store $store still used by $nsiblings $x"
+	    set siblings  [m store remotes $store]
+	    set nsiblings [llength $siblings]
+	    if {!$nsiblings} {
+		m msg* "Removing unshared $vcode store $store ... "
+		m store remove $store
+		OKx
+	    } else {
+		set x [expr {($nsiblings == 1) ? "repository" : "repositories"}]
+		m msg "Keeping $vcode store [color note $store]. Still used by $nsiblings $x"
+	    }
+
+	    # Remove project if no repositories remain at all.
+	    set nsiblings [m project size $project]
+	    
+	    if {!$nsiblings} {
+		m msg* "Removing empty project [color note $name] ... "
+		m project remove $project
+		OKx
+	    } else {
+		set x [expr {($nsiblings == 1) ? "repository" : "repositories"}]
+		m msg "Keeping project [color note $name]. Still used by $nsiblings $x"
+	    }
+
+	    m rolodex drop $repo
+
 	}
-
-	# Remove project if no repositories remain at all.
-	set nsiblings [m project size $project]
 	
-	if {!$nsiblings} {
-	    m msg "- Removing now empty project ..."
-	    m project remove $project
-	} else {
-	    set x [expr {($nsiblings == 1) ? "repository" : "repositories"}]
-	    m msg "- Keeping project still used by $nsiblings $x"
-	}
-
-	m rolodex drop $repo
 	m rolodex commit
     }
 
@@ -768,17 +773,21 @@ proc ::m::glue::cmd_details {config} { ;# XXX REWORK due the project/repo/store 
 
 	set s [[table/d s {
 	    $s borders 0
-	    set sibs 0
-	    foreach sibling $storesibs {
-		if {$sibling == $repo} continue
-		incr sibs
-		$s add ${sibs}. [Short $sibling]
+
+	    set sibs [lmap sib $storesibs {
+		if {$sib == $repo} continue
+		Short $sib
+	    }]
+	    if {[llength $sibs]} {
+		$s add {Shared With} [Box [join $sibs \n]]
+	    } else {
+		$s add Unshared {}
 	    }
-	    if {$sibs} { $s add {} {} }
+
 	    $s add Size $dsize
 	    $s add Commits       $dcommit
 	    if {$export ne {}} {
-		$s add Export $export
+		$s add Export [Box $export]
 	    }
 	    $s add {Update Stats} $spent
 	    $s add {Last Change}  $changed
@@ -817,34 +826,39 @@ proc ::m::glue::cmd_details {config} { ;# XXX REWORK due the project/repo/store 
 	    $t add {}            $s
 
 	    # Show other locations serving the project, except for forks.
-	    # Forks are shown separately.
-	    set sibs 0
+	    # Forks are shown separately. Note that projects sharing the
+	    # store are __not excluded__ here.
+	    set sibs {}
 	    foreach sibling $projectsibs {
 		if {$sibling == $repo} continue
 		if {$sibling == $origin} continue
-		if {$sibling in $storesibs} continue
+		#if {$sibling in $storesibs} continue
 		if {$sibling in $forksibs} continue
-		if {!$sibs} { $t add Other {} }
-		incr sibs
-		$t add ${sibs}. [Short $sibling]		
+		lappend sibs [Short $sibling]
+		#$t add ${sibs}. [Short $sibling]		
+	    }
+	    if {[llength $sibs]} {
+		$t add {Same Project} [llength $sibs]
+		$t add {} [Box [join $sibs \n]]
 	    }
 
 	    set threshold 20
 	    # Show the sibling forks. Only the first, only if not sharing the store.
-	    set sibs 0
+	    set sibs {}
+	    set more 0
 	    foreach sibling $forksibs {
 		if {$sibling == $repo} continue
 		if {$sibling == $origin} continue
 		if {$sibling in $storesibs} continue
-		if {!$sibs} { $t add Related {} }
-		incr sibs
-
-		# 
-		if {$sibs > $threshold} continue
-		$t add ${sibs}. [Short $sibling]
+		if {[llength $sibs] >= $threshold} { incr more ; continue }
+		lappend sibs [Short $sibling]
 	    }
-	    if {$sibs > $threshold} {
-		$t add {} "(+[expr {$sibs - $threshold}] more)"
+	    if {$more} {
+		lappend sibs "(+$more more)"
+	    }
+	    if {[llength $sibs]} {
+	        $t add {Sibling Forks} [expr {[llength $sibs] - 1 + $more}]
+		$t add {} [Box [join $sibs \n]]
 	    }
 
 	}] show
@@ -874,16 +888,7 @@ proc ::m::glue::cmd_enable {flag config} {
 
     m db transaction {
 	foreach repo [$config @repositories] {
-	    m msg "$op [color note [m repo name $repo]] ..."
-
-	    set rinfo [m repo get $repo]
-	    dict with rinfo {}
-	    # -> url	: repo url
-	    #    vcs	: vcs id
-	    #    vcode	: vcs code
-	    #    project: project id
-	    #    name	: project name
-	    #    store  : id of backing store for repo
+	    m msg "$op [color note [m repo url $repo]] ..."
 
 	    m repo enable $repo $flag
 
@@ -892,6 +897,57 @@ proc ::m::glue::cmd_enable {flag config} {
 	    # inactive. The commands to retrieve the pending repos
 	    # (all, or taken for update) is where we do the filtering,
 	    # i.e. exclusion of the inactive.
+	}
+    }
+
+    ShowCurrent $config
+    SiteRegen
+    OK
+}
+
+proc ::m::glue::cmd_move {config} {
+    debug.m/glue {[debug caller] | }
+    package require m::project
+    package require m::repo
+    package require m::rolodex
+
+    m db transaction {
+	set dst   [$config @name] ; debug.m/glue {dst: $dst}
+	set repos [$config @repositories]
+	if {![llength $repos]} {
+	    lappend repos [m rolodex top]
+	}
+
+	# Get/create destination
+	if {![m project has $dst]} {
+	    m msg "Moving into new project [color note $dst]"
+	    m msg* "  Setting up the project ... "
+	    set project [m project add $dst]
+	    OKx
+	} else {
+	    m msg "Moving into known project [color note $dst]"
+	    set project [m project id $dst]
+	}
+
+	# Record origin projects
+	set oldprojects \
+	    [lsort -unique \
+		 [lmap r $repos { m repo project $r }]]
+
+	# Move repositories to destination
+	foreach r $repos {
+	    m msg "- Moving [color note [m repo url $r]]"
+	    m repo move/1 $r $project
+	}
+
+	# Remove the origins which became empty.
+	set first 1
+	foreach p $oldprojects {
+	    if {[m project size $p]} continue
+	    if {$first} { m msg "Removing now empty projects ..." }
+	    set first 0
+	    m msg "- [color note [m project name $p]] ..."
+	    m project remove $p	    
 	}
     }
 
@@ -966,10 +1022,10 @@ proc ::m::glue::cmd_merge {config} {
 	}
 
 	set secondaries [lassign $repos primary]
-	m msg "Target:  [color note [m repo name $primary]]"
+	m msg "Target:  [color note [m repo url $primary]]"
 
 	foreach secondary $secondaries {
-	    m msg "Merging: [color note [m repo name $secondary]]"
+	    m msg "Merging: [color note [m repo url $secondary]]"
 	    MergeR $primary $secondary
 	}
     }
@@ -1492,6 +1548,80 @@ proc ::m::glue::cmd_limit {config} {
     OK
 }
 
+proc ::m::glue::cmd_statistics {config} {
+    debug.m/glue {[debug caller] | }
+    package require m::project
+    package require m::repo
+    package require m::store
+
+    m db transaction {
+	set stats [m project statistics]
+    }
+
+    dict with stats {}
+    #array set _ $stats ; parray _
+    dict with st    {}
+    #unset _ ; array set _ $st ; parray _
+
+    set sz_min    [m format size $sz_min]
+    set sz_max    [m format size $sz_max]
+    set sz_mean   [m format size $sz_mean]
+    set sz_median [m format size $sz_median]
+    
+    [table/d t {
+	$t add Projects       $np
+	$t add Repositories   $nr
+	$t add "- Issues"     $ni
+	$t add "- Disabled"   $nd
+	$t add Stores         $ns
+	$t add "- Lost"       $nl
+	$t add "- Statistics" ""
+	$t add "  - Size"     "$sz_min ... $sz_max"
+	$t add "      Total " [m format size $sz]
+	$t add "      Mean  " $sz_mean
+	$t add "      Median" $sz_median
+	$t add "  - Commits"  "$cm_min ... $cm_max"
+	$t add "      Mean  " $cm_mean
+	$t add "      Median" $cm_median
+	$t add Cycles {}
+	$t add "- Current began" [m format epoch $cc]
+	$t add "  - Changes"     $ncc
+	$t add "- Last began"    [m format epoch $pc]
+	$t add "  - Changes"     $npc
+	$t add "- Taking"        [m format interval [expr {$cc - $pc}]]
+    }] show
+    OK
+}
+
+proc ::m::glue::cmd_project {config} {
+    debug.m/glue {[debug caller] | }
+    package require m::project
+    package require m::repo
+
+    set project [$config @project]
+    
+    m db transaction {
+	set pname [m project name $project]
+	foreach repo [m repo for $project] {
+	    set ri [m repo get $repo]
+	    dict with ri {}
+	    # -> vcode, store
+	    lappend r [list [string totitle $vcode] [Short $repo] $store]
+	}
+    }
+
+    [table/d t {
+	$t add {} [color note $pname]
+	$t add Repositories [[table s {VCS Repository Store} {
+	    foreach item [lsort -index 1 $r] {
+		$s add {*}$item
+	    }
+	}] show return]
+    }] show
+    OK
+    return
+}
+
 proc ::m::glue::cmd_projects {config} {
     debug.m/glue {[debug caller] | }
     package require m::project
@@ -1528,7 +1658,7 @@ proc ::m::glue::cmd_projects {config} {
 	    # next is project -> chose any repo in it as new top.
 	    m state top [m project a-repo $next]
 	}
-	# series = list (dict (name #repos $stores))
+	# series = list (dict (id name nrepos nstores))
 	# #x, for x in set-of-vcs ?
 
 	debug.m/glue {series ($series)}
@@ -1962,34 +2092,63 @@ proc ::m::glue::ImportRead {label chan} {
     m msg "Reading [color note $label] ..."
     return [split [string trim [read $chan]] \n]
     #         :: list (command)
-    # command :: list ('M' name)	- old: 'M'irrorset
-    #          | list ('P' name)	- new: 'P'roject
-    #          | list ('R' vcode url)
+    # command :: list ('M' name)        - old: Mirrorset
+    #          | list ('P' name)        - new: Project
+    #          | list ('R' vcode url)   -      Repository
+    #          | list ('E' vcode url)   - new: Repository, Extend previous
+    #          | list ('B' url)         - new: Repository, Set Base
 }
 
 proc ::m::glue::ImportVerify {commands} {
-    debug.m/glue {}
+    debug.m/glue {ImportVerify}
     # commands :: list (command)
-    # command  :: list ('M' name)	- old: 'M'irrorset
-    #           | list ('P' name)	- new: 'P'roject
-    #           | list ('R' vcode url)
-
+    # command  :: list ('M' name)       - old: Mirrorset
+    #           | list ('P' name)       - new: Project
+    #           | list ('R' vcode url)  -      Repository
+    #           | list ('E' vcode url)  - new: Repository, Extend previous
+    #           | list ('B' url)        - new: Repository, Set Base
+    #
+    # The verification not only checks syntax and use of the commands,
+    # it also assembles the internal data structures linking projects,
+    # repositories and stores.
+    
     m msg "Verifying ..."
 
+    # Parsing state, and spec assembly
+    #
+    # 'vcs'     -> (code/name -> '.')
+    # 'project' -> 'lno'  -> int
+    #           -> 'repo' -> (url -> '.')
+    # 'repo'    -> (url -> 'vcs'     -> code
+    #                   -> 'store'   -> id
+    #                   -> 'project' -> name)
+    # 'store'   -> (id -> (url -> '.'))
+
+    # In memory quick access to VCS data
     foreach {code name} [m vcs all] {
-	dict set vcs $code .
-	dict set vcs $name .
+	dict set state vcs $code .
+	dict set state vcs $name .
     }
 
-    set lno 0
-    set maxl [llength $commands]
-    set lfmt %-[string length $maxl]s
-    set msg {}
-    set new {}
+    dict set state lno      0
+    dict set state lfmt     %-[string length [llength $commands]]s
+    dict set state issues   {} ;# list (string)
+    dict set state run      {} ;# list(url) - current repos
+    dict set state base     {} ;# no base store
+    dict set state resolved {} ;# url -> resolved
+    #
+    dict set state project  {} ;# (name -> (lno, url...))
+    dict set state repo     {} ;# url -> (vcs, store)
+    dict set state store    {} ;# id  -> list (url)
+    
+    set expected  {
+	m 2 p 2 b 2 e 3 r 3 proj 2 base 2 extr 3 repo 3
+    }
+    
     foreach command $commands {
-	incr lno
-	debug.m/glue {[format $lfmt $lno]: '$command'}
-
+	dict incr state lno
+	debug.m/glue {[format [dict get $state lfmt] [dict get $state lno]]: '$command'}
+	
 	# strip (trailing) comments, leading & trailing whitespace
 	regsub -- "#.*\$" $command {} command
 	set command [string trim $command]
@@ -1997,135 +2156,370 @@ proc ::m::glue::ImportVerify {commands} {
 	# skip empty lines
 	if {$command eq {}} continue
 
-	lassign $command cmd a b
-	switch -exact -- $cmd {
-	    M -
-	    P {
-		Ping "  $command"
-		# M name --> a = name, b = ((empty string))
-		if {[llength $command] != 2} {
-		    lappend msg "Line [format $lfmt $lno]: Bad syntax: $command"
-		}
-	    }
-	    R {
-		Ping "  [list R $b]"
-		# R kind url --> a = kind, b = url
-		if {[llength $command] != 3} {
-		    lappend msg "Line [format $lfmt $lno]: Bad syntax: $command"
-		} else {
-		    if {![dict exists $vcs $a]} {
-			lappend msg "Line [format $lfmt $lno]: Unknown vcs: $command"
-		    }
-
-		    Ping+ " ..."
-		    if {![m url ok $b resolved]} {
-			lappend msg "Line [format $lfmt $lno]: Bad url: $b"
-		    } else {
-			#Ping+ \n
-			Ping "  = $resolved"
-			# Add resolution to R commands.
-			lappend command $resolved
-		    }
-		}
-	    }
-	    default {
-		Ping "  $command"
-		lappend msg "Line [format $lfmt $lno]: Unknown command: $command"
-	    }
+	Ping "  $command"
+	
+	set args [lassign $command cmd]
+	set lcmd [string tolower $cmd]
+	if {![dict exists $expected $lcmd]} {
+	    ImportError "Unknown command: $command"
+	    continue
+	} elseif {![ImportCheckArgs [dict get $expected $lcmd]]} {
+	    ImportError "Bad syntax: $command"
+	    continue
 	}
-	lappend new $command
-	#Ping+ \n
+
+	ImportVerify/[dict get {
+	    m    Project
+	    p    Project b    Base e    Extend r    Repository
+	    proj Project base Base extr Extend repo Repository
+	} $lcmd] {*}$args
     }
 
     # Start a last ping to erase the animation remnants.
     Ping ""
+    set issues [dict get $state issues]
 
-    if {[llength $msg]} {
-	m::cmdr::error \n\t[join $msg \n\t] IMPORT BAD
+    #array set _ $state ; parray _
+    
+    if {[llength $issues]} {
+	m::cmdr::error \n\t[join $issues \n\t] IMPORT BAD
     }
 
-    # Unchanged.
-    return $new
+    dict unset state lno
+    #dict unset state lfmt  -- Keep, for warnings when skipping
+    dict unset state issues
+    dict unset state run
+    dict unset state base
+    dict unset state resolved
+    dict unset state vcs
+
+    return $state
 }
 
-proc ::m::glue::ImportSkipKnown {commands} {
-    # commands :: list (command)
-    # command  :: list ('M' name)
-    #           | list ('R' vcode url resolved)
-    debug.m/glue {}
+proc ::m::glue::IS/KnownBase {id store} {
+    dict for {url _} [dict get $store $id] {
+	if {[m repo has $url]} { return $url }
+    }
+    return {}
+}
+
+proc ::m::glue::IS/AddResolved {url resolved} {
+    debug.m/glue {[debug caller] | }
+    upvar 1 state state
+    dict set state resolved $url $resolved
+    return
+}
+
+proc ::m::glue::IS/HasResolved {url} {
+    debug.m/glue {[debug caller] | }
+    upvar 1 state state
+    return [dict exists $state resolved $url]
+}
+
+proc ::m::glue::IS/Resolved {url} {
+    debug.m/glue {[debug caller] | }
+    upvar 1 state state
+    return [dict get $state resolved $url]
+}
+
+proc ::m::glue::IS/HasRepo {url} {
+    upvar 1 state state
+    return [dict exists $state repo $url]
+}
+
+proc ::m::glue::IS/CheckVCS {vcs} {
+    upvar 1 state state
+    return [dict exists $state vcs $vcs]
+}
+
+proc ::m::glue::IS/NewStore {} {
+    upvar 1 state state
+    set newid [dict size [dict get $state store]]
+    dict set state store $newid {}
+    return $newid
+}
+
+proc ::m::glue::IS/SetBase {store} {
+    upvar 1 state state
+    dict set state base $store
+    return
+}
+
+proc ::m::glue::IS/Base {} {
+    upvar 1 state state
+    return [dict get $state base]
+}
+
+proc ::m::glue::IS/RepoStore {url} {
+    upvar 1 state state
+    return [dict get $state repo $url store]
+}
+
+proc ::m::glue::IS/AddRepo {url vcs store} {
+    upvar 1 state state
+    dict set state repo $url vcs   $vcs
+    dict set state repo $url store $store
+    dict set state repo $url lno   [dict get $state lno]
+    #dict set state repo $url project ?
+
+    # Add repo to current run for coming project
+    dict set state run $url .
+
+    # Add repo to its store.
+    dict set state store $store $url .
+    return
+}
+
+proc ::m::glue::IS/HasProject {name} {
+    upvar 1 state state
+
+    return [dict exists $state project $name]
+}
+
+proc ::m::glue::IS/ExtendProject {name} {
+    upvar 1 state state
+
+    dict for {url _} [dict get $state run] {
+	dict set state project $name repo    $url .
+	dict set state repo    $url  project $name
+    }
+    dict set state run {}
+    return
+}
+
+proc ::m::glue::IS/NumProjects {} {
+    upvar 1 state state
+    return [dict size [dict get $state project]]
+}
+
+proc ::m::glue::IS/AddProject {name} {
+    upvar 1 state state
+
+    set run [dict get $state run]
+    
+    dict set state project $name lno  [dict get $state lno]
+    dict set state project $name repo $run
+    dict set state run {}
+
+    # Fill project back references
+    dict for {url _} $run {
+	dict set state repo $url project $name
+    }
+    return
+}
+
+proc ::m::glue::IS/CheckRepo {vcs url} {
+    upvar 1 state state
+
+    if {![IS/CheckVCS $vcs]} { ImportError "Unknown vcs '$vcs'"; return }
+    Ping+ " ..."
+
+    if {![m url ok $url resolved]} { ImportError "Bad url: $url" ; return }
+    IS/AddResolved $url $resolved
+
+    if {$url ne $resolved} {
+	Ping+ " [color warning redirected] $resolved"
+    }
+    Ping+ " [color good Ok]"
+    
+    if {[IS/HasRepo $resolved]} {
+	ImportError "Duplicate repository $url" ; return {no {}}
+    }
+
+    Close
+    return [list yes $resolved]
+}
+
+proc ::m::glue::ImportVerify/Repository {vcs url} {
+    debug.m/glue {[debug caller] | }
+    upvar 1 state state
+    
+    lassign [IS/CheckRepo $vcs $url] ok resolved
+    if {!$ok} return
+
+    set sid [IS/NewStore]
+    IS/SetBase $sid
+    IS/AddRepo $resolved $vcs $sid
+    return    
+}
+
+proc ::m::glue::ImportVerify/Extend {vcs url} {
+    debug.m/glue {[debug caller] | }
+    upvar 1 state state
+
+    set base [IS/Base]
+    if {$base eq {}} { ImportError "No base known for $url" ; return }
+
+    lassign [IS/CheckRepo $vcs $url] ok resolved
+    if {!$ok} return
+
+    IS/AddRepo $resolved $vcs $base
+    return    
+}
+
+proc ::m::glue::ImportVerify/Base {url} {
+    debug.m/glue {[debug caller] | }
+    upvar 1 state state
+    
+    #Ping+ " extending $url"
+
+    if {![IS/HasResolved $url]} { ImportError "Unresolvable reference $url" ; return }
+    set url [IS/Resolved $url]
+    if {![IS/HasRepo $url]}     { ImportError "Bad base reference $url" ; return }
+
+    IS/SetBase [IS/RepoStore $url]
+    return
+}
+
+proc ::m::glue::ImportVerify/Project {name} {
+    debug.m/glue {[debug caller] | }
+    upvar 1 state state
+
+    if {[IS/HasProject $name]} {
+	IS/ExtendProject $name
+	ImportWarning "[color warning Duplicate] project [color note $name]. Merged"
+    } else {
+	IS/AddProject $name
+    }
+
+    IS/SetBase {}
+    return
+}
+    
+proc ::m::glue::ImportError {e} {
+    debug.m/glue {[debug caller] | }
+    upvar 1 state state
+    
+    dict with state {}
+    # lno, lfmt, issues, projects, base    
+    dict lappend state issues "Line [format $lfmt $lno]: $e"
+    return
+}
+    
+proc ::m::glue::ImportWarning {w} {
+    debug.m/glue {[debug caller] | }
+    upvar 1 state state
+    
+    dict with state {}
+    # lno, lfmt, issues, projects, base
+    m msg "Line [format $lfmt $lno]: $w"
+    return
+}
+
+proc ::m::glue::ImportCheckArgs {expected} {
+    debug.m/glue {[debug caller] | }
+
+    upvar 1 command command
+    return [expr {[llength $command] == $expected}]
+}
+
+proc ::m::glue::ImportSkipKnown {state} {
+    debug.m/glue {ImportSkipKnown}
     m msg "Weeding ..."
 
-    set seen {}
-    set lno 0
-    set new {}
-    set repo {}
-    foreach command $commands {
-	debug.m/glue {$command}
+    dict with state {}
+    # 'project' -> 'lno'  -> int
+    #           -> 'repo' -> (url -> '.')
+    # 'repo'    -> (url -> 'vcs'     -> code
+    #                   -> 'store'   -> id
+    #                   -> 'project' -> name)
+    # 'store'   -> (id -> (url -> '.'))
+    
+    #array set _ $state ; parray _
 
-	incr lno
-	lassign $command cmd vcs url resolved
-	switch -exact -- $cmd {
-	    R {
-		if {$url ne $resolved} {
-		    m msg "Line $lno: [color warning Redirected] to [color note $resolved]"
-		    m msg "Line $lno: From          [color note $url]"
-		}
+    set storebak $store ;# store backup.
 
-		set check [m vcs url-norm $vcs $resolved]
-		debug.m/glue {checking $check}
-
-		if {[m repo has $check]} {
-		    m msg "Line $lno: [color warning Skip] known repository [color note $url]"
-		    continue
-		}
-		if {$resolved in $repo} {
-		    m msg "Line $lno: [color warning Skip] [color bad duplicate] [color note $url]"
-		    continue
-		}
-		if {[dict exists $seen $resolved]} {
-		    lassign [dict get $seen $resolved] olno m
-		    m msg "Line $lno: [color warning Skip] [color bad duplicate] [color note $url]"
-		    m msg "Line $lno: Belongs to    [color note $m] (Line $olno)"
-		    continue
-		}
-
-		dict set seen $resolved $lno
-		lappend x $resolved
-	        lappend repo $vcs $resolved
-	    }
-	    M {
-		if {![llength $repo]} {
-		    m msg "Line $lno: [color warning Skip] empty project [color note $vcs]"
-		    set repo {}
-		    continue
-		}
-		foreach r $x { dict lappend seen $r $vcs } ;# vcs = mname
-		unset x
-
-		lappend command $repo
-		lappend new $command
-		set repo {}
-	    }
+    # Look for known repositories, and eliminate them.
+    dict for {url spec} [dict get $state repo] {
+	if {![m repo has $url]} {
+	    # Repository is not known. Keep. Simplify.
+	    dict unset spec lno
+	    dict unset spec project
+	    dict set state repo $url $spec
+	    continue
 	}
+	
+	# Repo is known. Drop all references and uses in the structure.
+	dict with spec {}
+	# vcs, store, project, lno
+
+	dict set state lno $lno
+	ImportWarning "[color warning Skip] known repository [color note $url]"
+
+	dict unset state repo                  $url ;# Main entry
+	dict unset state project $project repo $url ;# Reference from project.
+	dict unset state store   $store        $url ;# Reference from store.
     }
 
-    # new   :: list (mset)
-    # mset  :: list ('M' name repos)
-    # repos :: list (vcode1 url1 v2 u2 ...)
-    return $new
+    # Look for projects with no repositories
+    dict for {name spec} [dict get $state project] {
+	if {[dict size [dict get $spec repo]]} {
+	    # Project is used. Simplify.
+	    dict set state project $name [dict get $spec repo]
+	    continue
+	}
+
+	# Project is empty.
+	dict with spec {}
+	# lno, repo
+	dict set state lno $lno
+	ImportWarning "[color warning Skip] empty project [color note $name]"
+	dict unset state project $name
+    }
+
+    # Abort early when nothing is left to import.
+    if {![IS/NumProjects]} {
+	return {}
+    }
+    
+    #puts \n__________________________________weeded
+    #array set _ $state ; parray _
+
+    # Store processing ...
+    ##
+    # When something is left look at the stores in detail to ensure
+    # that sharing is still handled correctly.
+    ##
+    # - Unused stores are removed.
+    # - For still used stores it is checked (in the backup) if a known
+    #   repository used them. If yes, then that repository is
+    #   remembered as the base.
+
+    dict for {id repos} [dict get $state store] {
+	if {![dict size $repos]} {
+	    # Not used, eliminate
+	    dict unset state store $id
+	    continue
+	}
+	# Still used.
+	dict set state store $id [IS/KnownBase $id $storebak]
+    }
+
+    #puts \n__________________________________final____
+    #array set _ $state ; parray _
+
+    dict unset state lno
+    dict unset state lfmt
+    
+    return $state
 }
 
-proc ::m::glue::ImportDo {dated commands} {
-    # commands :: list (mset)
-    # mset     :: list ('M' name repos)
-    # repos    :: list (vcode1 url1 v2 u2 ...)
-    debug.m/glue {}
+proc ::m::glue::ImportDo {dated state} {
+    debug.m/glue {[debug caller] | }
 
-    if {![llength $commands]} {
+    # 'project' -> (url -> '.')
+    # 'repo'    -> (url -> 'vcs'     -> code
+    #                   -> 'store'   -> id)
+    # 'store'   -> (id  -> base)
+
+    if {![dict size $state]} {
 	m msg [color warning "Nothing to import"]
-    } else {
-	m msg "Importing [llength $commands] (finally) ..."
+	return
     }
+
+    set n [dict size [dict get $state project]]
+    set x [expr {($n == 1) ? "project" : "projects"}]
+    m msg "Importing $n $x ..."
 
     if {$dated} {
 	set date _[lindex [split [m format epoch [clock seconds]]] 0]
@@ -2133,10 +2527,11 @@ proc ::m::glue::ImportDo {dated commands} {
 	set date {}
     }
 
-    foreach command $commands {
-	lassign $command _ msetname repos
+    foreach name [lsort -dict [dict keys [dict get $state project]]] {
+	debug.m/glue { | project $name}
+	
 	m db transaction {
-	    Import1 $date $msetname$date $repos
+	    Import1 $name$date $state [dict keys [dict get $state project $name]]
 	}
 	# signal commit
 	m msg [color good OK]
@@ -2144,163 +2539,75 @@ proc ::m::glue::ImportDo {dated commands} {
     return
 }
 
-proc ::m::glue::Import1 {date mname repos} {
+proc ::m::glue::Import1 {pname state repos} {
     debug.m/glue {[debug caller] | }
-    # repos = list (vcode url ...)
+    # repos = list (url)
 
-    m msg "Handling project [color note $mname] ..."
-
-    if {[llength $repos] == 2} {
-	lassign $repos vcode url
-	# The project contains only a single repository.
-	# We might be able to skip the merge
-	if {![m project has $mname]} {
-	    # No project of the given name exists.
-	    # Create directly in final form. Skip merge.
-	    try {
-		ImportMake1 $vcode $url $mname
-	    } trap {M VCS CHILD} {e o} {
-		# Revert creation of mset and repository
-		set repo [m rolodex top]
-		set mset [m repo project $repo]
-		m repo remove  $repo
-		m rolodex drop $repo
-		m project remove  $mset
-
-		m msg "[color bad {Unable to import}] [color note $mname]: $e"
-		# No rethrow, the error in the child is not an error
-		# for the whole command. Continue importing the remainder.
-	    }
-	    return
-	}
+    set n [llength $repos]
+    set x [expr {($n == 1) ? "repository" : "repositories"}]
+    m msg "Handling [color note $pname] ($n $x) ..."
+    
+    if {![m project has $pname]} {
+	m msg* "  Setting up the project ... "
+	set project [m project add $pname]
+	OKx
+    } else {
+	m msg "  Project is known"
+	set project [m project id $pname]
     }
 
-    # More than a single repository in this set, or the destination
-    # project exists. Merging is needed. And the untrusted nature
-    # of the input means that we cannot be sure that merging is even
-    # allowed.
+    debug.m/glue {[debug caller] | ($repos) }
+    
+    foreach url $repos {
+	set ri [dict get $state repo $url]
+	dict with ri {}
+	# -> vcs, store
+	set base [dict get $state store $store]
 
-    # Two phases:
-    # - Create the repositories. Each in its own project, like for
-    #   `add`.  Project names are of the form `import_<date>`, plus a
-    #   serial number.  Comes with associated store.
-    #
-    # - Go over the repositories again and merge them.  If a
-    #   repository is rejected by the merge keep it separate. Retry
-    #   merging using the rejections. The number of retries is finite
-    #   because each round finalizes at least one project and its
-    #   repositories of the finite supply. At the end of this phase we
-    #   have one or more projects each with maximally merged
-    #   repositories. Each finalized project is renamed to final form,
-    #   based on the incoming mname and date.
+	debug.m/glue { | + $vcs $url ($base)}
 
-    set serial 0
-    set r {}
-    foreach {vcode url} $repos {
+	m msg "Repository [color note $url]"
+	
+	if {$base ne {}} {
+	    set base [m repo id $base]
+	    m msg "Extending  [color note [m repo url $base]]"
+	}
+
+	set vcsid [m vcs id $vcs]
+
 	try {
-	    set tmpname import${date}_[incr serial]
-	    set data    [ImportMake1 $vcode $url $tmpname]
-	    dict set r $url $data
-	} trap {M VCS CHILD} {e o} {
-	    # Revert creation of mset and repository
-	    set repo [m rolodex top]
-	    set mset [m repo project $repo]
-	    m repo remove  $repo
-	    m rolodex drop $repo
-	    m project remove  $mset
+	    lassign [AddStoreRepo $base $vcsid $vcs $pname $url $project] repo forks
 
-	    m msg "[color bad {Unable to use}] [color note $url]: $e\n"
-	    # No rethrow, the error in the child is not an error
-	    # for the whole command. Continue importing the remainder.
-	}
-    }
-
-    if {![dict size $r]} {
-	# All inputs fail, report and continue with the remainder
-	m msg "[color bad {Unable to import}] [color note $mname]: No repositories"
-	return
-    }
-
-    set rename 1
-    if {[m project has $mname]} {
-	# Targeted project exists. Make it first in the merge list.
-	set mset [m project id $mname]
-	set repos [linsert $repos 0 dummy_vcode @$mname]
-	dict set r @$mname [list dummy_vcs $mset dummy_store]
-	set rename 0
-    }
-
-    while on {
-	set remainder [lassign $repos v u]
-	lassign [dict get $r $u] vcsp msetp storep
-	m msg "Merge to $u ..."
-
-	set unmatched {}
-	foreach {vcode url} $remainder {
-	    lassign [dict get $r $url] vcs mset store
-	    try {
-		m msg "Merging  $url"
-		Merge $msetp $mset
-	    } trap {M::CMDR MISMATCH} {} {
-		m msg "  Rejected"
-		lappend unmatched $vcode $url
-	    } on error {e o} {
-		puts [color bad ////////////////////////////////////////]
-		puts [color bad $e]
-		puts [color bad $o]
-		puts [color bad ////////////////////////////////////////]
+	    # Forks are not processed. It is expected that forks are in the import file.
+	    # The next update of the primary will link them to the origin.
+	    set nforks [llength $forks]
+	    if {$nforks} {
+		m msg "  [color warning "Forks found ($nforks), ignored"]"
 	    }
+
+	    m rolodex push $repo
+
+	} on error {e o} {
+	    puts EEEE\t$e
+	    puts EEEE\t[join [split $::errorInfo \n] \nEEEE\t]
+
+	    # undo repo, undo unused stores
 	}
-
-	if {$rename} {
-	    # Rename primary mset to final form.
-	    Rename $msetp [MakeName $mname]
-	    set rename 0
-	}
-
-	if {![llength $unmatched]} break
-
-	# Retry to merge the leftovers.  Note, each iteration
-	# finalizes at least one project, ensuring termination of the
-	# loop.
-	set repos $unmatched
-	set rename 1
     }
 
+    # undo project if empty.
+    if {![m project size $project]} {
+	m msg "Removing project, nothing imported for it"
+	m project remove $project
+    }
+    
     m rolodex commit
     return
 }
 
-proc ::m::glue::ImportMake1 {vcode url base} {
+proc ::m::glue::Add {config {base {}}} {
     debug.m/glue {[debug caller] | }
-    set vcs     [m vcs id $vcode]
-    set tmpname [MakeName $base]
-    set project [m project add $tmpname]
-    set url     [m vcs url-norm $vcode $url]
-    set vcode   [m vcs code $vcs]
 
-    m msg "> [string totitle $vcode] repository [color note $url]"
-    
-    # -----------------------
-    # vcs project url
-
-    lassign [AddStoreRepo $vcs $vcode $tmpname $url $project] repo forks
-    set store [m repo store $repo]
-
-    # Forks are not processed. It is expected that forks are in the import file.
-    # The next update of the primary will link them to the origin.
-    set nforks [llength $forks]
-    if {$nforks} {
-	m msg "  [color warning "Forks found ($nforks), ignored"]"
-    }
-    
-    m rolodex push $repo
-
-    return [list $vcs $project $store]
-}
-
-proc ::m::glue::Add {config} {
-    debug.m/glue {[debug caller] | }
     set url   [Url $config]
     set vcs   [$config @vcs]
     set vcode [$config @vcs-code]
@@ -2315,7 +2622,7 @@ proc ::m::glue::Add {config} {
     m msg "Attempting to add"
     m msg "  Repository [color note $url]"
     m msg "  Managed by [color note [m vcs name $vcs]]"
-    m msg "New"
+    m msg "Into"
     m msg "  Project    [color note $name]"
 
     if {[m repo has $url]} {
@@ -2323,12 +2630,12 @@ proc ::m::glue::Add {config} {
 	    "Repository already present" \
 	    HAVE_ALREADY REPOSITORY
     }
-    if 0 {if {[m project has $name]} {
-	m::cmdr::error \
-	    "Name already present" \
-	    HAVE_ALREADY NAME
-    }}
 
+    if {$base ne {}} {
+	m msg "Extending"
+	m msg "  Repository [color note [m repo url $base]]"
+    }
+    
     # Relevant entities
     #  1. repository
     #  2. store
@@ -2349,7 +2656,7 @@ proc ::m::glue::Add {config} {
 	m msg "  Project is known"
     }
 
-    lassign [AddStoreRepo $vcs $vcode $name $url $project] repo forks
+    lassign [AddStoreRepo $base $vcs $vcode $name $url $project] repo forks
 
     # ---------------------------------- Forks
     if {$forks ne {}} {
@@ -2405,21 +2712,54 @@ proc ::m::glue::AddForks {forks repo vcs vcode name project} {
 	    continue
 	}
 
-	AddStoreRepo $vcs $vcode $name $fork $project $repo
+	AddStoreRepo {} $vcs $vcode $name $fork $project $repo
     }
     return
 }
 
-proc ::m::glue::AddStoreRepo {vcs vcode name url project {origin {}}} {
+proc ::m::glue::AddStoreRepo {base vcs vcode name url project {origin {}}} {
     debug.m/glue {[debug caller] | }
 
     # ---------------------------------- Store
-    m msg* "  Setting up the $vcode store ... "
+
+    if {$base ne {}} {
+	set binfo [m repo get $base]
+	set bvcs  [dict get $binfo vcs]
+
+	if {$vcs != $bvcs} {
+	    m::cmdr::error \
+		"Extension rejected due to VCS mismatch ([m vcs name $vcs] vs [m vcs name $bvcs])" \
+		MISMATCH
+	}
+    }
+    
+    set ext [expr {($base ne {}) ? "a transient" : "the"}]
+    
+    m msg* "  Setting up $ext $vcode store ... "
     lassign [m store add $vcs $name $url] \
 	store duration commits size forks
     #   id    seconds  int     int  list(url)
     set x [expr {($commits == 1) ? "commit" : "commits"}]
     m msg "[color good OK] in [color note [m format interval $duration]] ($commits $x, $size KB)"
+
+    if {$base ne {}} {
+	set bstore [dict get $binfo store]
+
+	if {![m store check $store $bstore]} {
+	    m store remove $store
+	    m::cmdr::error \
+		"Extension rejected by [m vcs name $vcs]" \
+		MISMATCH
+	}
+
+	# Extension is ok. Drop the created store again, it was only needed to perform the checks.
+	m store remove $store
+
+	# And point the new repository to the store of the base.
+	set store $bstore
+
+	m msg "  Extension [color good accepted] by [m vcs name $vcs]."
+    }
     
     # ---------------------------------- Repository
     
@@ -2731,52 +3071,6 @@ proc ::m::glue::MergeR {target origin} {
     return
 }
 
-proc ::m::glue::Merge {target origin} { error XXX	;#	XXX REWORK import! to fix
-    debug.m/glue {[debug caller] | }
-
-    # Target and origin are projects
-    #
-    # - Check that all the origin's repositories fit into the target.
-    #   This is done by checking the backing stores of the vcs in use
-    #   for compatibility.
-    #
-    # - When they do the stores are moved or merged, depending on
-    # - presence of the associated vcs in the target.
-
-    set vcss [m project used-vcs $origin]
-
-    # Check that all the origin's repositories fit into the target.
-    foreach vcs $vcss {
-	# Ignore vcs which are not yet used by the target
-	# Assumed to be compatible.
-	if {![m store has $vcs $target]} continue
-
-	# Get the two stores, and check for compatibility
-	set tstore [m store id $vcs $target]
-	set ostore [m store id $vcs $origin]
-	if {[m store check $tstore $ostore]} continue
-
-	m::cmdr::error \
-	    "Merge rejected due to [m vcs name $vcs] mismatch" \
-	    MISMATCH
-    }
-
-    # Move or merge the stores, depending presence in the target.
-    foreach vcs $vcss {
-	set ostore [m store id $vcs $origin]
-	if {![m store has $vcs $target]} {
-	    m store move $ostore $target
-	} else {
-	    m store merge [m store id $vcs $target] $ostore
-	}
-    }
-
-    # Move the repositories, drop the origin set, empty after the move
-    m repo move/project $origin $target
-    m project remove $origin
-    return
-}
-
 proc ::m::glue::MailConfigShow {t {prefix {}}} {
     debug.m/glue {[debug caller] | }
 
@@ -2893,6 +3187,8 @@ proc ::m::glue::Ping {text} {
     flush           stdout
     return
 }
+
+proc ::m::glue::Close {} { puts "" }
 
 proc ::m::glue::C {row index color} {
     return [lreplace $row $index $index [color $color [lindex $row $index]]]
@@ -3214,6 +3510,53 @@ proc ::m::glue::DeltaCommit {current previous} {
 
     append text $current " (" [color $color "$delta"] ")"
     return $text
+}
+
+proc ::m::glue::Box {text} {
+    return [[table t {n/a} {
+	$t headers 0
+	$t add $text
+    }] show return]    
+}
+
+# # ## ### ##### ######## ############# ######################
+## Nicer table styles using the box drawing characters
+#
+## ATTENTION: This globally __overwrites__ the styles defined inside
+## of the cmdr::table package.
+
+# Borders and header row.
+::report::rmstyle  cmdr/table/borders
+::report::defstyle cmdr/table/borders {} {
+
+    data	set [lrepeat [expr {[columns]+1}] \u2502]
+    top         set [list \u250c {*}[concat {*}[lrepeat [expr {[columns]-1}] {\u2500 \u252c}]] \u2500 \u2510]
+    bottom      set [list \u2514 {*}[concat {*}[lrepeat [expr {[columns]-1}] {\u2500 \u2534}]] \u2500 \u2518]
+    topdata	set [data get]
+    topcapsep	set [list \u251c {*}[concat {*}[lrepeat [expr {[columns]-1}] {\u2500 \u253c}]] \u2500 \u2524]
+
+    top		enable
+    bottom	enable
+    topcapsep	enable
+    tcaption	1
+    for {set i 0 ; set n [columns]} {$i < $n} {incr i} {
+	pad $i both { }
+    }
+    return
+}
+
+# Borders, no header row.
+::report::rmstyle  cmdr/table/borders/nohdr
+::report::defstyle cmdr/table/borders/nohdr {} {
+    data	set [lrepeat [expr {[columns]+1}] \u2502]
+    top         set [list \u250c {*}[concat {*}[lrepeat [expr {[columns]-1}] {\u2500 \u252c}]] \u2500 \u2510]
+    bottom      set [list \u2514 {*}[concat {*}[lrepeat [expr {[columns]-1}] {\u2500 \u2534}]] \u2500 \u2518]
+    top		enable
+    bottom	enable
+    for {set i 0 ; set n [columns]} {$i < $n} {incr i} {
+	pad $i both { }
+    }
+    return
 }
 
 # # ## ### ##### ######## ############# ######################
