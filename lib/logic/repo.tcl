@@ -83,7 +83,7 @@ proc ::m::repo::known {} {
 	dict set map @current $c
 	dict set map @        $c
     }
-    
+
     return $map
 }
 
@@ -151,13 +151,13 @@ proc ::m::repo::times {repo duration now issues} {
     # See also ::m::glue::StatsTime, ::m::web::site::Store
 
     set window [m format win $window]
-    
+
     debug.m/repo {mins  = $mins}
     debug.m/repo {maxs  = $maxs}
     debug.m/repo {lastn = ($window)}
 
     # Modify based on the incoming duration.
-    
+
     if {($mins eq {}) || ($mins < 0) || ($duration < $mins)} { set mins $duration }
     if {                                 $duration > $maxs}  { set maxs $duration }
 
@@ -169,7 +169,7 @@ proc ::m::repo::times {repo duration now issues} {
     debug.m/repo {last. = ($window)}
 
     # And write the results back
-    
+
     m db eval {
 	UPDATE repository
 	SET    min_duration    = :mins
@@ -186,7 +186,7 @@ proc ::m::repo::add {vcs project store url duration {origin {}}} {
     debug.m/repo {}
 
     set now [clock seconds]
-    
+
     if {$origin ne {}} {
         m db eval {
 	    INSERT
@@ -285,7 +285,7 @@ proc ::m::repo::get {repo} {
     # - vcs        (id, and code)
     # - store      (id)
     # - active
-    
+
     set details [m db eval {
 	SELECT 'url'    , R.url
 	,      'active' , R.is_active
@@ -374,7 +374,7 @@ proc ::m::repo::get-n {first n} {
     #
     # Taking n+1 repositories, last becomes top for next call.
     # If we get less than n, top shall be empty, to reset the cursor.
-    
+
     if {![llength $first]} {
 	set first [FIRST]
 	debug.m/repo {first = ($first)}
@@ -429,10 +429,10 @@ proc ::m::repo::get-n {first n} {
     }
 
     debug.m/repo {reps = (($replist))}
-    
+
     set have [llength $replist]
     debug.m/repo {have $have of $n requested}
-    
+
     if {$have <= $n} {
 	# Short read. Reset to top.
 	set next {}
@@ -445,7 +445,7 @@ proc ::m::repo::get-n {first n} {
 	set replist [lrange $replist 0 end-1]
 	debug.m/repo {cut}
     }
-    
+
     return [list $next $replist]
 }
 

@@ -8,8 +8,8 @@
 # Meta description ?
 # Meta location    http:/core.tcl.tk/akupries/mirror
 # Meta platform    tcl
-# Meta require     
-# Meta subject     
+# Meta require
+# Meta subject
 # Meta summary     ?
 # @@ Meta End
 
@@ -35,7 +35,7 @@ namespace eval ::m::mail {
 namespace eval ::m::mail::generator {
     namespace export test reply
     namespace ensemble create
-    
+
     namespace import ::m::mail::asm
 }
 
@@ -64,7 +64,7 @@ proc ::m::mail::generator::reply {template submission} {
     # - vcode
     # - desc
     set sender [m state mail-sender]
-    
+
     dict for {k v} $submission {
 	lappend map @s:${k}@ $v
     }
@@ -73,7 +73,7 @@ proc ::m::mail::generator::reply {template submission} {
     # First line of the template is the mail subject.
     # The remainder is the mail body.
     set body [join [lassign [split $template \n] subject] \n]
-    
+
     asm begin $sender [string map $map $subject]
     asm body [string map $map [m state mail-header]]
     asm +    [string map $map $body]

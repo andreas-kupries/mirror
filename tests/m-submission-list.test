@@ -20,7 +20,7 @@ foreach command {
 } {
     set label [join ${command} -]
     # - -- --- ----- -------- ------------- ---------------------
-    
+
     test ${label}-1.0 "$command - wrong args, too many" -body {
 	mapp {*}${command} foo
     } -result [err submissions/list/wrongargs-toomany @@ $command] -match glob
@@ -33,7 +33,7 @@ foreach command {
 
     # - -- --- ----- -------- ------------- ---------------------
 }
-    
+
 # # ## ### ##### ######## ############# #####################
 cleanupTests
 return

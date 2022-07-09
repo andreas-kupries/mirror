@@ -37,7 +37,7 @@ kt::source support/invoke-core.tcl
 
 proc mvcs {args} {
     #puts stderr \nCALL\t(([info level 0]))
-    
+
     capture-on
     try {
 	set ::argv $args

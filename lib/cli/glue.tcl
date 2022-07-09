@@ -620,7 +620,7 @@ proc ::m::glue::cmd_remove {config} {
 	    # -> store  : id of backing store for repo
 
 	    m msg "Removing $vcode repository [color note $url] ..."
-	    
+
 	    m repo remove $repo
 
 	    set siblings  [m store remotes $store]
@@ -636,7 +636,7 @@ proc ::m::glue::cmd_remove {config} {
 
 	    # Remove project if no repositories remain at all.
 	    set nsiblings [m project size $project]
-	    
+
 	    if {!$nsiblings} {
 		m msg* "Removing empty project [color note $name] ... "
 		m project remove $project
@@ -649,7 +649,7 @@ proc ::m::glue::cmd_remove {config} {
 	    m rolodex drop $repo
 
 	}
-	
+
 	m rolodex commit
     }
 
@@ -679,7 +679,7 @@ proc m::glue::Short {repo} {
 	1 {note UP}
     } [expr {!!$active}]]]
 
-    return "$url ([SIB [expr {!$issues}]] $active)"   
+    return "$url ([SIB [expr {!$issues}]] $active)"
 }
 
 proc ::m::glue::cmd_details {config} { ;# XXX REWORK due the project/repo/store relation changes
@@ -717,7 +717,7 @@ proc ::m::glue::cmd_details {config} { ;# XXX REWORK due the project/repo/store 
 	#    origin : repository this is forked from, or empty
 
 	set spent [StatsTime $min_sec $max_sec $win_sec]
-	
+
 	# Get store details ...
 
 	set path [m store path $store]
@@ -736,11 +736,11 @@ proc ::m::glue::cmd_details {config} { ;# XXX REWORK due the project/repo/store 
 	lassign [m vcs caps $store] stdout stderr
 	set stdout [string trim $stdout]
 	set stderr [string trim $stderr]
-	
+
 	# Find repositories sharing the store ................
 
 	set storesibs [m store repos $store]
-	
+
 	# Find repositories which are siblings of the same origin
 
 	set forksibs {}
@@ -749,13 +749,13 @@ proc ::m::glue::cmd_details {config} { ;# XXX REWORK due the project/repo/store 
 	    set forksibs [m repo forks $origin]
 	    set dorigin [Short $origin]
 	}
-	
+
 	# Find repositories which are siblings of the same project
 
 	set projectsibs [m repo for $project]
 
 	#puts O(($origin))/\nR(($repo))/\nS(($storesibs))/\nF(($forksibs))/\nP(($projectsibs))
-	
+
 	# Compute derived information ...
 
 	set status  [SI $stderr]
@@ -800,7 +800,7 @@ proc ::m::glue::cmd_details {config} { ;# XXX REWORK due the project/repo/store 
 
 		if {$nelines == 0} { set nelines [color note {no log}] }
 		if {$nllines == 0} { set nllines [color note {no log}] }
-		
+
 		$s add Operation $nllines
 		if {$stderr ne {}} {
 		    $s add "Notes & Errors" [color bad $nelines]
@@ -812,7 +812,7 @@ proc ::m::glue::cmd_details {config} { ;# XXX REWORK due the project/repo/store 
 		if {$stderr ne {}} { $s add "Notes & Errors" [L $stderr] }
 	    }
 	}] show return]
-	
+
 	[table/d t {
 	    $t add {} [color note $url]
 	    if {$origin ne {}} {
@@ -835,7 +835,7 @@ proc ::m::glue::cmd_details {config} { ;# XXX REWORK due the project/repo/store 
 		#if {$sibling in $storesibs} continue
 		if {$sibling in $forksibs} continue
 		lappend sibs [Short $sibling]
-		#$t add ${sibs}. [Short $sibling]		
+		#$t add ${sibs}. [Short $sibling]
 	    }
 	    if {[llength $sibs]} {
 		$t add {Same Project} [llength $sibs]
@@ -947,7 +947,7 @@ proc ::m::glue::cmd_move {config} {
 	    if {$first} { m msg "Removing now empty projects ..." }
 	    set first 0
 	    m msg "- [color note [m project name $p]] ..."
-	    m project remove $p	    
+	    m project remove $p
 	}
     }
 
@@ -970,7 +970,7 @@ proc ::m::glue::cmd_rename {config} {
 	set merge  [$config @merge]
 	set action [expr {$merge ? "Merging" : "Renaming"}]
 	set al [string length $action]
-	
+
 	m msg "$action [color note $oldname] ..."
 	if {$newname eq $oldname} {
 	    m::cmdr::error \
@@ -980,7 +980,7 @@ proc ::m::glue::cmd_rename {config} {
 
 	m msg "[format %${al}s to] [color note $newname]"
 	m msg {}
-	
+
 	if {[m project has $newname]} {
 	    if {!$merge} {
 		m::cmdr::error \
@@ -1071,7 +1071,7 @@ proc ::m::glue::cmd_split {config} {
 	}
 
 	m msg* "Splitting store ..."
-	
+
 	set newstore [m store cleave $store $name]
 	m repo store! $repo $newstore
 
@@ -1147,7 +1147,7 @@ proc ::m::glue::cmd_update {config} {
 
 	    set durl [color note $url]
 	    if {$origin eq {}} { set durl [color bg-cyan $durl] }
-	    
+
 	    m msg "Updating repository $durl ..."
 	    m msg "In project          [color note $name]"
 	    if {$verbose} {
@@ -1164,7 +1164,7 @@ proc ::m::glue::cmd_update {config} {
 		ok duration commits size forks
 	    set attend [expr {!$ok || [m store has-issues $store]}]
 	    set suffix ", in [color note [m format interval $duration]]"
-	    
+
 	    m repo times  $repo $duration $now $attend
 	    if {!$primary && $attend} { m repo enable $repo 0 }
 
@@ -1173,7 +1173,7 @@ proc ::m::glue::cmd_update {config} {
 		m msg "[color bad Fail]$suffix"
 		m msg $e
 
-		continue		
+		continue
 	    } elseif {$before != $commits} {
 		set delta [expr {$commits - $before}]
 		if {$delta < 0} {
@@ -1192,7 +1192,7 @@ proc ::m::glue::cmd_update {config} {
 	    if {$primary} {
 		# check currently found forks against what is claimed by the system
 		set forks_prev [m repo fork-locations $repo]
-		
+
 		lassign [struct::set intersect3 $forks_prev $forks] same removed added
 		# previous - current => removed from previous
 		# current  - previous => added over previous
@@ -1208,7 +1208,7 @@ proc ::m::glue::cmd_update {config} {
 		#
 		#   Note: Only these new forks have to be validated!
 		#   Note: Tracking threshold is irrelevant here.
-		
+
 		foreach r $removed {
 		    m msg "  [color warning {Detaching lost}] [color note $r]"
 		    m repo declaim [m repo id $r]
@@ -1234,13 +1234,13 @@ proc ::m::glue::cmd_updates {config} {
     m db transaction {
 
 	# m store updates XXX rework actually repos
-	
+
 	# TODO: get status (stderr), show - store id
 	set series {}
 	foreach row [TruncH [m store updates] [expr {[$config @th]-1}]] {
 
 
-	    
+
 	    if {[lindex $row 0] eq "..."} {
 		lappend series [list ... {} {} {} {} {} {}]
 		continue
@@ -1386,7 +1386,7 @@ proc ::m::glue::cmd_disabled {config} {
 	    set size [m format size $size]
 
 	    if {$origin eq {}} { set url [color bg-cyan $url] }
-	    
+
 	    lappend series [list $rid $url $mname $vcode $size]
 	    m rolodex push $rid
 	}
@@ -1482,7 +1482,7 @@ proc ::m::glue::cmd_list {config} {
 	    set a [expr {$active ? "A" : "-"}]
 
 	    if {$primary} { set url [color bg-cyan $url] }
-	    
+
 	    set dsize   [DeltaSize $sizekb $sizep]
 	    set dcommit [DeltaCommit $commits $commitp]
 	    set lastn   [LastTime $lastn]
@@ -1567,7 +1567,7 @@ proc ::m::glue::cmd_statistics {config} {
     set sz_max    [m format size $sz_max]
     set sz_mean   [m format size $sz_mean]
     set sz_median [m format size $sz_median]
-    
+
     [table/d t {
 	$t add Projects       $np
 	$t add Repositories   $nr
@@ -1599,7 +1599,7 @@ proc ::m::glue::cmd_project {config} {
     package require m::repo
 
     set project [$config @project]
-    
+
     m db transaction {
 	set pname [m project name $project]
 	foreach repo [m repo for $project] {
@@ -1668,7 +1668,7 @@ proc ::m::glue::cmd_projects {config} {
 
 	set trepos  0
 	set tstores 0
-	
+
 	foreach row $series {
 	    dict with row {}
 	    # name nrepos nstores
@@ -1681,7 +1681,7 @@ proc ::m::glue::cmd_projects {config} {
 
     set seprepos  [string repeat - [string length $trepos]]
     set sepstores [string repeat - [string length $tstores]]
-    
+
     lassign [TruncW \
 		 {Project #Repositories #Stores} \
 		 {1       0             0} \
@@ -2111,7 +2111,7 @@ proc ::m::glue::ImportVerify {commands} {
     # The verification not only checks syntax and use of the commands,
     # it also assembles the internal data structures linking projects,
     # repositories and stores.
-    
+
     m msg "Verifying ..."
 
     # Parsing state, and spec assembly
@@ -2140,15 +2140,15 @@ proc ::m::glue::ImportVerify {commands} {
     dict set state project  {} ;# (name -> (lno, url...))
     dict set state repo     {} ;# url -> (vcs, store)
     dict set state store    {} ;# id  -> list (url)
-    
+
     set expected  {
 	m 2 p 2 b 2 e 3 r 3 proj 2 base 2 extr 3 repo 3
     }
-    
+
     foreach command $commands {
 	dict incr state lno
 	debug.m/glue {[format [dict get $state lfmt] [dict get $state lno]]: '$command'}
-	
+
 	# strip (trailing) comments, leading & trailing whitespace
 	regsub -- "#.*\$" $command {} command
 	set command [string trim $command]
@@ -2157,7 +2157,7 @@ proc ::m::glue::ImportVerify {commands} {
 	if {$command eq {}} continue
 
 	Ping "  $command"
-	
+
 	set args [lassign $command cmd]
 	set lcmd [string tolower $cmd]
 	if {![dict exists $expected $lcmd]} {
@@ -2180,7 +2180,7 @@ proc ::m::glue::ImportVerify {commands} {
     set issues [dict get $state issues]
 
     #array set _ $state ; parray _
-    
+
     if {[llength $issues]} {
 	m::cmdr::error \n\t[join $issues \n\t] IMPORT BAD
     }
@@ -2296,7 +2296,7 @@ proc ::m::glue::IS/AddProject {name} {
     upvar 1 state state
 
     set run [dict get $state run]
-    
+
     dict set state project $name lno  [dict get $state lno]
     dict set state project $name repo $run
     dict set state run {}
@@ -2321,7 +2321,7 @@ proc ::m::glue::IS/CheckRepo {vcs url} {
 	Ping+ " [color warning redirected] $resolved"
     }
     Ping+ " [color good Ok]"
-    
+
     if {[IS/HasRepo $resolved]} {
 	ImportError "Duplicate repository $url" ; return {no {}}
     }
@@ -2333,14 +2333,14 @@ proc ::m::glue::IS/CheckRepo {vcs url} {
 proc ::m::glue::ImportVerify/Repository {vcs url} {
     debug.m/glue {[debug caller] | }
     upvar 1 state state
-    
+
     lassign [IS/CheckRepo $vcs $url] ok resolved
     if {!$ok} return
 
     set sid [IS/NewStore]
     IS/SetBase $sid
     IS/AddRepo $resolved $vcs $sid
-    return    
+    return
 }
 
 proc ::m::glue::ImportVerify/Extend {vcs url} {
@@ -2354,13 +2354,13 @@ proc ::m::glue::ImportVerify/Extend {vcs url} {
     if {!$ok} return
 
     IS/AddRepo $resolved $vcs $base
-    return    
+    return
 }
 
 proc ::m::glue::ImportVerify/Base {url} {
     debug.m/glue {[debug caller] | }
     upvar 1 state state
-    
+
     #Ping+ " extending $url"
 
     if {![IS/HasResolved $url]} { ImportError "Unresolvable reference $url" ; return }
@@ -2385,21 +2385,21 @@ proc ::m::glue::ImportVerify/Project {name} {
     IS/SetBase {}
     return
 }
-    
+
 proc ::m::glue::ImportError {e} {
     debug.m/glue {[debug caller] | }
     upvar 1 state state
-    
+
     dict with state {}
-    # lno, lfmt, issues, projects, base    
+    # lno, lfmt, issues, projects, base
     dict lappend state issues "Line [format $lfmt $lno]: $e"
     return
 }
-    
+
 proc ::m::glue::ImportWarning {w} {
     debug.m/glue {[debug caller] | }
     upvar 1 state state
-    
+
     dict with state {}
     # lno, lfmt, issues, projects, base
     m msg "Line [format $lfmt $lno]: $w"
@@ -2424,7 +2424,7 @@ proc ::m::glue::ImportSkipKnown {state} {
     #                   -> 'store'   -> id
     #                   -> 'project' -> name)
     # 'store'   -> (id -> (url -> '.'))
-    
+
     #array set _ $state ; parray _
 
     set storebak $store ;# store backup.
@@ -2438,7 +2438,7 @@ proc ::m::glue::ImportSkipKnown {state} {
 	    dict set state repo $url $spec
 	    continue
 	}
-	
+
 	# Repo is known. Drop all references and uses in the structure.
 	dict with spec {}
 	# vcs, store, project, lno
@@ -2471,7 +2471,7 @@ proc ::m::glue::ImportSkipKnown {state} {
     if {![IS/NumProjects]} {
 	return {}
     }
-    
+
     #puts \n__________________________________weeded
     #array set _ $state ; parray _
 
@@ -2500,7 +2500,7 @@ proc ::m::glue::ImportSkipKnown {state} {
 
     dict unset state lno
     dict unset state lfmt
-    
+
     return $state
 }
 
@@ -2529,7 +2529,7 @@ proc ::m::glue::ImportDo {dated state} {
 
     foreach name [lsort -dict [dict keys [dict get $state project]]] {
 	debug.m/glue { | project $name}
-	
+
 	m db transaction {
 	    Import1 $name$date $state [dict keys [dict get $state project $name]]
 	}
@@ -2546,7 +2546,7 @@ proc ::m::glue::Import1 {pname state repos} {
     set n [llength $repos]
     set x [expr {($n == 1) ? "repository" : "repositories"}]
     m msg "Handling [color note $pname] ($n $x) ..."
-    
+
     if {![m project has $pname]} {
 	m msg* "  Setting up the project ... "
 	set project [m project add $pname]
@@ -2557,7 +2557,7 @@ proc ::m::glue::Import1 {pname state repos} {
     }
 
     debug.m/glue {[debug caller] | ($repos) }
-    
+
     foreach url $repos {
 	set ri [dict get $state repo $url]
 	dict with ri {}
@@ -2567,7 +2567,7 @@ proc ::m::glue::Import1 {pname state repos} {
 	debug.m/glue { | + $vcs $url ($base)}
 
 	m msg "Repository [color note $url]"
-	
+
 	if {$base ne {}} {
 	    set base [m repo id $base]
 	    m msg "Extending  [color note [m repo url $base]]"
@@ -2600,7 +2600,7 @@ proc ::m::glue::Import1 {pname state repos} {
 	m msg "Removing project, nothing imported for it"
 	m project remove $project
     }
-    
+
     m rolodex commit
     return
 }
@@ -2635,7 +2635,7 @@ proc ::m::glue::Add {config {base {}}} {
 	m msg "Extending"
 	m msg "  Repository [color note [m repo url $base]]"
     }
-    
+
     # Relevant entities
     #  1. repository
     #  2. store
@@ -2663,7 +2663,7 @@ proc ::m::glue::Add {config {base {}}} {
 	set threshold 22
 	set nforks [llength $forks]
 	m msg "Found [color note $nforks] forks to track."
-	
+
 	if {![$config @track-forks] && ($nforks > $threshold)} {
 	    m msg [color warning "Auto-tracking threshold of $threshold forks exceeded"]
 	    m::cmdr::error "Please confirm using [color note --track-forks] that this many forks should be tracked." \
@@ -2675,7 +2675,7 @@ proc ::m::glue::Add {config {base {}}} {
 
     # ----------------------------------
     m msg "Setting new primary as current repository"
-    
+
     m rolodex push $repo
     m rolodex commit
 
@@ -2688,23 +2688,23 @@ proc ::m::glue::AddForks {forks repo vcs vcode name project} {
     set nforks [llength $forks]
     set format %-[string length $nforks]d
     set pad [string repeat " " [expr {3+[string length $nforks]}]]
-    
+
     foreach fork $forks {
 	incr k
 	m msg "  [color cyan "([format $format $k])"] Fork [color note $fork] ... "
 
 	if {[m repo has $fork]} {
 	    m msg "  $pad[color note "Already known, claiming it"]"
-	    
+
 	    # NOTE: The fork exists in a different project. We
 	    # leave that part alone.  The ERD allows that, a fork
 	    # and its origin do not have to be in the same
 	    # project.
-	    
+
 	    m repo claim $repo [m repo id $fork]
 	    continue
 	}
-	
+
 	# Note: Fork urls have to be validated, same as the primary location.
 	if {![m url ok $fork xr]} {
 	    m msg "  [color warning {Not reachable}], might be private or gone"
@@ -2732,9 +2732,9 @@ proc ::m::glue::AddStoreRepo {base vcs vcode name url project {origin {}}} {
 		MISMATCH
 	}
     }
-    
+
     set ext [expr {($base ne {}) ? "a transient" : "the"}]
-    
+
     m msg* "  Setting up $ext $vcode store ... "
     lassign [m store add $vcs $name $url] \
 	store duration commits size forks
@@ -2760,10 +2760,10 @@ proc ::m::glue::AddStoreRepo {base vcs vcode name url project {origin {}}} {
 
 	m msg "  Extension [color good accepted] by [m vcs name $vcs]."
     }
-    
+
     # ---------------------------------- Repository
-    
-    m msg* "  Creating repository ... "    
+
+    m msg* "  Creating repository ... "
     set repo [m repo add $vcs $project $store $url $duration $origin]
     OKx
 
@@ -3016,12 +3016,12 @@ proc ::m::glue::MergeFill {repos} {
 
 proc ::m::glue::Rename {merge project newname} {
     debug.m/glue {[debug caller] | }
-    
+
     if {$merge} {
 	# Bulk move the repositories to the existing destination
 	m repo move/project $project [m project id $newname]
 	m project remove    $project
-	
+
     } else {
 	# Just change the source to the new name.
 	m project rename $project $newname
@@ -3040,7 +3040,7 @@ proc ::m::glue::Merge {target origin} {
 
     set oinfo [m repo get $origin]
     set tinfo [m repo get $target]
-    
+
     set ovcs [dict get $oinfo vcs]
     set tvcs [dict get $tinfo vcs]
 
@@ -3052,7 +3052,7 @@ proc ::m::glue::Merge {target origin} {
 
     set ostore [dict get $oinfo store]
     set tstore [dict get $tinfo store]
-    
+
     if {![m store check $tstore $ostore]} {
 	m::cmdr::error \
 	    "Merge rejected by [m vcs name $ovcs]" \
@@ -3061,7 +3061,7 @@ proc ::m::glue::Merge {target origin} {
 
     m store merge  $tstore $ostore
     m repo store!  $origin $tstore
-    
+
     return
 }
 
@@ -3303,7 +3303,7 @@ proc ::m::glue::TruncW {titles weights series width} {
 	set drop [format %.0f [expr {double($over * $w)/$tw}]]
 
 	debug.m/glue { ($col): drop $drop int(($over*$w)/$tw)) }
-	
+
 	incr removed $drop
 	incr wc($c) -$drop
     }
@@ -3421,7 +3421,7 @@ proc ::m::glue::StatsTime {mins maxs lastn} {
     set maxs [m format interval $maxs]
 
     # See also ::m::repo::times, ::m::web::site::Store
-    
+
     append text "$mins ... $maxs"
 
     set lastn [m format win $lastn]
@@ -3510,7 +3510,7 @@ proc ::m::glue::Box {text} {
     return [[table t {n/a} {
 	$t headers 0
 	$t add $text
-    }] show return]    
+    }] show return]
 }
 
 # # ## ### ##### ######## ############# ######################

@@ -61,7 +61,7 @@ kt::source support/invoke-core.tcl
 
 proc mapp {args} {
     #puts XXX\t(([info level 0]))
-    
+
     capture-on
     try {
         list [m::cmdr::main $args] [capture-get]

@@ -106,7 +106,7 @@ proc ::m::vcs::git::setup {path url} {
     if {[m exec err-last-get]} {
 	m ops client fail ; return
     }
-    
+
     # Initial update
     Git fetch --tags $remote
     PostPull $path
@@ -175,7 +175,7 @@ proc ::m::vcs::git::url-to-name {url} {
     lappend map "https://"        {}
     lappend map "http://"         {}
     lappend map "git@github.com:" {}
-    
+
     set url [string map $map $url]
 
     # Extract a name from the end of the remainder, with special case
@@ -209,11 +209,11 @@ proc ::m::vcs::git::detect {url} {
 
 proc ::m::vcs::git::PostPull {path} {
     debug.m/vcs/git {}
-    
+
     if {[m exec err-last-get]} {
 	m ops client fail ; return
     }
-    
+
     set count [Count $path]
     if {[m exec err-last-get]} {
 	m ops client fail ; return
@@ -226,7 +226,7 @@ proc ::m::vcs::git::PostPull {path} {
 
     # TODO :: Execute conversion of git repository to fossil
     # TODO :: Run in background
-    
+
     m ops client commits $count
     m ops client size    $kb
     m ops client ok

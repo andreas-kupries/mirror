@@ -3,7 +3,7 @@
 ## Helpers for file processing. Simplified tcllib fileutil.
 
 # @@ Meta Begin
-# Package m::futil 0 
+# Package m::futil 0
 # Meta author   {Andreas Kupries}
 # Meta location https://core.tcl.tk/akupries/????
 # Meta platform tcl
@@ -89,7 +89,7 @@ proc ::m::futil::m-grep {patterns lines} {
     debug.m/futil {}
     set match {}
     set mis   {}
-    foreach line $lines {	
+    foreach line $lines {
 	if {[MG $patterns $line]} {
 	    lappend match $line
 	} else {

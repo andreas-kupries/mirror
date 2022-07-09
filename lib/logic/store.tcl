@@ -61,7 +61,7 @@ proc ::m::store::statistics {} {
 
     lassign {Inf -1 0 0} smin smax n tsz
     lassign {Inf -1 0 0} cmin cmax n tcm
-    
+
     m db eval {
 	SELECT size_kb         AS sz
 	,      commits_current AS cm
@@ -82,12 +82,12 @@ proc ::m::store::statistics {} {
     set cmean   [expr {$tcm/$n}]
     set smedian [lindex [lsort -integer -increasing $sizes]   [expr {[llength $sizes  ]/2}]]
     set cmedian [lindex [lsort -integer -increasing $commits] [expr {[llength $commits]/2}]]
-    
+
     dict set stats sz_min    $smin
     dict set stats sz_max    $smax
     dict set stats sz_mean   $smean
     dict set stats sz_median $smedian
-    dict set stats cm_min    $cmin	
+    dict set stats cm_min    $cmin
     dict set stats cm_max    $cmax
     dict set stats cm_mean   $cmean
     dict set stats cm_median $cmedian
@@ -97,7 +97,7 @@ proc ::m::store::statistics {} {
 
 proc ::m::store::add {vcs name url} {
     debug.m/store {}
-    
+
     set store [Add $vcs]
     set state [m vcs setup $store $vcs $name $url]
     dict with state {}
@@ -136,7 +136,7 @@ proc ::m::store::cleave {store pname} {
 
     set vcs  [VCS $store]
     set new  [Add $vcs]
-    
+
     m vcs cleave $vcs $store $new $pname
 
     # Copy size information
@@ -237,7 +237,7 @@ proc ::m::store::getx {repos} {	;# XXX REWORK move to repo package
     }
     return $series
 }
-    
+
 proc ::m::store::get {store} {
     debug.m/store {}
     set details [m db eval {
@@ -329,7 +329,7 @@ proc ::m::store::search {substring} {
     debug.m/store {}
 
     # List stores ...
-    
+
     set sub [string tolower $substring]
     set series {}
     m db eval {
@@ -366,7 +366,7 @@ proc ::m::store::issues {} {	;# XXX REWORK move to repo package
     debug.m/store {}
 
     # List repositories ...
-    
+
     set series {}
     set last {}
     m db eval {
@@ -405,7 +405,7 @@ proc ::m::store::disabled {} {	;# XXX REWORK move to repo package
     debug.m/store {}
 
     # List repositories ...
-    
+
     set series {}
     set last {}
     m db eval {
@@ -443,7 +443,7 @@ proc ::m::store::by-name {} {	;# XXX REWORK move to repo package
     debug.m/store {}
 
     # List stores ...
-    
+
     set series {}
     set last {}
     m db eval {
@@ -485,7 +485,7 @@ proc ::m::store::by-vcs {} {	;# XXX REWORK move to repo package
     debug.m/store {}
 
     # List repositories ...
-    
+
     set series {}
     m db eval {
 	SELECT S.id         AS store
@@ -520,7 +520,7 @@ proc ::m::store::by-size {} {	;# XXX REWORK move to repo package
     debug.m/store {}
 
     # List repositories ...
-    
+
     set series {}
     m db eval {
 	SELECT S.id          AS store
@@ -672,7 +672,7 @@ proc ::m::store::Srow {sv} {	;# XXX REWORK move to repo package
 	$sv series store store mname mname vcode vcode \
 	changed changed updated updated created created \
         size size active active remote remote attend attend \
-        origin origin url url			    
+        origin origin url url
 
     debug.m/store {s=$store, m=$mname, v=$vcode, ch=$changed, up=$updated, cr=$created, sz=$size, r=$remote/$active, trouble=$attend, oring=4origin, url=$url}
 
@@ -815,7 +815,7 @@ proc ::m::store::Remotes {store {onlyactive 0}} {
 	    AND   R.is_active
 	}]
     }
-    
+
     return [m db eval {
 	SELECT R.url
 	FROM   repository R
@@ -854,7 +854,7 @@ proc ::m::store::Size {store new} {
     }]
 
     if {$new == $current} return
-    
+
     m db eval {
 	UPDATE store
 	SET    size_previous = size_kb -- Parallel assignment
@@ -875,7 +875,7 @@ proc ::m::store::Commits {store new} {
     }]
 
     if {$new == $current} return
-    
+
     m db eval {
 	UPDATE store
 	SET    commits_previous = commits_current -- Parallel assignment

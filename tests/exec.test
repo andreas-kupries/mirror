@@ -102,7 +102,7 @@ foreach key {
     err
 } {
     incr k
-    
+
     test exec-capture-get-2.0.$k {capture::get, undefined, nothing} -setup {
     } -body {
 	m::exec::capture::get $key
@@ -202,7 +202,7 @@ foreach key {
     err
 } {
     incr k
-    
+
     test exec-capture-path-2.0.$k {capture::path, undefined, nothing} -setup {
     } -body {
 	m::exec::capture::path $key

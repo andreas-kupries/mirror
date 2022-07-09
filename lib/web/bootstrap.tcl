@@ -73,7 +73,7 @@ proc ::m::web::bootstrap::GET {} {
 
     #puts stderr $argv0
     #puts stderr [pwd]
-    
+
     set c [m futil cat [file join [pwd] contact.html]]
 
     # Extract the bootstrap header and footer for our use.
@@ -106,7 +106,7 @@ proc ::m::web::bootstrap::GET {} {
     lappend map \
 	"navbar-brand\" href=\"" \
 	"navbar-brand\" href=\"${app}/"
-    
+
     set header [string map $map $header]
     set footer [string map $map $footer]
     return

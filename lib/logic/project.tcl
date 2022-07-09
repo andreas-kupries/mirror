@@ -64,7 +64,7 @@ proc ::m::project::statistics {} {
 
 	dict set stats ncc $ncc
 	dict set stats npc $npc
-	
+
 	dict set stats np [m project count]
 	dict set stats nr [m repo count]
 	dict set stats ns [m store count]
@@ -129,7 +129,7 @@ proc ::m::project::spec {} {
     #   - base
     #
     # - Import accepts both short and long forms. Case-insensitive.
-    #    
+    #
     # - `B` is only generated when a shared store cuts across projects.
     # - Everything else uses `E`, which uses an implicit base from the
     #   precending `R`. In other words, the sequence
@@ -138,11 +138,11 @@ proc ::m::project::spec {} {
     #     E ... bar
     #
     #   is internally effectively handled as
-    #     
+    #
     #     R ... foo
     #     B     foo
     #     E ... foo
-    
+
     set p {} ;# dict (name -> id)
     set v {} ;# dict (url -> vcs)		vcs per repo, all repos!
     set g {} ;# dict (pname -> store -> url -> .)
@@ -151,7 +151,7 @@ proc ::m::project::spec {} {
     # Collect projects
     foreach {project pname} [all] {
 	debug.m/project {P $project $pname}
-	
+
 	dict set p $pname $project
     }
 
@@ -176,7 +176,7 @@ proc ::m::project::spec {} {
     #array set _v $v ; parray _v
     #array set _g $g ; parray _g
     #array set _b $b ; parray _b
-    
+
     set lines {}
     foreach pname [lsort -dict [dict keys $p]] {
 	set groups [dict get $g $pname]
@@ -184,7 +184,7 @@ proc ::m::project::spec {} {
 
 	foreach store [lsort -dict [dict keys $groups]] {
 	    #puts /$store
-	    
+
 	    set urls [lsort -dict [dict keys [dict get $groups $store]]]
 	    set base [dict get $b $store]
 	    if {$base ne {}} {
@@ -205,7 +205,7 @@ proc ::m::project::spec {} {
     }
 
     #puts ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    
+
     return [join $lines \n]
 }
 
@@ -404,7 +404,7 @@ proc ::m::project::get-n {first n} {
 	debug.m/project {first = ($first)}
     }
 
-    set results {}    
+    set results {}
     set lim [expr {$n + 1}]
     m db eval {
 	SELECT P.id   AS id
@@ -421,7 +421,7 @@ proc ::m::project::get-n {first n} {
     }
 
     debug.m/project {reps = (($results))}
-    
+
     set have [llength $results]
     debug.m/project {have $have of $n requested}
 
@@ -436,7 +436,7 @@ proc ::m::project::get-n {first n} {
 	set results [lrange $results 0 end-1]
 	debug.m/project {cut}
     }
-    
+
     return [list $next $results]
 }
 
@@ -450,7 +450,7 @@ proc ::m::project::get-all {} {
     # Taking n+1 projects, last becomes top for next call.  If we get
     # less than n, top shall be empty, to reset the cursor.
 
-    set results {}    
+    set results {}
     m db eval {
 	SELECT P.id   AS id
 	,      P.name AS name

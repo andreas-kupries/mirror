@@ -3,7 +3,7 @@
 ## Version Control Systems - Core
 
 # @@ Meta Begin
-# Package m::vcs 0 
+# Package m::vcs 0
 # Meta author   {Andreas Kupries}
 # Meta location https://core.tcl.tk/akupries/????
 # Meta platform tcl
@@ -160,7 +160,7 @@ proc ::m::vcs::setup {store vcs name url} {
     # always `mirror-vcs VCS LOG setup STORE URL`.
 
     # Ask plugin to fill the store.
-    
+
     Operation ::m::vcs::OpComplete $vcode setup \
 	{*}[OpCmd $vcode $path $url]
     set state [OpWait]
@@ -223,11 +223,11 @@ proc ::m::vcs::update {store vcs url primary} {
 	# Fake an error state ...
 	return {ok 0 commits 0 size 0 forks {} results {} msg {Invalid url} duration 0}
     }
-    
+
     # Ask plugin to update the store.
     # Redirect through an external command. This command is currently
     # always `mirror-vcs VCS LOG setup STORE URL`.
-    
+
     Operation ::m::vcs::OpComplete $vcode update \
 	{*}[OpCmd $vcode $path $url $primary]
     set state [OpWait]
@@ -242,7 +242,7 @@ proc ::m::vcs::update {store vcs url primary} {
     # [x] duration
 
     Touch updated $path $url $commits $size $forks
-    
+
     return $state
 }
 
@@ -280,17 +280,17 @@ proc ::m::vcs::cleanup {store vcs} {
 
     # ... and the store directory
     file delete -force -- $path
-    return 
+    return
 }
 
 proc ::m::vcs::move {newpath} {
     debug.m/vcs {}
 
     set oldpath [m state store]
-    
+
     m state store $newpath
     file mkdir $newpath
-    
+
     foreach store [glob -directory $oldpath -nocomplain *] {
 	set newstore [file join $newpath [file tail $store]]
 	m msg "Moving [color note $store]"
@@ -355,7 +355,7 @@ proc ::m::vcs::merge {vcs target origin} {
 
     # Redirect through an external command. This command is currently
     # always `mirror-vcs VCS LOG merge`.
-    
+
     Operation ::m::vcs::OpComplete $vcode merge \
 	{*}[OpCmd $vcode $ptarget $porigin]
     set state [OpWait]
@@ -385,16 +385,16 @@ proc ::m::vcs::cleave {vcs origin dst dstname} {
     set pdst    [Path $dst]
     set porigin [Path $origin]
     set vcode   [code $vcs]
-    
+
     # Ensure clean copy
     file delete -force -- $pdst
     file copy   -force -- $porigin $pdst
-    
+
     # Split/create vcs specific special resources, if any ...
 
     # Redirect through an external command. This command is currently
     # always `mirror-vcs VCS LOG split`.
-    
+
     Operation ::m::vcs::OpComplete $vcode split \
 	{*}[OpCmd $vcode $porigin $pdst]
     set state [OpWait]
@@ -430,11 +430,11 @@ proc ::m::vcs::export {vcs store} {
     # always `mirror-vcs VCS LOG export STORE`.
 
     # Ask plugin for CGI script to access the store.
-    
+
     Operation ::m::vcs::OpComplete $vcode export \
 	{*}[OpCmd $vcode $path]
     set state [OpWait]
-    
+
     dict with state {}
     # [x] ok
     # [ ] commits
@@ -466,7 +466,7 @@ proc ::m::vcs::version {vcode iv} {
 
     # Redirect through an external command. This command is currently
     # always `mirror-vcs VCS LOG version`.
-    
+
     Operation ::m::vcs::OpComplete $vcode version \
 	{*}[OpCmd $vcode]
     set state [OpWait]
@@ -530,7 +530,7 @@ proc ::m::vcs::url-norm {vcode url} {
 	regsub -- {/timeline$} $url {} url
 	regsub -- {/login$}    $url {} url
     }
-    
+
     return [string map $map $url]
 }
 
@@ -539,7 +539,7 @@ proc ::m::vcs::name-from-url {vcode url} {
 
     # Redirect through an external command. This command is currently
     # always `mirror-vcs VCS LOG url-to-name`.
-    
+
     Operation ::m::vcs::OpComplete $vcode url-to-name \
 	{*}[OpCmd $vcode $url]
     set state [OpWait]
@@ -635,7 +635,7 @@ proc ::m::vcs::id {x} {
 proc ::m::vcs::Touch {context path url commits size forks} {
     debug.m/vcs {}
     set code [string trim [base64::encode -maxlen 0 $url] =]
-    
+
     m futil write $path/$context [clock seconds]\n
     m futil write $path/commits  $commits\n
     m futil write $path/size     $size\n
@@ -712,13 +712,13 @@ proc ::m::vcs::Operation {done vcs op args} {
     variable ops
 
     set logfile [fileutil::tempfile mirror_vcs_]
-    
+
     lappend map %self%      $::argv0
     lappend map %operation% $op
     lappend map %vcs%       $vcs
     lappend map %log%       $logfile
     lappend map %%          %
-    
+
     set args  [lmap w $args { string map $map $w }]
     set jdone [list ::m::vcs::OpDone     $opsid]
     set jout  [list ::m::vcs::OpProgress $opsid]
@@ -743,7 +743,7 @@ proc ::m::vcs::OpProgress {opsid line} {
     debug.m/vcs {}
     # Progress reporting from job stdout
     variable ops
-    
+
     if {[catch {
 	set words [lassign $line tag]
 	set color [dict get {
@@ -763,7 +763,7 @@ proc ::m::vcs::OpProgress {opsid line} {
 	info 0 note 1 warn 2 error 3 fatal 4
     } $tag]
     if {![m exec verbose] && ($level < 2)} return
-    
+
     m msg [color $color [join $words]]
     return
 }
@@ -780,7 +780,7 @@ proc ::m::vcs::OpDone {opsid ok msg} {
     set done     [dict get $state done]  ; dict unset state done
     set start    [dict get $state start] ; dict unset state start
     set duration [expr { [clock seconds] - $start }]
-    
+
     dict set state ok       $ok
     dict set state msg      $msg
     dict set state duration $duration

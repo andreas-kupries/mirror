@@ -22,7 +22,7 @@ foreach {vcs type urlcmd} {
     test mirror-vcs-${vcs}-url-to-name-1.0 "mirror-vcs $vcs url-to-name - wrong args, not enough" -body {
 	mvcs $vcs LOG url-to-name
     } -result [err mirror-vcs/url-to-name/wrongargs]
-    
+
     test mirror-vcs-${vcs}-url-to-name-1.1 "mirror-vcs $vcs url-to-name - wrong args, too many" -body {
 	mvcs $vcs LOG url-to-name URL X
     } -result [err mirror-vcs/url-to-name/wrongargs]
@@ -37,7 +37,7 @@ foreach {vcs type urlcmd} {
 	file delete -force LOG
     } -result [list \
        [$type mirror-vcs/url-to-name/p-$vcs] \
-       [V     mirror-vcs/url-to-name/$vcs]]    
+       [V     mirror-vcs/url-to-name/$vcs]]
 }
 
 # # ## ### ##### ######## ############# #####################

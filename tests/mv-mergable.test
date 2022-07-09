@@ -18,15 +18,15 @@ foreach vcs {
     test mirror-vcs-${vcs}-mergable-1.0 "mirror-vcs $vcs mergable? - wrong args, not enough" -body {
 	mvcs $vcs LOG mergable?
     } -result [err mirror-vcs/mergable/wrongargs]
-    
+
     test mirror-vcs-${vcs}-mergable-1.1 "mirror-vcs $vcs mergable? - wrong args, not enough" -body {
 	mvcs $vcs LOG mergable? STOREA
     } -result [err mirror-vcs/mergable/wrongargs]
-    
+
     test mirror-vcs-${vcs}-mergable-1.2 "mirror-vcs $vcs mergable? - wrong args, too many" -body {
 	mvcs $vcs LOG mergable? STOREA STOREB X
     } -result [err mirror-vcs/mergable/wrongargs]
-    
+
     test mirror-vcs-${vcs}-mergable-2.0 "mirror-vcs $vcs mergable? - bad store" -setup {
 	file mkdir STORE
     } -body {
@@ -34,7 +34,7 @@ foreach vcs {
     } -cleanup {
 	file delete -force STORE
     } -result [err mirror-vcs/bad-store]
-    
+
     test mirror-vcs-${vcs}-mergable-2.1 "mirror-vcs $vcs mergable? - bad store" -setup {
 	file mkdir STORE
     } -body {
@@ -66,13 +66,13 @@ foreach vcs {
     } -result [list \
        [ok mirror-vcs/empty] \
        [V  mirror-vcs/ok]]
-    
+
 }
 
 ## # # ## ### ##### ######## ############# #####################
 # SVN: Allow never
 
-set vcs svn    
+set vcs svn
 
 test mirror-vcs-${vcs}-mergable-3.0 "mirror-vcs $vcs mergable? result, fail always" -setup {
     set r {}

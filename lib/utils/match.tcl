@@ -3,7 +3,7 @@
 ## Validation helper - Matching
 
 # @@ Meta Begin
-# Package m::match 0 
+# Package m::match 0
 # Meta author   {Andreas Kupries}
 # Meta location https://core.tcl.tk/akupries/????
 # Meta platform tcl

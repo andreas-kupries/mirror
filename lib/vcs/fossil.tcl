@@ -73,24 +73,24 @@ proc ::m::vcs::fossil::version {} {
 	m ops client fail
 	return
     }
-    
+
     set version [lindex [m exec get-- fossil version] 4]
 
     m ops client result $version
     m ops client ok
-    return 
+    return
 }
 
 proc ::m::vcs::fossil::setup {path url} {
     debug.m/vcs/fossil {}
-    
+
     set repo [FossilOf $path]
     Fossil clone $url $repo
 
     if {[m exec err-last-get]} {
 	m ops client fail ; return
     }
-    
+
     Fossil remote-url off -R $repo
     PostPull $path
     return
@@ -147,7 +147,7 @@ proc ::m::vcs::fossil::export {path} {
 
 proc ::m::vcs::fossil::url-to-name {url} {
     debug.m/vcs/fossil {}
-    
+
     regsub -- {/index$}    $url {} url
     regsub -- {/timeline$} $url {} url
     set name [lindex [file split $url] end]
@@ -183,7 +183,7 @@ proc ::m::vcs::fossil::PostPull {path} {
     if {[m exec err-last-get]} {
 	m ops client fail ; return
     }
-    
+
     set count [Count $path]
     if {[m exec err-last-get]} {
 	m ops client fail ; return
@@ -193,7 +193,7 @@ proc ::m::vcs::fossil::PostPull {path} {
     if {[m exec err-last-get]} {
 	m ops client fail ; return
     }
-    
+
     m ops client commits $count
     m ops client size    $kb
     m ops client ok

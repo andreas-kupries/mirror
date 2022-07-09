@@ -58,10 +58,10 @@ proc ::m::site {args} {
 	debug.m/db {Wait $wait millis}
 	::m::site timeout $wait
     }
-    
+
     # Initialize it.
     ::db setup ::m::site ::m::site::SETUP
-    
+
     # Under narrative tracing intercept sql commands.
     debug.m/db {Intercept[rename ::m::site ::m::sitex][proc ::m::site {args} {
 	debug.m/db {}
@@ -153,7 +153,7 @@ proc ::m::site::SETUP-201811302300 {} {
     C url    TEXT NOT NULL UNIQUE
     C reason TEXT NOT NULL
     T rejected
-    
+
     # - -- --- ----- -------- -------------
     # Submissions. Push to main, delete from main
     I+
@@ -234,7 +234,7 @@ proc ::m::site::SETUP-201812041400 {} {
 
     D m::site
     / sync
-    
+
     return
 }
 
@@ -250,7 +250,7 @@ proc ::m::site::SETUP-201901092300 {} {
 
     # No fixed values here. Copy from main table
     # `version_control_system` on sync.
-    
+
     return
 }
 

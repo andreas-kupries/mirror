@@ -18,7 +18,7 @@ foreach vcs {
     test mirror-vcs-${vcs}-version-1.0 "mirror-vcs $vcs version - wrong args, too many" -body {
 	mvcs $vcs LOG version X
     } -result [err mirror-vcs/version/wrongargs]
-    
+
     test mirror-vcs-${vcs}-version-2.0 "mirror-vcs $vcs version result" -setup {
 	set r {}
     } -body {
@@ -31,7 +31,7 @@ foreach vcs {
        [ok mirror-vcs/version/p-$vcs] \
        [V  mirror-vcs/version/$vcs]]
 }
-    
+
 # # ## ### ##### ######## ############# #####################
 cleanupTests
 return

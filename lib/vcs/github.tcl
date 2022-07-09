@@ -82,14 +82,14 @@ namespace eval m::vcs::github {
 ## Operations implemented for separate process/backend
 #
 # [/] version                  | Local
-# [/] setup       S U          | 
+# [/] setup       S U          |
 # [/] cleanup     S            |       Inherited from git.
-# [/] update      S U 1st      | 
+# [/] update      S U 1st      |
 # [/] mergable?   SA SB        |       Inherited from git.
 # [/] merge       S-DST S-SRC  |       Inherited from git.
 # [/] split       S-SRC S-DST  |       Inherited from git.
 # [/] export      S            |       Inherited from git.
-# [/] url-to-name U            | 
+# [/] url-to-name U            |
 #
 
 # Operations backend: version
@@ -116,7 +116,7 @@ proc ::m::vcs::github::version {} {
     set v [::split $v \n]
     set v [lindex $v 0 end]
     set v [string trim $v ']
-    
+
     m ops client result $v
     m ops client ok
     return
@@ -146,7 +146,7 @@ proc ::m::vcs::github::update {path url first} {
     file delete $path/forks-remote
     file delete $path/forks-unverified
     # # ## ### ##### ######## #############
-    
+
     m vcs git update $path $url $first
 
     if {![m ops client ok?]} {

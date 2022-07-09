@@ -18,15 +18,15 @@ foreach vcs {
     test mirror-vcs-${vcs}-export-1.0 "mirror-vcs $vcs export - wrong args, not enough" -body {
 	mvcs $vcs LOG export
     } -result [err mirror-vcs/export/wrongargs]
-    
+
     test mirror-vcs-${vcs}-export-1.1 "mirror-vcs $vcs export - wrong args, too many" -body {
 	mvcs $vcs LOG export STORE X
     } -result [err mirror-vcs/export/wrongargs]
-    
+
     test mirror-vcs-${vcs}-export-2.0 "mirror-vcs $vcs export - bad store" -body {
 	mvcs $vcs LOG export BADSTORE
     } -result [err mirror-vcs/bad-store]
-    
+
     test mirror-vcs-${vcs}-export-3.0 "mirror-vcs $vcs export result" -setup {
 	set r {}
 	file mkdir STORE
@@ -40,7 +40,7 @@ foreach vcs {
        [ok mirror-vcs/empty] \
        [V  mirror-vcs/export/$vcs]]
 }
-    
+
 # # ## ### ##### ######## ############# #####################
 cleanupTests
 return

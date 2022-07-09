@@ -92,7 +92,7 @@ proc ::m::reply::remove {reply} {
 	DELETE
 	FROM  reply
 	WHERE id = :reply
-    }]    
+    }]
 }
 
 proc ::m::reply::change {reply text} {

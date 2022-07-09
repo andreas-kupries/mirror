@@ -24,7 +24,7 @@ test mirror-vcs-1.1 "mirror-vcs - wrong args, not enough" -body {
 test mirror-vcs-1.2 "mirror-vcs - wrong args, not enough" -body {
     mvcs VCS LOG
 } -result [err mirror-vcs/wrongargs-notenough] -match glob
-    
+
 # # ## ### ##### ######## ############# #####################
 cleanupTests
 return

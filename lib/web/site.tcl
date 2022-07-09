@@ -86,7 +86,7 @@ proc ::m::web::site::build {{mode verbose}} {
 	# constrained lists --
 	# -- just primaries, no forks
 	# -- per VCS, just managed by such
-	
+
 	set bytime   [m store updates]
 	set byname   [m store by-name]
 	set bysize   [m store by-size]
@@ -143,13 +143,13 @@ proc ::m::web::site::Projects {} {
 	dict with p {}
 	# id, name, nrepos, nstores
 	set name [m::store::Norm $name]
-	
+
         Project $id $name
 
 	set name    [L/Project $id $name]
 	set nrepos  [L/Project $id $nrepos]
 	set nstores [L/Project $id $nstores]
-	
+
 	Row $name $nrepos $nstores
     }
 
@@ -169,7 +169,7 @@ proc ::m::web::site::Project {id name} {
 
 	lappend series [list [expr {$origin ne {}}] $issues $active $vcode $url $store]
     }
-    
+
     H $name
 
     Row {} {} VCS Repository
@@ -181,7 +181,7 @@ proc ::m::web::site::Project {id name} {
 	set tags  [StatusRefs $issues $active 0]
 	if {$tags eq {}} { append tags { } }
 	set vcode [I/VCS $vcode]
-	set fork  [expr {!$fork ? " " : [I/Fork]}]	    
+	set fork  [expr {!$fork ? " " : [I/Fork]}]
 
 	set tags  [L/Store $store $tags]
        	set vcode [L/Store $store $vcode]
@@ -190,7 +190,7 @@ proc ::m::web::site::Project {id name} {
 
 	Row $tags $fork $vcode $repo
     }
-    
+
     F
     W pages/[file root [P/Project $id]].md
 }
@@ -218,7 +218,7 @@ proc ::m::web::site::Statistics {} {
 
     set ni [L index_issues.html   "[I/Bad] $ni"]
     set nd [L index_disabled.html "[I/Offline] $nd"]
-    
+
     H Statistics
 
     S 3
@@ -235,7 +235,7 @@ proc ::m::web::site::Statistics {} {
     Row Previous $pc $npc $duration
     Row Current  $cc $ncc {}
     NL
-    
+
     F
     W pages/statistics.md
 }
@@ -263,7 +263,7 @@ proc ::m::web::site::RLink {repo {follow 1}} {
 	set origin " a [I/Fork] from [OLink $origin]"
     }
     set label $active$issues$url
-    
+
     return [LB $url $label]$origin
 }
 
@@ -277,7 +277,7 @@ proc ::m::web::site::OLink {repo} {
     set active [expr {$active  ? "" : "[I/Offline]"}]
     set issues [expr {!$issues ? "" : "[I/Bad]"}]
     set label  $active$issues$url
-    
+
     return [L/Store $store $label]
 }
 
@@ -285,7 +285,7 @@ proc ::m::web::site::StatsTime {min_sec max_sec win_sec} {
     debug.m/web/site {}
 
     # See also ::m::repo::times, ::m::glue::StatsTime
-    
+
     set min_sec [expr {$min_sec < 0 ? "+Inf" : [m format interval $min_sec]}]
     set max_sec [m format interval $max_sec]
     set spent   "$min_sec ... $max_sec"
@@ -303,7 +303,7 @@ proc ::m::web::site::StatsTime {min_sec max_sec win_sec} {
 
 proc ::m::web::site::Commits {commits commitp} {
     debug.m/web/site {}
-    
+
     if {$commitp != $commits} {
 	set delta [expr {$commits - $commitp}]
 	if {$delta > 0} {
@@ -316,7 +316,7 @@ proc ::m::web::site::Commits {commits commitp} {
 
 proc ::m::web::site::Size {size sizep} {
     debug.m/web/site {}
-    
+
     set dsize [m format size $size]
     if {$sizep != $size} {
 	set dsizep [m format size $sizep]
@@ -334,7 +334,7 @@ proc ::m::web::site::Size {size sizep} {
 
 proc ::m::web::site::ExportStore {vcs store} {
     debug.m/web/site {}
-    
+
     set export [m vcs export $vcs $store]
     if {$export ne {}} {
 	set path external/local_${store}
@@ -360,16 +360,16 @@ proc ::m::web::site::StoreForks {pname url store serial forks} {
 proc ::m::web::site::Store {store} {
     debug.m/web/site {}
 
-    #...project pname 
-    
+    #...project pname
+
     # Get page pieces ...
-    
+
     set urls  [m store remotes $store]
     set repos [lmap u $urls  { m repo id $u }]
     set links [lmap r $repos { RLink $r }]
 
     set projects [lsort -unique [lmap r $repos { m repo project $r }]]
-    
+
     set sd  [m store get $store]
     dict with sd {}
     # -> size, sizep
@@ -394,7 +394,7 @@ proc ::m::web::site::Store {store} {
     set dsize   [Size $size $sizep]
     set export  [ExportStore $vcs $store]
     set vcslogo [I/VCS [m vcs code $vcs]]
-    
+
     # Assemble page ...
 
     H "Store $store"
@@ -415,7 +415,7 @@ proc ::m::web::site::Store {store} {
 	Row $vcslogo {} {}
     } else {
 	set threshold 5
-	
+
 	set left $vcslogo
 	foreach r $repos l $links u $urls {
 	    Row $left {} $l
@@ -424,7 +424,7 @@ proc ::m::web::site::Store {store} {
 	    # For each repo show the forks, up to a threshold. If
 	    # there are more than that a separate page is created for
 	    # the list and linked.
-	    
+
 	    set forks [m repo forks $r]
 	    set nforks [llength $forks]
 	    if {$nforks} {
@@ -442,7 +442,7 @@ proc ::m::web::site::Store {store} {
 	    }
 	}
     }
-    
+
     Row Size    {} $dsize
     Row Commits {} $commits
     if {$export ne {}} {
@@ -478,7 +478,7 @@ proc ::m::web::site::Private {} {
     H Private
 
     +L {Now what was expected to be seen here ?}
-    
+
     F
     W pages/index_private.md
     return
@@ -486,7 +486,7 @@ proc ::m::web::site::Private {} {
 
 proc ::m::web::site::ListSimple {title subtitle page series} {
     # A cut down form of `List`. No sorting. No other stats.
-    
+
     debug.m/web/site {}
 
     set hvcs     VCS
@@ -500,14 +500,14 @@ proc ::m::web::site::ListSimple {title subtitle page series} {
 
     Row {} $hname Repository {} $hvcs $hsize $hchan Updated Created
     Align l l l l l r l l l
-    
+
     set fork [I/Fork]
 
     set mname {}
     set last {}
     foreach row $series {
 	dict with row {}
-	
+
 	# store mname vcode changed updated created size active remote attend
 	# -- origin url
 	set tag {}
@@ -521,7 +521,7 @@ proc ::m::web::site::ListSimple {title subtitle page series} {
 	set created [m format epoch $created]
 
        	set vcode   [L/Store $store [I/VCS $vcode]]
-	
+
 	if {$mname  ne {}} { set mname [L/Store $store $mname] }
 	set url                        [L/Store $store $url]
 	if {$origin ne {}} { append tag $fork }
@@ -539,7 +539,7 @@ proc ::m::web::site::ListSimple {title subtitle page series} {
 
 proc ::m::web::site::List {suffix page series stats} {
     debug.m/web/site {}
-    
+
     dict with stats {}
     # issues
     # disabled
@@ -556,7 +556,7 @@ proc ::m::web::site::List {suffix page series stats} {
     set hchan    [L index.html          Changed               ]
     set issues   [L index_issues.html   "Issues: $issues"     ]
     set disabled [L index_disabled.html "Disabled: $disabled" ]
-    
+
     set ccf [m format epoch $ccycle]
     set pcf [m format epoch $pcycle]
     set dt  [expr {$ccycle - $pcycle}]
@@ -613,7 +613,7 @@ proc ::m::web::site::List {suffix page series stats} {
 	set updated [m format epoch $updated]
 	set created [m format epoch $created]
        	set vcode   [L/Store $store [I/VCS $vcode]]
-	
+
 	if {$mname  ne {}} { set mname [L/Store $store $mname] }
 	set url                        [L/Store $store $url]
 	if {$origin ne {}} { append tag $fork }
@@ -656,8 +656,8 @@ proc ::m::web::site::CGI {app} {
     #   See `Sync` here for the code keeping it up-to-date.
     #   However note that `m::site` automatically goes for the sibling
     #   given the path to the main, so we do not do this here.
-    
-    set bindir [file dirname $argv0]    
+
+    set bindir [file dirname $argv0]
     +L "#![file normalize [file join $bindir $app]]"
     +L "database: [m::db::location get]"
     return $text
@@ -698,7 +698,7 @@ proc ::m::web::site::Fin {} { #return
     SSG build $dst ${dst}_out
 
     !! "Completed site generation"
-    
+
     # dst     = path/web     = site input
     # dst_out = path/web_out = site stage
     #           path/site    = site serve
@@ -751,7 +751,7 @@ proc ::m::web::site::Sync {} {
     #
     #   - submission	pulled deletions from main (submission_handled)
     #			push remaining to main (insert or update)
-    
+
     FillIndex
     FillRejected
     SyncSubmissions
@@ -767,14 +767,14 @@ proc ::m::web::site::SyncSubmissions {} {
 
     # 1. Submissions from CGI flow through site to main. Only
     #    deletions flow back, as the cli handles them in main.
-    
+
     # 2. Submissions done in main, via the cli, have their own format
     #    for session identifiers which cannot overlap with sessions
     #    from the CGI. As such there is no need to push them to site,
     #    CGI will has no use for them when looking for pre-existing
     #    submissions. Anything needed there comes into site through
     #    the index and rejection tables.
-    
+
     DropHandledSubmissions
     GetNewSubmissions
     return
@@ -830,7 +830,7 @@ proc ::m::web::site::GetNewSubmissions {} {
 	    }
 	}
     }
-    
+
     return
 }
 
@@ -860,7 +860,7 @@ proc ::m::web::site::DropHandledSubmissions {} {
 	DELETE
 	FROM submission_handled
     }
-    
+
     return
 }
 
@@ -870,9 +870,9 @@ proc ::m::web::site::FillRejected {} {
 
     # Copy current state of url rejections from main to site database.
     # Implemented as `delete all old ; insert all new`.
-    
+
     m site eval { DELETE FROM rejected }
-    
+
     m db eval {
 	SELECT url
 	,      reason
@@ -923,7 +923,7 @@ proc ::m::web::site::FillIndex {} {
 	    WHERE S.id   = :store
 	    AND   S.id   = R.store
 	}]
-	
+
 	lappend remotes $pname
 	set remotes [string tolower [join $remotes { }]]
 	# We are using the remotes field for the entire text we can
@@ -976,13 +976,13 @@ proc ::m::web::site::StatusIcons {attend active remote} {
 	lappend icons off.svg
     } elseif {$active < $remote} {
 	lappend icons yellow.svg
-    } 
+    }
     if {$attend} {
 	lappend icons bad.svg
     }
     return $icons
 }
-    
+
 proc ::m::web::site::StatusRefs {attend active remote} {
     debug.m/web/site {}
     set img {}
@@ -1070,7 +1070,7 @@ proc ::m::web::site::Align {args} {
     debug.m/web/site {}
     upvar 1 text text
     ++ |
-    foreach a $args { 
+    foreach a $args {
     	++ [dict get {
 	    l :---
 	    c  --- {} ---
@@ -1219,7 +1219,7 @@ proc ::m::web::site::M {} {
 	if {$rl eq {}} { set rl "&#x2197;&#xfe0f;Back" }
 	lappend nav "	[list $rl] [list $ru]"
     }
-    
+
     lappend nav {	Issues         $rootDirPath/index_issues.html  }
     lappend nav {	Disabled       $rootDirPath/index_disabled.html}
     lappend nav {	Statistics     $rootDirPath/statistics.html    }
@@ -1229,7 +1229,7 @@ proc ::m::web::site::M {} {
     lappend nav {	Search         $rootDirPath/search	       }
     lappend nav {	Submit         $rootDirPath/submit	       }
     lappend nav {	Private        $rootDirPath/index_private.html }
-    
+
     lappend map @-logo-@       $logo
     lappend map @-mail-@       [m state site-mgr-mail]
     lappend map @-management-@ [m state site-mgr-name]

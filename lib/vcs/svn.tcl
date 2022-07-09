@@ -144,7 +144,7 @@ proc ::m::vcs::svn::url-to-name {url} {
 }
 
 # # ## ### ##### ######## ############# ######################
-    
+
 proc ::m::vcs::svn::detect {url} {
     debug.m/vcs/svn {}
     if {
@@ -179,7 +179,7 @@ proc ::m::vcs::svn::PostPull {path} {
     if {[m exec err-last-get]} {
 	m ops client fail ; return
     }
-    
+
     m ops client commits $count
     m ops client size    $kb
     m ops client ok

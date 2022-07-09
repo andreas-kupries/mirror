@@ -45,7 +45,7 @@ foreach command {
 	lappend r [mapp add --name COR           [b-core]]   ;# @0
 	lappend r [mapp add --name CHI           [b-chisel]] ;# @1 @p
 	lappend r [mapp add --name GIT --vcs git [b-github]] ;# @2 @c
-	# Forced `git` as the common denominator, and `github` may not be available.    
+	# Forced `git` as the common denominator, and `github` may not be available.
     } -body {
 	lappend r [mapp current]
 	lappend r [mapp $command @0] ;# effective "rol 2".

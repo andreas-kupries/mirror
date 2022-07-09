@@ -15,7 +15,7 @@ proc ok* {text}  { list 0 $text }
 
 proc R {state label args} { list $state [V $label {*}$args] }
 
-proc P {label} { return [td]/results/${label} } 
+proc P {label} { return [td]/results/${label} }
 
 proc V {label args} {
     set path [P $label]

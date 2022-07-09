@@ -82,7 +82,7 @@ proc ::m::exec::Job {done report pipe args} {
     }
     if {[gets $pipe line] < 0} return
     Do $report $line
-    return    
+    return
 }
 
 proc ::m::exec::Do {cmd args} {
@@ -108,11 +108,11 @@ proc ::m::exec::get+route {router args} {
     variable getid
 
     m ops client note "> [join $args]"
-    
+
     set id [incr getid]
     set get(o,$id) {}
     set get(e,$id) 0
-    
+
     # Alternate exec get ...
     # - stdout/err are reported as info/error progress reports.
     # - stdout is further captured and returned.

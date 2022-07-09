@@ -22,19 +22,19 @@ foreach {vcs urlcmd} {
     test mirror-vcs-${vcs}-update-1.0 "mirror-vcs $vcs update - wrong args, not enough" -body {
 	mvcs $vcs LOG update
     } -result [err mirror-vcs/update/wrongargs]
-    
+
     test mirror-vcs-${vcs}-update-1.1 "mirror-vcs $vcs update - wrong args, not enough" -body {
 	mvcs $vcs LOG update STORE
     } -result [err mirror-vcs/update/wrongargs]
-    
+
     test mirror-vcs-${vcs}-update-1.2 "mirror-vcs $vcs update - wrong args, not enough" -body {
 	mvcs $vcs LOG update STORE URL
     } -result [err mirror-vcs/update/wrongargs]
-    
+
     test mirror-vcs-${vcs}-update-1.3 "mirror-vcs $vcs update - wrong args, too many" -body {
 	mvcs $vcs LOG update STORE URL FIRST X
     } -result [err mirror-vcs/update/wrongargs]
-    
+
     test mirror-vcs-${vcs}-update-2.0 "mirror-vcs $vcs update - bad store" -body {
 	mvcs $vcs LOG update BADSTORE URL FIRST
     } -result [err mirror-vcs/bad-store]
@@ -43,7 +43,7 @@ foreach {vcs urlcmd} {
 	# svn skips badurl check of update. svn ignores the url
 	# argument and simply updates the repository, which knows it
 	# sole remote to talk to.
-	
+
 	test mirror-vcs-${vcs}-update-2.1 "mirror-vcs $vcs update - bad url" -setup {
 	    file mkdir STORE
 	    mvcs $vcs LOG setup STORE [$urlcmd]
@@ -53,7 +53,7 @@ foreach {vcs urlcmd} {
 	    file delete -force STORE
 	} -match glob -result [err mirror-vcs/update/b-${vcs}]
     }
-    
+
     test mirror-vcs-${vcs}-update-2.2 "mirror-vcs $vcs update - bad flag" -setup {
 	file mkdir STORE
     } -body {
@@ -61,7 +61,7 @@ foreach {vcs urlcmd} {
     } -cleanup {
 	file delete -force STORE
     } -match glob -result [err mirror-vcs/update/badflag]
-    
+
     # Skip plugins without example repository
     if {$urlcmd eq {}} continue
 
@@ -81,7 +81,7 @@ foreach {vcs urlcmd} {
 	   [V  mirror-vcs/update/$vcs$first]]
     }
 }
-    
+
 # # ## ### ##### ######## ############# #####################
 cleanupTests
 return

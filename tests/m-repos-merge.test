@@ -44,7 +44,7 @@ test merge-2.0 {merge} -setup {
     lappend r [mapp add --name CHI           [b-chisel]]
     lappend r [mapp add --name GIT --vcs git [b-github]]
 } -body {
-    # Forced `git` as the common denominator, and `github` may not be available.    
+    # Forced `git` as the common denominator, and `github` may not be available.
     lappend r [mapp merge COR CHI GIT]
     lappend r [mapp list]
     lappend r [mapp pending]

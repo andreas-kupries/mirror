@@ -118,7 +118,7 @@ proc ::m::vcs::hg::mergable? {primary other} {
     # is responsible for keeping disparate projects apart.
     m ops client result 1
     m ops client ok
-    return    
+    return
 }
 
 proc ::m::vcs::hg::merge {primary secondary} {
@@ -149,7 +149,7 @@ proc ::m::vcs::hg::url-to-name {url} {
 }
 
 # # ## ### ##### ######## ############# ######################
-    
+
 proc ::m::vcs::hg::detect {url} {
     debug.m/vcs/hg {}
     if {
@@ -183,7 +183,7 @@ proc ::m::vcs::hg::PostPull {path} {
     if {[m exec err-last-get]} {
 	m ops client fail ; return
     }
-    
+
     m ops client commits $count
     m ops client size    $kb
     m ops client ok

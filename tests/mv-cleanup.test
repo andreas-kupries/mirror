@@ -18,11 +18,11 @@ foreach vcs {
     test mirror-vcs-${vcs}-cleanup-1.0 "mirror-vcs $vcs cleanup - wrong args, not enough" -body {
 	mvcs $vcs LOG cleanup
     } -result [err mirror-vcs/cleanup/wrongargs]
-    
+
     test mirror-vcs-${vcs}-cleanup-1.1 "mirror-vcs $vcs cleanup - wrong args, too many" -body {
 	mvcs $vcs LOG cleanup STORE X
     } -result [err mirror-vcs/cleanup/wrongargs]
-    
+
     test mirror-vcs-${vcs}-cleanup-2.0 "mirror-vcs $vcs cleanup - bad store" -body {
 	mvcs $vcs LOG cleanup BADSTORE
     } -result [err mirror-vcs/bad-store]
@@ -40,7 +40,7 @@ foreach vcs {
        [ok mirror-vcs/empty] \
        [V  mirror-vcs/ok]]
 }
-    
+
 # # ## ### ##### ######## ############# #####################
 cleanupTests
 return

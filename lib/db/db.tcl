@@ -681,7 +681,7 @@ proc ::m::db::SETUP-202207020000 {} {
     C window_duration STRING   NOT NULL ;# time spent on last N updates (list of int)
     < repository id url mset vcs -1    NULL active 0    0   0   0   ''
     #               url proj vcs store fork act    issu chk min max win
-    
+
     # Store linkage and store_times related information needs code.
     foreach {repo mset vcs url} [R {
 	SELECT id
@@ -703,9 +703,9 @@ proc ::m::db::SETUP-202207020000 {} {
 	    FROM store
 	    WHERE id = :store
 	}]] msets vcss
-	
+
 	#puts stderr "XXX repo = $url/$mset/$vcs => S$store/$msets/$vcss"
-	
+
 	# Get time information
 	lassign [R [string map [list :store $store] {
 	    SELECT min_seconds
@@ -780,7 +780,7 @@ proc ::m::db::SETUP-202207022300 {} {
     # link to the expectation is that this is the site the hoard is a
     # part of, and the link enables users of the hoard to get back to
     # the wider site without the browser's help (i.e. back button).
-    
+
     return
 }
 
@@ -789,7 +789,7 @@ proc ::m::db::SETUP-202207041400 {} {
 
     # Drop the auto-increment modifier from the primary key of all
     # tables which have it. This is a dis-recommended thing.
-    
+
     D m::db
     # - -- --- ----- -------- -------------
 
@@ -842,7 +842,7 @@ proc ::m::db::SETUP-202207041400 {} {
     < repository \
 	id url project vcs store fork_origin is_active has_issues checked \
 	min_duration max_duration window_duration
-    
+
     I
     C vcs	       INTEGER	NOT NULL  ^version_control_system
     C size_kb	       INTEGER	NOT NULL
@@ -855,7 +855,7 @@ proc ::m::db::SETUP-202207041400 {} {
     < store \
 	id vcs size_kb size_previous commits_current commits_previous \
 	created updated changed
-    
+
     return
 }
 

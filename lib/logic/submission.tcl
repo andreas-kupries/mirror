@@ -104,7 +104,7 @@ proc ::m::submission::rejected {} {
 
 proc ::m::submission::add {url session vcode desc email submitter} {
     debug.m/submission {}
-    
+
     set now [clock seconds]
 
     if {[has^ $url $session]} {
@@ -138,7 +138,7 @@ proc ::m::submission::has {url} {
 	SELECT count (*)
 	FROM  submission
 	WHERE url = :url
-    }]    
+    }]
 }
 
 proc ::m::submission::has^ {url session} {
@@ -149,7 +149,7 @@ proc ::m::submission::has^ {url session} {
 	FROM  submission
 	WHERE url     = :url
 	AND   session = :session
-    }]    
+    }]
 }
 
 proc ::m::submission::dup {url} {
@@ -172,13 +172,13 @@ proc ::m::submission::rejected-url {id} {
 
 proc ::m::submission::drop {rejection} {
     debug.m/submission {}
-    
+
     m db eval {
 	DELETE
 	FROM rejected
 	WHERE id = :rejection
     }
-    
+
     return
 }
 
