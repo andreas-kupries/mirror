@@ -1,4 +1,4 @@
-# -*- tcl -*-
+# -*- mode: tcl; fill-column: 90 -*-
 # # ## ### ##### ######## ############# ######################
 
 # @@ Meta Begin
@@ -454,7 +454,7 @@ proc ::m::glue::cmd_site_off {config} {
     OK
 }
 
-proc ::m::glue::cmd_site_on {config} {
+proc ::m::glue::cmd_site_make {auto config} {
     debug.m/glue {[debug caller] | }
     package require m::state
     package require m::web::site
@@ -462,7 +462,7 @@ proc ::m::glue::cmd_site_on {config} {
     set mode [expr {[$config @silent] ? "silent" : ""}]
 
     m db transaction {
-	SiteEnable 1
+	if {$auto} { SiteEnable 1 }
 	[table/d t {
 	    SiteConfigShow $t
 	}] show
@@ -591,6 +591,8 @@ proc ::m::glue::cmd_add {config} {
     package require m::rolodex
     package require m::store
 
+    # puts [$config names] ; foreach n [$config names] { puts ${n}\t:\t([$config @$n]) }
+
     m db transaction {
 	Add $config [$config @extend]
     }
@@ -607,9 +609,11 @@ proc ::m::glue::cmd_remove {config} {
     package require m::store
 
     m db transaction {
-	set repos [$config @repositories]
+	set repos [ReposOrCurrent]
 
 	foreach repo $repos {
+	    if {$repo eq {}} continue
+
 	    set rinfo [m repo get $repo]
 	    dict with rinfo {}
 	    # -> url    : repo url
@@ -623,15 +627,18 @@ proc ::m::glue::cmd_remove {config} {
 
 	    m repo remove $repo
 
-	    set siblings  [m store remotes $store]
-	    set nsiblings [llength $siblings]
-	    if {!$nsiblings} {
-		m msg* "Removing unshared $vcode store $store ... "
-		m store remove $store
-		OKx
-	    } else {
-		set x [expr {($nsiblings == 1) ? "repository" : "repositories"}]
-		m msg "Keeping $vcode store [color note $store]. Still used by $nsiblings $x"
+	    # Ignore the missing store link of phantoms
+	    if {$store ne {}} {
+		set siblings  [m store remotes $store]
+		set nsiblings [llength $siblings]
+		if {!$nsiblings} {
+		    m msg* "Removing unshared $vcode store $store ... "
+		    m store remove $store
+		    OKx
+		} else {
+		    set x [expr {($nsiblings == 1) ? "repository" : "repositories"}]
+		    m msg "Keeping $vcode store [color note $store]. Still used by $nsiblings $x"
+		}
 	    }
 
 	    # Remove project if no repositories remain at all.
@@ -647,7 +654,6 @@ proc ::m::glue::cmd_remove {config} {
 	    }
 
 	    m rolodex drop $repo
-
 	}
 
 	m rolodex commit
@@ -656,6 +662,89 @@ proc ::m::glue::cmd_remove {config} {
     ShowCurrent $config
     SiteRegen
     OK
+}
+
+proc ::m::glue::cmd_archive {config} {
+    package require m::store
+    package require m::repo
+
+    set destination [$config @destination]
+    set mode        [$config @mode]
+
+    m db transaction {
+	set repos  [ReposOrCurrent]
+	set stores [lmap repo $repos {
+	    if {$repo eq {}} continue
+	    set store [m repo store $repo]
+	    if {$store eq {}} {
+		m msg "[color warning "Cannot archive phantom"] [color note [m repo url $repo]]"
+		continue
+	    }
+	    set store
+	}]
+
+	if {![llength $stores]} {
+	    m msg [color warning {Nothing to archive}]
+	    return
+	}
+
+	set stores [lsort -unique $stores]
+
+	file mkdir $destination
+
+	m msg "Archiving into directory [color note $destination] ..."
+
+	foreach store $stores {
+	    set dst [NEWPATH $destination/$store]
+	    m msg* "  Archiving store [color note $store] to [color note $dst] ... "
+	    file copy [m store path $store] $dst
+	    OKx
+	}
+
+	switch -exact -- $mode {
+	    keep { }
+	    remove {
+		foreach repo $repos {
+		    m msg* "Removing repository [color note [m repo url $repo]] ... "
+		    m repo remove $repo
+		    m rolodex drop $repo
+		    OKx
+		}
+		foreach store $stores {
+		    set siblings  [m store remotes $store]
+		    set nsiblings [llength $siblings]
+		    if {!$nsiblings} {
+			m msg* "Removing lost store $store ... "
+			m store remove $store
+			OKx
+		    }
+		}
+
+		m rolodex commit
+	    }
+	    phantom {
+		foreach repo $repos {
+		    m msg* "Phantomize repository [color note [m repo url $repo]] ... "
+		    m repo store! $repo {}
+		    OKx
+		}
+		foreach store $stores {
+		    m msg* "Removing store $store ... "
+		    m store remove $store
+		    OKx
+		}
+	    }
+	}
+    }
+
+    OK
+}
+
+proc ::m::glue::NEWPATH {path} {
+    if {![file exists $path]} { return $path }
+    set serial 1
+    while {[file exists $path.$serial]} { incr serial }
+    return $path.$serial
 }
 
 proc ::m::glue::L {text} {
@@ -702,7 +791,6 @@ proc ::m::glue::cmd_details {config} { ;# XXX REWORK due the project/repo/store 
 	# Basic repository details ...........................
 	set rinfo [m repo get $repo]
 	dict with rinfo {}
-	#m msg "Details of [color note $url] ..."
 	# -> url    : repo url
 	#    active : usage state
 	#    vcs    : vcs id
@@ -716,30 +804,36 @@ proc ::m::glue::cmd_details {config} { ;# XXX REWORK due the project/repo/store 
 	#    checked: epoch of last check
 	#    origin : repository this is forked from, or empty
 
-	set spent [StatsTime $min_sec $max_sec $win_sec]
-
 	# Get store details ...
+	if {$store ne {}} {
+	    set spent [StatsTime $min_sec $max_sec $win_sec]
 
-	set path [m store path $store]
-	set sd   [m store get  $store]
-	dict unset sd vcs
-	dict unset sd min_sec
-	dict unset sd max_sec
-	dict unset sd win_sec
-	dict with sd {}
-	#  size, sizep
-	#  commits, commitp
-	#  vcsname
-	#  created
-	#  changed
-	#  updated
-	lassign [m vcs caps $store] stdout stderr
-	set stdout [string trim $stdout]
-	set stderr [string trim $stderr]
+	    set path [m store path $store]
+	    set sd   [m store get  $store]
+	    dict unset sd vcs
+	    dict unset sd min_sec
+	    dict unset sd max_sec
+	    dict unset sd win_sec
+	    dict with sd {}
+	    #  size, sizep
+	    #  commits, commitp
+	    #  vcsname
+	    #  created
+	    #  changed
+	    #  updated
+	    lassign [m vcs caps $store] stdout stderr
+	    set stdout [string trim $stdout]
+	    set stderr [string trim $stderr]
 
-	# Find repositories sharing the store ................
+	    # Find repositories sharing the store ................
 
-	set storesibs [m store repos $store]
+	    set storesibs [m store repos $store]
+	    set export    [m vcs export $vcs $store]
+	} else {
+	    set stderr    {}
+	    set vcsname   $vcode
+	    set storesibs {}
+	}
 
 	# Find repositories which are siblings of the same origin
 
@@ -759,59 +853,61 @@ proc ::m::glue::cmd_details {config} { ;# XXX REWORK due the project/repo/store 
 	# Compute derived information ...
 
 	set status  [SI $stderr]
-	set export  [m vcs export $vcs $store]
-	set dcommit [DeltaCommitFull $commits $commitp]
-	set dsize   [DeltaSizeFull $size $sizep]
-	set changed [color note [m format epoch $changed]]
-	set updated [m format epoch $updated]
-	set created [m format epoch $created]
 
 	set active [color {*}[dict get {
 	    0 {warning offline}
 	    1 {note UP}
 	} [expr {!!$active}]]]
 
-	set s [[table/d s {
-	    $s borders 0
+	if {$store ne {}} {
+	    set dcommit [DeltaCommitFull $commits $commitp]
+	    set dsize   [DeltaSizeFull $size $sizep]
+	    set changed [color note [m format epoch $changed]]
+	    set updated [m format epoch $updated]
+	    set created [m format epoch $created]
 
-	    set sibs [lmap sib $storesibs {
-		if {$sib == $repo} continue
-		Short $sib
-	    }]
-	    if {[llength $sibs]} {
-		$s add {Shared With} [Box [join $sibs \n]]
-	    } else {
-		$s add Unshared {}
-	    }
+	    set s [[table/d s {
+		$s borders 0
 
-	    $s add Size $dsize
-	    $s add Commits       $dcommit
-	    if {$export ne {}} {
-		$s add Export [Box $export]
-	    }
-	    $s add {Update Stats} $spent
-	    $s add {Last Change}  $changed
-	    $s add {Last Check}   $updated
-	    $s add Created        $created
-
-	    if {!$full} {
-		set nelines [llength [split $stderr \n]]
-		set nllines [llength [split $stdout \n]]
-
-		if {$nelines == 0} { set nelines [color note {no log}] }
-		if {$nllines == 0} { set nllines [color note {no log}] }
-
-		$s add Operation $nllines
-		if {$stderr ne {}} {
-		    $s add "Notes & Errors" [color bad $nelines]
+		set sibs [lmap sib $storesibs {
+		    if {$sib == $repo} continue
+		    Short $sib
+		}]
+		if {[llength $sibs]} {
+		    $s add {Shared With} [Box [join $sibs \n]]
 		} else {
-		    $s add "Notes & Errors" $nelines
+		    $s add Unshared {}
 		}
-	    } else {
-		if {$stdout ne {}} { $s add Operation        [L $stdout] }
-		if {$stderr ne {}} { $s add "Notes & Errors" [L $stderr] }
-	    }
-	}] show return]
+
+		$s add Size $dsize
+		$s add Commits       $dcommit
+		if {$export ne {}} {
+		    $s add Export [Box $export]
+		}
+		$s add {Update Stats} $spent
+		$s add {Last Change}  $changed
+		$s add {Last Check}   $updated
+		$s add Created        $created
+
+		if {!$full} {
+		    set nelines [llength [split $stderr \n]]
+		    set nllines [llength [split $stdout \n]]
+
+		    if {$nelines == 0} { set nelines [color note {no log}] }
+		    if {$nllines == 0} { set nllines [color note {no log}] }
+
+		    $s add Operation $nllines
+		    if {$stderr ne {}} {
+			$s add "Notes & Errors" [color bad $nelines]
+		    } else {
+			$s add "Notes & Errors" $nelines
+		    }
+		} else {
+		    if {$stdout ne {}} { $s add Operation        [L $stdout] }
+		    if {$stderr ne {}} { $s add "Notes & Errors" [L $stderr] }
+		}
+	    }] show return]
+	}
 
 	[table/d t {
 	    $t add {} [color note $url]
@@ -822,8 +918,12 @@ proc ::m::glue::cmd_details {config} { ;# XXX REWORK due the project/repo/store 
 	    $t add Project       $name
 	    $t add VCS           $vcsname
 
-	    $t add {Local Store} $path
-	    $t add {}            $s
+	    if {$store ne {}} {
+		$t add {Local Store} $path
+		$t add {}            $s
+	    } else {
+		$t add {Local Store} [color warning {not present}]
+	    }
 
 	    # Show other locations serving the project, except for forks.
 	    # Forks are shown separately. Note that projects sharing the
@@ -887,7 +987,9 @@ proc ::m::glue::cmd_enable {flag config} {
     set op [expr {$flag ? "Enabling" : "Disabling"}]
 
     m db transaction {
-	foreach repo [$config @repositories] {
+	foreach repo [ReposOrCurrent] {
+	    if {$repo eq {}} continue
+
 	    m msg "$op [color note [m repo url $repo]] ..."
 
 	    m repo enable $repo $flag
@@ -913,10 +1015,7 @@ proc ::m::glue::cmd_move {config} {
 
     m db transaction {
 	set dst   [$config @name] ; debug.m/glue {dst: $dst}
-	set repos [$config @repositories]
-	if {![llength $repos]} {
-	    lappend repos [m rolodex top]
-	}
+	set repos [ReposOrCurrent]
 
 	# Get/create destination
 	if {![m project has $dst]} {
@@ -932,10 +1031,14 @@ proc ::m::glue::cmd_move {config} {
 	# Record origin projects
 	set oldprojects \
 	    [lsort -unique \
-		 [lmap r $repos { m repo project $r }]]
+		 [lmap r $repos {
+		     if {$r eq {}} continue
+		     m repo project $r
+		 }]]
 
 	# Move repositories to destination
 	foreach r $repos {
+	    if {$r eq {}} continue
 	    m msg "- Moving [color note [m repo url $r]]"
 	    m repo move/1 $r $project
 	}
@@ -1137,36 +1240,63 @@ proc ::m::glue::cmd_update {config} {
 	foreach repo $repos {
 	    set ri [m repo get $repo]
 	    dict with ri {}
+
 	    # url, active, issues, vcs, vcode, project, name, store
 	    # min/max/win_sec, checked, origin
-
-	    set si [m store get $store]
-	    # size, vcs, sizep, commits, commitp, vcsname, updated, changed, created
-	    # (atted, min/max/win, remote, active)
-	    set before [dict get $si commits]
 
 	    set durl [color note $url]
 	    if {$origin eq {}} { set durl [color bg-cyan $durl] }
 
-	    m msg "Updating repository $durl ..."
-	    m msg "In project          [color note $name]"
-	    if {$verbose} {
-		m msg  "  [color note [string totitle $vcode]] store ... "
-	    } else {
-		m msg* "  [string totitle $vcode] store ... "
-	    }
 	    set primary [expr {$origin eq {}}]
+	    set now     [clock seconds]
 
-	    # -- has_issues, is_active/enable -- fork handling
+	    set dvcs [string totitle $vcode]
+	    set m msg*
+	    if {$verbose} { set m msg ; set dvcs [color note $dvcs] }
 
-	    set now [clock seconds]
-	    lassign [m store update $primary $url $store $nowcycle $now $before] \
-		ok duration commits size forks
+	    if {$store eq {}} {
+		# Repo is phantom without a store - Time to set it up, and link
+
+		set before 0
+
+		m msg "Setting up repository $durl ..."
+		m msg "In project          [color note $name]"
+		m $m  "  $dvcs store ... "
+
+		lassign [m store add $vcs $url] \
+		    store duration commits size forks
+		#   id    seconds  int     int  list(url)
+
+		m repo store! $repo $store
+
+		m msg "[color good OK]"
+		set ok yes
+
+	    } else {
+		# Store is set, update it.
+
+		set si [m store get $store]
+		# size, vcs, sizep, commits, commitp, vcsname, updated, changed, created
+		# (attend, min/max/win, remote, active)
+		set before [dict get $si commits]
+
+		m msg "Updating repository $durl ..."
+		m msg "In project          [color note $name]"
+		m $m  "  $dvcs store ... "
+
+		# -- has_issues, is_active/enable -- fork handling
+
+		lassign [m store update $primary $url $store $nowcycle $now $before] \
+		    ok duration commits size forks
+	    }
+
+	    set x [expr {($commits == 1) ? "commit" : "commits"}]
+	    set suffix ", in [color note [m format interval $duration]] ($commits $x, $size KB)"
+
 	    set attend [expr {!$ok || [m store has-issues $store]}]
-	    set suffix ", in [color note [m format interval $duration]]"
+	    if {!$primary && $attend} { m repo enable $repo 0 }
 
 	    m repo times  $repo $duration $now $attend
-	    if {!$primary && $attend} { m repo enable $repo 0 }
 
 	    if {!$ok} {
 		lassign [m vcs caps $store] _ e
@@ -2576,7 +2706,7 @@ proc ::m::glue::Import1 {pname state repos} {
 	set vcsid [m vcs id $vcs]
 
 	try {
-	    lassign [AddStoreRepo $base $vcsid $vcs $pname $url $project] repo forks
+	    lassign [AddStoreRepo $base $vcsid $vcs $url $project] repo forks
 
 	    # Forks are not processed. It is expected that forks are in the import file.
 	    # The next update of the primary will link them to the origin.
@@ -2656,7 +2786,7 @@ proc ::m::glue::Add {config {base {}}} {
 	m msg "  Project is known"
     }
 
-    lassign [AddStoreRepo $base $vcs $vcode $name $url $project] repo forks
+    lassign [AddStoreRepo $base $vcs $vcode $url $project] repo forks
 
     # ---------------------------------- Forks
     if {$forks ne {}} {
@@ -2712,12 +2842,12 @@ proc ::m::glue::AddForks {forks repo vcs vcode name project} {
 	    continue
 	}
 
-	AddStoreRepo {} $vcs $vcode $name $fork $project $repo
+	AddStoreRepo {} $vcs $vcode $fork $project $repo
     }
     return
 }
 
-proc ::m::glue::AddStoreRepo {base vcs vcode name url project {origin {}}} {
+proc ::m::glue::AddStoreRepo {base vcs vcode url project {origin {}}} {
     debug.m/glue {[debug caller] | }
 
     # ---------------------------------- Store
@@ -2733,27 +2863,40 @@ proc ::m::glue::AddStoreRepo {base vcs vcode name url project {origin {}}} {
 	}
     }
 
-    set ext [expr {($base ne {}) ? "a transient" : "the"}]
+    if {$origin eq {}} {
+	set ext [expr {($base ne {}) ? "a transient" : "the"}]
 
-    m msg* "  Setting up $ext $vcode store ... "
-    lassign [m store add $vcs $name $url] \
-	store duration commits size forks
-    #   id    seconds  int     int  list(url)
-    set x [expr {($commits == 1) ? "commit" : "commits"}]
-    m msg "[color good OK] in [color note [m format interval $duration]] ($commits $x, $size KB)"
+	m msg* "  Setting up $ext $vcode store ... "
+	lassign [m store add $vcs $url] \
+	    store duration commits size forks
+	#   id    seconds  int     int  list(url)
+	set x [expr {($commits == 1) ? "commit" : "commits"}]
+	m msg "[color good OK] in [color note [m format interval $duration]] ($commits $x, $size KB)"
+    } {
+	# `origin` is set - This repo is a fork. Add without a store. I.e. be a phantom.
+	# The setup happens on the first update for the repo.
+	set store    {}
+	set duration {}
+	set forks    {}
+
+	# This is invalidated when `base` is set, providing a store to use (share).
+    }
 
     if {$base ne {}} {
 	set bstore [dict get $binfo store]
 
-	if {![m store check $store $bstore]} {
-	    m store remove $store
-	    m::cmdr::error \
-		"Extension rejected by [m vcs name $vcs]" \
-		MISMATCH
-	}
+	if {$store ne {}} {
+	    if {![m store check $store $bstore]} {
+		m store remove $store
+		m::cmdr::error \
+		    "Extension rejected by [m vcs name $vcs]" \
+		    MISMATCH
+	    }
 
-	# Extension is ok. Drop the created store again, it was only needed to perform the checks.
-	m store remove $store
+	    # Extension is ok. Drop the created store again, it was only needed to perform
+	    # the checks.
+	    m store remove $store
+	}
 
 	# And point the new repository to the store of the base.
 	set store $bstore
@@ -2975,6 +3118,13 @@ proc ::m::glue::Dedup {values} {
 	dict set have $v .
     }
     return $res
+}
+
+proc ::m::glue::ReposOrCurrent {} {
+    upvar 1 config config
+    set repos [$config @repositories]
+    if {[llength $repos]} { return $repos }
+    lappend repos [m rolodex top]
 }
 
 proc ::m::glue::MergeFill {repos} {

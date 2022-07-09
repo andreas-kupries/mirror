@@ -1,4 +1,4 @@
-## -*- tcl -*-
+## -*- mode: tcl ; fill-column: 90 -*-
 # # ## ### ##### ######## ############# #####################
 ## Version Control Systems - Core
 
@@ -34,15 +34,13 @@ package provide m::vcs 0
 #     - commits    Number of commits in the store.
 #     - size       Size of the store in KB.
 #     - f-*        Set of forks found for the associated url.
-#     - r-*        Url(s) used to update the store. Each url is stored
-#                  in a separate file. The name of the file uses the
-#                  url in base64-encoded form. Easy way of getting
-#                  unique files without having to deal with serial
-#                  numbers or some such.
+#     - r-*        Url(s) used to update the store. Each url is stored in a separate
+#                  file. The name of the file uses the url in base64-encoded form. Easy
+#                  way of getting unique files without having to deal with serial numbers
+#                  or some such.
 #
-#   These files replicate some of the information stored in the
-#   management database. Simplifies back-referencing into the database
-#   when debugging
+#   These files replicate some of the information stored in the management
+#   database. Simplifies back-referencing into the database when debugging
 #
 # - The v2 files
 #
@@ -57,8 +55,8 @@ package provide m::vcs 0
 #
 #     - source.{git,fossil,hg,svn}
 #
-#   where the extension used indicates the primary VCS responsible for
-#   management. Note that this does not discriminate git vs github.
+#   where the extension used indicates the primary VCS responsible for management. Note
+#   that this does not discriminate git vs github.
 #
 # # ## ### ##### ######## ############# #####################
 ## Requisites
@@ -121,29 +119,7 @@ proc ::m::vcs::caps {store} {
     return $r
 }
 
-# proc ::m::vcs::size {store} {
-#     debug.m/vcs {}
-#     # store id -> Using for path.
-#     # vcs   id -> Decode to plugin name
-#
-#     set path [Path $store]
-#     set kb   [lindex [m exec get du -sk $path] 0]
-#
-#     debug.m/vcs {=> $kb}
-#     return $kb
-# }
-#
-# proc ::m::vcs::revs {store vcs} {
-#     debug.m/vcs {}
-#     # store id -> Using for path.
-#     # vcs   id -> Decode to plugin name
-#
-#     set path  [Path $store]
-#     set vcode [code $vcs]
-#     return [$vcode revs $path]
-# }
-
-proc ::m::vcs::setup {store vcs name url} {
+proc ::m::vcs::setup {store vcs url} {
     debug.m/vcs {}
     # store id -> Using for path.
     # vcs   id -> Decode to plugin name
@@ -208,10 +184,9 @@ proc ::m::vcs::update {store vcs url primary} {
     file delete $path/%stdout
     # # ## ### ##### ######## #############
 
-    # Validate the url to ensure that it is still present. No need to
-    # go for the vcs client when we know that it must fail. That said,
-    # we store our failure as a pseudo error log for other parts to
-    # pick up on.
+    # Validate the url to ensure that it is still present. No need to go for the vcs
+    # client when we know that it must fail. That said, we store our failure as a pseudo
+    # error log for other parts to pick up on.
 
     m futil write $path/log.stderr ""
     m futil write $path/log.stdout "Verifying url ...\n"
@@ -224,9 +199,8 @@ proc ::m::vcs::update {store vcs url primary} {
 	return {ok 0 commits 0 size 0 forks {} results {} msg {Invalid url} duration 0}
     }
 
-    # Ask plugin to update the store.
-    # Redirect through an external command. This command is currently
-    # always `mirror-vcs VCS LOG setup STORE URL`.
+    # Ask plugin to update the store.  Redirect through an external command. This command
+    # is currently always `mirror-vcs VCS LOG setup STORE URL`.
 
     Operation ::m::vcs::OpComplete $vcode update \
 	{*}[OpCmd $vcode $path $url $primary]
@@ -255,9 +229,8 @@ proc ::m::vcs::cleanup {store vcs} {
 
     # TODO MAYBE: check vcode against contents of $path/%vcs.
 
-    # Ask plugin to fill the store.
-    # Redirect through an external command. This command is currently
-    # always `mirror-vcs VCS LOG cleanup STORE`.
+    # Ask plugin to fill the store.  Redirect through an external command. This command is
+    # currently always `mirror-vcs VCS LOG cleanup STORE`.
 
     Operation ::m::vcs::OpComplete $vcode cleanup \
 	{*}[OpCmd $vcode $path]
@@ -273,8 +246,8 @@ proc ::m::vcs::cleanup {store vcs} {
     # [ ] duration
 
     if {!$ok} {
-	# Do not perform any filesystem changes.
-	# Rethrow as something more distinguished for trapping
+	# Do not perform any filesystem changes.  Rethrow as something more distinguished
+	# for trapping
 	E $msg CHILD
     }
 
@@ -320,8 +293,8 @@ proc ::m::vcs::check {vcs storea storeb} {
     set pathb [Path $storeb]
     set vcode [code $vcs]
 
-    # Redirect through an external command. This command is currently
-    # always `mirror-vcs VCS LOG mergable?`.
+    # Redirect through an external command. This command is currently always `mirror-vcs
+    # VCS LOG mergable?`.
 
     Operation ::m::vcs::OpComplete $vcode mergable? \
 	{*}[OpCmd $vcode $patha $pathb]
@@ -353,8 +326,8 @@ proc ::m::vcs::merge {vcs target origin} {
     set porigin [Path $origin]
     set vcode   [code $vcs]
 
-    # Redirect through an external command. This command is currently
-    # always `mirror-vcs VCS LOG merge`.
+    # Redirect through an external command. This command is currently always `mirror-vcs
+    # VCS LOG merge`.
 
     Operation ::m::vcs::OpComplete $vcode merge \
 	{*}[OpCmd $vcode $ptarget $porigin]
@@ -375,8 +348,8 @@ proc ::m::vcs::merge {vcs target origin} {
 	E [join $issues \n] CHILD
     }
 
-    # The merged store is not destroyed here. This is done by the
-    # store controller calling this command.
+    # The merged store is not destroyed here. This is done by the store controller calling
+    # this command.
     return
 }
 
@@ -392,8 +365,8 @@ proc ::m::vcs::cleave {vcs origin dst dstname} {
 
     # Split/create vcs specific special resources, if any ...
 
-    # Redirect through an external command. This command is currently
-    # always `mirror-vcs VCS LOG split`.
+    # Redirect through an external command. This command is currently always `mirror-vcs
+    # VCS LOG split`.
 
     Operation ::m::vcs::OpComplete $vcode split \
 	{*}[OpCmd $vcode $porigin $pdst]
@@ -426,8 +399,8 @@ proc ::m::vcs::export {vcs store} {
     set path  [Path $store]
     set vcode [code $vcs]
 
-    # Redirect through an external command. This command is currently
-    # always `mirror-vcs VCS LOG export STORE`.
+    # Redirect through an external command. This command is currently always `mirror-vcs
+    # VCS LOG export STORE`.
 
     # Ask plugin for CGI script to access the store.
 
@@ -464,8 +437,8 @@ proc ::m::vcs::version {vcode iv} {
     upvar 1 $iv issues
     set issues {}
 
-    # Redirect through an external command. This command is currently
-    # always `mirror-vcs VCS LOG version`.
+    # Redirect through an external command. This command is currently always `mirror-vcs
+    # VCS LOG version`.
 
     Operation ::m::vcs::OpComplete $vcode version \
 	{*}[OpCmd $vcode]
@@ -495,8 +468,8 @@ proc ::m::vcs::detect {url} {
     debug.m/vcs {}
 
     # Note: Ordering is important.
-    # Capture specific things first (github)
-    # Least specific (fossil) is last.
+    # - Capture specific things first (github)
+    # - Least specific (fossil) is last.
 
     github detect $url
     git    detect $url
@@ -509,10 +482,9 @@ proc ::m::vcs::detect {url} {
 
 proc ::m::vcs::url-norm {vcode url} {
     debug.m/vcs {}
-    # Normalize the incoming url
-    # I.e. for a number of known sites, force the use of the https
-    # they support. Further strip known irrelevant trailers.
-    # Resolve short host names to the proper full name
+    # Normalize the incoming url. I.e. for a number of known sites, force the use of the
+    # https they support. Further strip known irrelevant trailers.  Resolve short host
+    # names to the proper full name.
 
     lappend map sf.net               sourceforge.net
     lappend map git@github.com:      https://github.com/
@@ -537,8 +509,8 @@ proc ::m::vcs::url-norm {vcode url} {
 proc ::m::vcs::name-from-url {vcode url} {
     debug.m/vcs {}
 
-    # Redirect through an external command. This command is currently
-    # always `mirror-vcs VCS LOG url-to-name`.
+    # Redirect through an external command. This command is currently always `mirror-vcs
+    # VCS LOG url-to-name`.
 
     Operation ::m::vcs::OpComplete $vcode url-to-name \
 	{*}[OpCmd $vcode $url]
@@ -756,8 +728,8 @@ proc ::m::vcs::OpProgress {opsid line} {
 	return
     }
 
-    # When not in verbose mode, limit reporting to (potential)
-    # trouble, i.e. warnings and higher.
+    # When not in verbose mode, limit reporting to (potential) trouble, i.e. warnings and
+    # higher.
 
     set level [dict get {
 	info 0 note 1 warn 2 error 3 fatal 4

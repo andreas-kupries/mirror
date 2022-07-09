@@ -1,4 +1,4 @@
-## -*- tcl -*-
+# -*- mode: tcl; fill-column: 90 -*-
 # # ## ### ##### ######## ############# ######################
 
 # @@ Meta Begin
@@ -64,6 +64,7 @@ proc ::m::repo::known {} {
 	FROM   repository
     } {
 	dict set map [string tolower $url] $id
+	dict set map r/${id}/              $id
     }
 
     # See also m::project::known
@@ -187,45 +188,34 @@ proc ::m::repo::add {vcs project store url duration {origin {}}} {
 
     set now [clock seconds]
 
-    if {$origin ne {}} {
-        m db eval {
-	    INSERT
-	    INTO   repository
-	    VALUES ( NULL	-- id
-		   , :url	-- url
-		   , :project	-- project
-		   , :vcs	-- vcs
-		   , :store	-- store
-		   , :origin	-- fork_origin
-		   , 1		-- is_active
-		   , 0		-- has_issues
-		   , :now	-- checked
-		   , :duration	-- min_duration
-		   , :duration	-- max_duration
-		   , :duration	-- window_duration
-		   )
-	}
-    } else {
-        m db eval {
-	    INSERT
-	    INTO   repository
-	    VALUES ( NULL	-- id
-		   , :url	-- url
-		   , :project	-- project
-		   , :vcs	-- vcs
-		   , :store	-- store
-		   , NULL	-- fork_origin
-		   , 1		-- is_active
-		   , 0		-- has_issues
-		   , :now	-- checked
-		   , :duration	-- min_duration
-		   , :duration	-- max_duration
-		   , :duration	-- window_duration
-		   )
-	}
-    }
+    lappend map @@origin [expr {($origin ne {}) ? ":origin" : "NULL"}]
+    lappend map @@store  [expr {($store  ne {}) ? ":store" : "''"}]
 
-    return [m db last_insert_rowid]
+    set sql [string map $map {
+	INSERT
+	INTO   repository
+	VALUES ( NULL		-- id
+	       , :url		-- url
+	       , :project	-- project
+	       , :vcs		-- vcs
+	       , @@store	-- store
+	       , @@origin	-- fork_origin
+	       , 1		-- is_active
+	       , 0		-- has_issues
+	       , :now		-- checked
+	       , :duration	-- min_duration
+	       , :duration	-- max_duration
+	       , :duration	-- window_duration
+	)
+    }]
+
+    m db eval $sql
+
+    set repo [m db last_insert_rowid]
+
+    add-pending $repo
+
+    return $repo
 }
 
 proc ::m::repo::for {project} {
@@ -268,7 +258,7 @@ proc ::m::repo::project {repo} {
 
 proc ::m::repo::store {repo} {
     debug.m/repo {}
-    return [m db eval {
+    return [m db onecolumn {
 	SELECT store
 	FROM   repository
 	WHERE  id = :repo
@@ -278,8 +268,8 @@ proc ::m::repo::store {repo} {
 proc ::m::repo::get {repo} {
     debug.m/repo {}
 
-    # Given a repository (by id) follow all the links in the database
-    # to retrieve everything related to it
+    # Given a repository (by id) follow all the links in the database to retrieve
+    # everything related to it
     # - repository (url)
     # - project    (id, and name)
     # - vcs        (id, and code)
@@ -300,14 +290,13 @@ proc ::m::repo::get {repo} {
 	,      'win_sec', window_duration
 	,      'checked', checked
 	,      'origin' , fork_origin
-	FROM   repository             R
-	,      project                P
-	,      version_control_system V
-	,      store                  S
+	FROM      repository             R
+	,         project                P
+	,         version_control_system V
+	LEFT JOIN store                  S ON R.store = S.id
 	WHERE  R.id = :repo
 	AND    P.id = R.project
 	AND    V.id = R.vcs
-	AND    S.id = R.store
     }]
     debug.m/repo {=> ($details)}
     return $details
@@ -333,16 +322,18 @@ proc ::m::repo::search {substring} {
 	,      S.size_previous    AS sizep
 	,      S.commits_current  AS commits
 	,      S.commits_previous AS commitp
-	FROM   repository             R
-	,      project                P
-	,      version_control_system V
-	,      store                  S
+	FROM      repository             R
+	,         project                P
+	,         version_control_system V
+	LEFT JOIN store                  S ON R.store = S.id
 	WHERE  P.id   = R.project
 	AND    V.id   = R.vcs
-	AND    S.id   = R.store
 	ORDER BY P.name ASC
 	,        R.url  ASC
     } {
+	# Searching for the substring is easier in Tcl, especially as even a few thousand
+	# repositories should be no strain. Also avoids the need for full-blown suffix
+	# helper tables.
 	if {
 	    ([string first $sub [string tolower $name]] < 0) &&
 	    ([string first $sub [string tolower $url ]] < 0)
@@ -372,8 +363,8 @@ proc ::m::repo::get-n {first n} {
     #        Default to 1st if not specified
     # n    : Number of repositories to retrieve.
     #
-    # Taking n+1 repositories, last becomes top for next call.
-    # If we get less than n, top shall be empty, to reset the cursor.
+    # Taking n+1 repositories, last becomes top for next call.  If we get less than n, top
+    # shall be empty, to reset the cursor.
 
     if {![llength $first]} {
 	set first [FIRST]
@@ -397,13 +388,12 @@ proc ::m::repo::get-n {first n} {
 	,      S.size_previous    AS sizep
 	,      S.commits_current  AS commits
 	,      S.commits_previous AS commitp
-	FROM   repository             R
-	,      project                P
-	,      version_control_system V
-	,      store                  S
+	FROM      repository             R
+	,         project                P
+	,         version_control_system V
+	LEFT JOIN store                  S ON R.store = S.id
 	WHERE  P.id   = R.project
 	AND    V.id   = R.vcs
-	AND    S.id   = R.store
 	-- cursor start clause ...
 	AND ((P.name > :mname) OR
 	     ((P.name = :mname) AND
@@ -455,6 +445,10 @@ proc ::m::repo::remove {repo} {
 	DELETE
 	FROM  repository
 	WHERE id = :repo
+	; -- - - -- --- ----- drop out of pending
+	DELETE
+	FROM  repo_pending
+	WHERE repository = :repo
 	; -- - - -- --- ----- clear origin links in forks
 	UPDATE repository
 	SET    fork_origin = NULL
@@ -560,9 +554,11 @@ proc ::m::repo::pending {} {
 	,      (SELECT count (*)
 		FROM repository X
 		WHERE fork_origin = R.id) AS nforks
-	FROM repository R
-	,    project    P
-	WHERE R.project = P.id
+	FROM repo_pending X
+	,    repository   R
+	,    project      P
+	WHERE R.id      = X.repository
+	AND   R.project = P.id
 	AND   R.is_active
 	ORDER BY R.ROWID
     }]
@@ -571,11 +567,10 @@ proc ::m::repo::pending {} {
 proc ::m::repo::take-pending {take args} {
     debug.m/repo {}
 
-    # Ask for one more than actually requested by the
-    # configuration. This will cause a short-read (with refill) not
-    # only when the table contains less than `take` elements, but also
-    # when it contains exactly that many.  If the read is not short we
-    # know that at least one element is left.
+    # Ask for one more than actually requested by the configuration. This will cause a
+    # short-read (with refill) not only when the table contains less than `take` elements,
+    # but also when it contains exactly that many.  If the read is not short we know that
+    # at least one element is left.
     incr take
 
     set taken [m db eval {
@@ -600,8 +595,8 @@ proc ::m::repo::take-pending {take args} {
 	}
 
 	if {[llength $args]} {
-	    # Invoke callback to report that the overall cycle just
-	    # came around and started anew.
+	    # Invoke callback to report that the overall cycle just came around and
+	    # started anew.
 	    try {
 		uplevel 1 $args
 	    } on error {e o} {
@@ -609,8 +604,8 @@ proc ::m::repo::take-pending {take args} {
 	    }
 	}
     } else {
-	# Full read. Clear taken, the slow way.  Drop the unwanted
-	# sentinel element from the end of the result.
+	# Full read. Clear taken, the slow way.  Drop the unwanted sentinel element from
+	# the end of the result.
 	set taken [lreplace [K $taken [unset taken]] end end]
 	m db eval [string map [list %% [join $taken ,]] {
 	    DELETE

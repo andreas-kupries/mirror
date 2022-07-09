@@ -1,5 +1,5 @@
 #!/usr/bin/env tclsh
-## -*- tcl -*-
+# -*- mode: tcl; fill-column: 90 -*-
 # # ## ### ##### ######## ############# ######################
 
 # @@ Meta Begin
@@ -32,6 +32,7 @@ package require cmdr::color ; # color activation
 package require cmdr::history
 package require cmdr::pager
 package require cmdr::table
+package require cmdr::validate
 package require cmdr::validate::posint
 package require cmdr::help::tcl
 package require cmdr::actor 1.3 ;# Need -extend support for common/use blocks.
@@ -380,13 +381,35 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	use .list-optional-repository
     } [m::cmdr::call glue cmd_remove]
 
+    private archive {
+	use .cms
+	description {
+	    Archive the specified repositories into the given destination directory. If no
+	    repositories are specified archive the current repository.
+	}
+	state mode {
+	    Mode chosen by --remove, --phantom
+	} { default keep }
+	option remove {
+	    Remove the repositories after their stores are archived.
+	    Remove any store left without a using repository.
+	} { alias R ; presence ; when-set [touch @mode remove] }
+	option phantom {
+	    Remove the referenced stores and leave the repositories as phantoms.
+	} { undocumented ; alias P ; presence ; when-set [touch @mode phantom] }
+	input destination {
+	    Destination directory for the archived stores.
+	    Created if it does not exist.
+	} { validate cmdr::validate::rwdirectory }
+	use .list-optional-repository
+    } [m::cmdr::call glue cmd_archive]
+
     private add {
 	use .cms
 	description {
-	    Add repository. The new repository is placed into its own
-	    project. The command tries to auto-detect vcs type if not
-	    specified. The command derives a name from the url if not
-	    specified. The new repository becomes current.
+	    Add repository. The new repository is placed into its own project. The command
+	    tries to auto-detect vcs type if not specified. The command derives a name
+	    from the url if not specified. The new repository becomes current.
 	}
 	option track-forks {
 	    Force tracking when seeing a large number of forks.
@@ -855,23 +878,34 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	    }] [m::cmdr::call glue cmd_siteconfig $k $d]
 	}
 
+	private make {
+	    use .site
+	    description {
+		(Re)Generate site. This actions fails if the site configuration is
+		incomplete. On success it performs a full (re)build of the site.
+	    }
+	    option silent {
+		Reduce verbosity of the generation process.
+	    } { presence }
+	} [m::cmdr::call glue cmd_site_make 0]
+
 	private on {
 	    use .site
 	    description {
-		Activate site generation and update. This actions fails
-		if the site configuration is incomplete. On success it
-		performs a full (re)build of the site.
+		Like `make` it (re)generates the site. This actions fails if the site
+		configuration is incomplete. On success it performs a full (re)build of
+		the site. Beyond make it also activates automatic site generation after
+		many operations on projects and repositories.
 	    }
 	    option silent {
-		Reduce verbosity of site generation.
+		Reduce verbosity of the generation process.
 	    } { presence }
-	} [m::cmdr::call glue cmd_site_on]
-	alias make
-
+	} [m::cmdr::call glue cmd_site_make 1]
+	
 	private off {
 	    use .site
 	    description {
-		Disable site generation and update
+		Disable automatic site generation and update
 	    }
 	} [m::cmdr::call glue cmd_site_off]
 

@@ -183,10 +183,14 @@ proc ::m::web::site::Project {id name} {
 	set vcode [I/VCS $vcode]
 	set fork  [expr {!$fork ? " " : [I/Fork]}]
 
-	set tags  [L/Store $store $tags]
-       	set vcode [L/Store $store $vcode]
-       	set fork  [L/Store $store $fork]
-       	set repo  [L/Store $store $url]
+	if {$store ne {}} {
+	    set tags  [L/Store $store $tags]
+	    set vcode [L/Store $store $vcode]
+	    set fork  [L/Store $store $fork]
+	    set repo  [L/Store $store $url]
+	} else {
+	    set repo $url
+	}
 
 	Row $tags $fork $vcode $repo
     }
@@ -278,6 +282,8 @@ proc ::m::web::site::OLink {repo} {
     set issues [expr {!$issues ? "" : "[I/Bad]"}]
     set label  $active$issues$url
 
+    if {$store eq {}} { return $label }
+    
     return [L/Store $store $label]
 }
 
@@ -345,7 +351,7 @@ proc ::m::web::site::ExportStore {vcs store} {
     return $export
 }
 
-proc ::m::web::site::StoreForks {pname url store serial forks} {
+proc ::m::web::site::StoreForks {url store serial forks} {
     debug.m/web/site {}
 
     set series [m store getx $forks]
@@ -353,7 +359,7 @@ proc ::m::web::site::StoreForks {pname url store serial forks} {
     set up     [L/Store $store $url]
     set title  "[llength $forks] [I/Fork] of $up"
 
-    ListSimple $pname $title [file root $page].md $series
+    ListSimple $url $title [file root $page].md $series
     return $page
 }
 
@@ -435,7 +441,7 @@ proc ::m::web::site::Store {store} {
 		    incr k
 		    if {$k < $threshold} continue
 		    set more [expr {$nforks - $threshold}]
-		    Row {} {} [LB [StoreForks $pname $u $store $m $forks] "+ $more more"]
+		    Row {} {} [LB [StoreForks $u $store $m $forks] "+ $more more"]
 		    break
 		}
 		unset k
@@ -519,11 +525,14 @@ proc ::m::web::site::ListSimple {title subtitle page series} {
 	set changed [m format epoch $changed]
 	set updated [m format epoch $updated]
 	set created [m format epoch $created]
+       	set vcode   [I/VCS $vcode]
 
-       	set vcode   [L/Store $store [I/VCS $vcode]]
+	if {$store ne {}} {
+	    set vcode [L/Store $store $vcode]
+	    set url   [L/Store $store $url]
+	    if {$mname ne {}} { set mname [L/Store $store $mname] }
+	}
 
-	if {$mname  ne {}} { set mname [L/Store $store $mname] }
-	set url                        [L/Store $store $url]
 	if {$origin ne {}} { append tag $fork }
 
 	Row $img $mname $url $tag $vcode $size $changed $updated $created
@@ -564,17 +573,6 @@ proc ::m::web::site::List {suffix page series stats} {
 
     H "Index ($suffix)"
 
-    # ++  "Projects: " $nprojects ,
-    # ++ " Repos: " $nrepos ,
-    # ++ " Stores: " $nstores ,
-    # ++ " Size: " [m format size $size] ,
-    # +L " " $issues ,
-    # +L " " $disabled
-    # NL
-    # ++ "Cycles: Current began __" $ccf "__, "
-    # +L            "Last began __" $pcf "__, taking __" $dtf "__"
-    # NL
-
     Row {} $hname Repository {} $hvcs $hsize $hchan Updated Created
     Align l l l l l r l l l
 
@@ -612,10 +610,14 @@ proc ::m::web::site::List {suffix page series stats} {
 	set changed [m format epoch $changed]
 	set updated [m format epoch $updated]
 	set created [m format epoch $created]
-       	set vcode   [L/Store $store [I/VCS $vcode]]
+       	set vcode   [I/VCS $vcode]
 
-	if {$mname  ne {}} { set mname [L/Store $store $mname] }
-	set url                        [L/Store $store $url]
+	if {$store ne {}} {
+	    set vcode [L/Store $store $vcode]
+	    set url   [L/Store $store $url]
+	    if {$mname ne {}} { set mname [L/Store $store $mname] }
+	}
+	
 	if {$origin ne {}} { append tag $fork }
 
 	Row $img $mname $url $tag $vcode $size $changed $updated $created

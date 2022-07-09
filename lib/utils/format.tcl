@@ -63,6 +63,8 @@ proc m::format::win-trim {lastn max} {
 proc m::format::size {x} {
     # x is in [KB].
     debug.m/format {}
+    if {![string is integer -strict $x]} { return $x }
+
                               if {$x < 1024} { return ${x}K }
     set x [expr {$x/1024.}] ; if {$x < 1024} { return [format %.1f $x]M }
     set x [expr {$x/1024.}] ; if {$x < 1024} { return [format %.1f $x]G }

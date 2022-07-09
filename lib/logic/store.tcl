@@ -1,4 +1,4 @@
-## -*- tcl -*-
+## -*- mode: tcl ; fill-column: 90 -*-
 # # ## ### ##### ######## ############# ######################
 
 # @@ Meta Begin
@@ -78,10 +78,17 @@ proc ::m::store::statistics {} {
 	incr n
     }
 
-    set smean   [expr {$tsz/$n}]	;# naive mean - all integers
-    set cmean   [expr {$tcm/$n}]
-    set smedian [lindex [lsort -integer -increasing $sizes]   [expr {[llength $sizes  ]/2}]]
-    set cmedian [lindex [lsort -integer -increasing $commits] [expr {[llength $commits]/2}]]
+    if {$n == 0} {
+	set smean   n/a
+	set cmean   n/a
+	set smedian n/a
+	set cmedian n/a
+    } else {
+	set smean   [expr {$tsz/$n}]	;# naive mean - all integers
+	set cmean   [expr {$tcm/$n}]
+	set smedian [lindex [lsort -integer -increasing $sizes]   [expr {[llength $sizes  ]/2}]]
+	set cmedian [lindex [lsort -integer -increasing $commits] [expr {[llength $commits]/2}]]
+    }
 
     dict set stats sz_min    $smin
     dict set stats sz_max    $smax
@@ -95,11 +102,11 @@ proc ::m::store::statistics {} {
     return $stats
 }
 
-proc ::m::store::add {vcs name url} {
+proc ::m::store::add {vcs url} {
     debug.m/store {}
 
     set store [Add $vcs]
-    set state [m vcs setup $store $vcs $name $url]
+    set state [m vcs setup $store $vcs $url]
     dict with state {}
     # commits, size, forks, duration
 
@@ -177,23 +184,12 @@ proc ::m::store::check {storea storeb} {
     return [m vcs check [VCS $storea] $storea $storeb]
 }
 
-proc ::m::store::has {vcs mset} {
+proc ::m::store::has {store} {
     debug.m/store {}
     return [m db onecolumn {
 	SELECT count (*)
 	FROM   store
-	WHERE  vcs  = :vcs
-	AND    mset = :mset
-    }]
-}
-
-proc ::m::store::id {vcs mset} {
-    debug.m/store {}
-    return [m db onecolumn {
-	SELECT id
-	FROM   store
-	WHERE  vcs  = :vcs
-	AND    mset = :mset
+	WHERE  id = :store
     }]
 }
 
@@ -221,12 +217,11 @@ proc ::m::store::getx {repos} {	;# XXX REWORK move to repo package
 	,      R.fork_origin AS origin
 	,      R.url         AS url
 	,      R.id          AS rid
-	FROM repository             R
-	,    store                  S
-	,    project                P
-	,    version_control_system V
-	WHERE R.store   = S.id
-	AND   R.project = P.id
+	FROM      repository             R
+	,         project                P
+	,         version_control_system V
+	LEFT JOIN store                  S ON R.store = S.id
+	WHERE R.project = P.id
 	AND   R.vcs     = V.id
 	AND   R.id      IN (@@)
 	ORDER BY mname ASC
@@ -325,7 +320,7 @@ proc ::m::store::count {} {
     }]
 }
 
-proc ::m::store::search {substring} {
+proc ::m::store::search {substring} {	;# XXX REWORK move to repo package
     debug.m/store {}
 
     # List stores ...
@@ -346,10 +341,12 @@ proc ::m::store::search {substring} {
 	,      R.fork_origin AS origin
 	,      R.url         AS url
 	,      R.id          AS rid
-	FROM repository             R
-	,    store                  S
-	,    project                P
-	,    version_control_system V
+	FROM      repository             R
+	,         project                P
+	,         version_control_system V
+	LEFT JOIN store                  S ON R.store = S.id
+	WHERE  P.id = R.project
+	AND    V.id = R.vcs
 	ORDER BY mname ASC
 	,        vcode ASC
 	,        size  ASC
@@ -383,12 +380,11 @@ proc ::m::store::issues {} {	;# XXX REWORK move to repo package
 	,      R.fork_origin AS origin
 	,      R.url         AS url
 	,      R.id          AS rid
-	FROM repository             R
-	,    store                  S
-	,    project                P
-	,    version_control_system V
-	WHERE R.store = S.id
-	AND   R.has_issues  = 1    -- Flag for "has issues"
+	FROM      repository             R
+	,         project                P
+	,         version_control_system V
+	LEFT JOIN store                  S ON R.store = S.id
+	WHERE R.has_issues  = 1    -- Flag for "has issues"
 	AND   R.is_active   > 0    -- Flag for "not completely disabled"
 	AND   R.project = P.id
 	AND   R.vcs     = V.id
@@ -422,12 +418,11 @@ proc ::m::store::disabled {} {	;# XXX REWORK move to repo package
 	,      R.id          AS rid
 	,      R.url         AS url
 	,      R.fork_origin AS origin
-	FROM repository             R
-	,    store                  S
-	,    project                P
-	,    version_control_system V
-	WHERE R.store     = S.id
-	AND   R.is_active = 0    -- Flag for disabled
+	FROM      repository             R
+	,         project                P
+	,         version_control_system V
+	LEFT JOIN store                  S ON R.store = S.id
+	WHERE R.is_active = 0    -- Flag for disabled
 	AND   R.project   = P.id
 	AND   R.vcs       = V.id
 	ORDER BY mname ASC
@@ -459,12 +454,11 @@ proc ::m::store::by-name {} {	;# XXX REWORK move to repo package
 	,      R.is_active   AS active
 	,      R.fork_origin AS origin
 	,      R.url         AS url
-	FROM repository             R
-	,    store                  S
-	,    project                P
-	,    version_control_system V
-	WHERE R.store   = S.id
-	AND   R.project = P.id
+	FROM      repository             R
+	,         project                P
+	,         version_control_system V
+	LEFT JOIN store                  S ON R.store = S.id
+	WHERE R.project = P.id
 	AND   R.vcs     = V.id
 	ORDER BY mname ASC
 	,        vcode ASC
@@ -500,12 +494,11 @@ proc ::m::store::by-vcs {} {	;# XXX REWORK move to repo package
 	,      R.is_active  AS active
 	,      R.fork_origin AS origin
 	,      R.url         AS url
-	FROM repository             R
-	,    store                  S
-	,    project                P
-	,    version_control_system V
-	WHERE R.store   = S.id
-	AND   R.project = P.id
+	FROM      repository             R
+	,         project                P
+	,         version_control_system V
+	LEFT JOIN store                  S ON R.store = S.id
+	WHERE R.project = P.id
 	AND   R.vcs     = V.id
 	ORDER BY vcode ASC
 	,        mname ASC
@@ -535,12 +528,11 @@ proc ::m::store::by-size {} {	;# XXX REWORK move to repo package
 	,      R.is_active   AS active
 	,      R.fork_origin AS origin
 	,      R.url         AS url
-	FROM repository             R
-	,    store                  S
-	,    project                P
-	,    version_control_system V
-	WHERE R.store   = S.id
-	AND   R.project = P.id
+	FROM      repository             R
+	,         project                P
+	,         version_control_system V
+	LEFT JOIN store                  S ON R.store = S.id
+	WHERE R.project = P.id
 	AND   R.vcs     = V.id
 	ORDER BY size  DESC
 	,        mname ASC
@@ -585,12 +577,11 @@ proc ::m::store::updates {} {	;# XXX REWORK move to repo package
 	,      S.commits_previous AS commitp
 	,      R.fork_origin      AS origin
 	,      R.url              AS url
-	FROM repository             R
-	,    store                  S
-	,    project                P
-	,    version_control_system V
-	WHERE R.store    = S.id
-	AND   R.project  = P.id
+	FROM      repository             R
+	,         project                P
+	,         version_control_system V
+	LEFT JOIN store                  S ON R.store = S.id
+	WHERE R.project  = P.id
 	AND   R.vcs      = V.id
 	AND   S.created != S.changed
 	ORDER BY S.changed DESC
@@ -626,15 +617,52 @@ proc ::m::store::updates {} {	;# XXX REWORK move to repo package
 	,      S.commits_previous AS commitp
 	,      R.fork_origin      AS origin
 	,      R.url              AS url
-	FROM repository             R
-	,    store                  S
-	,    project                P
-	,    version_control_system V
-	WHERE R.store    = S.id
-	AND   R.project  = P.id
+	FROM      repository             R
+	,         project                P
+	,         version_control_system V
+	LEFT JOIN store                  S ON R.store = S.id
+	WHERE R.project  = P.id
 	AND   R.vcs      = V.id
 	AND   S.created = S.changed
 	ORDER BY S.created DESC
+    } {
+	if {$first} { Sep series }
+	set changed {}
+	set updated {}
+	Srow+delta series
+	set first 0
+    }
+
+    debug.m/store {f/[llength $series]}
+    set first [llength $series]
+
+    # Block 3: Repositories with no store, ordered by name.
+    m db eval {
+	SELECT ''                 AS store
+	,      P.name             AS mname
+	,      V.code             AS vcode
+	,      ''                 AS changed
+	,      ''                 AS updated
+	,      ''                 AS created
+	,      R.has_issues       AS attend
+	,      ''                 AS size
+	,      1                  AS remote
+	,      R.is_active        AS active
+	,      R.min_duration     AS mins
+	,      R.max_duration     AS maxs
+	,      R.window_duration  AS lastn
+	,      ''                 AS sizep
+	,      ''                 AS commits
+	,      ''                 AS commitp
+	,      R.fork_origin      AS origin
+	,      R.url              AS url
+	FROM      repository             R
+	,         project                P
+	,         version_control_system V
+	WHERE R.project  = P.id
+	AND   R.vcs      = V.id
+	AND   (R.store = '' OR R.store IS NULL)
+	ORDER BY mname DESC
     } {
 	if {$first} { Sep series }
 	set changed {}

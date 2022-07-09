@@ -1,4 +1,4 @@
-## -*- tcl -*-
+# -*- mode: tcl; fill-column: 90 -*-
 # # ## ### ##### ######## ############# ######################
 
 # @@ Meta Begin
@@ -94,8 +94,8 @@ proc ::m::project::spec {} {
     # A project contains one or more repositories.
     # A store is used by one or more repositories.
     #
-    # Nothing in the above claims that the repositories of a store are
-    # always contained in the same project.
+    # Nothing in the above claims that the repositories of a store are always contained in
+    # the same project.
     #
     # Desired for the export spec:
     #  - Human readability
@@ -103,13 +103,12 @@ proc ::m::project::spec {} {
     #  - Compact
     #  - Easy machine parsing
     #
-    # The main issue with the first three is how to represent the
-    # shared stores. Projects and repositories can be represented
-    # hierarchically, flattened. The stores can cut across that.
+    # The main issue with the first three is how to represent the shared stores. Projects
+    # and repositories can be represented hierarchically, flattened. The stores can cut
+    # across that.
     #
-    # To make decisions easier for the emitter, collect all
-    # information first, in a way which makes it easy to see if we
-    # even have cross cuts.
+    # To make decisions easier for the emitter, collect all information first, in a way
+    # which makes it easy to see if we even have cross cuts.
     #
     # And then there is of course compatibility with old specs.
 
@@ -512,7 +511,7 @@ proc ::m::project::search {substring} {
 
 proc ::m::project::a-repo {project} {
     debug.m/project {}
-    return [m db eval {
+    return [m db onecolumn {
 	SELECT R.id
 	FROM   repository R
 	WHERE  R.project = :project
