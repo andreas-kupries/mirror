@@ -171,12 +171,6 @@ proc ::m::store::update {primary url store cycle now before} {
     return [list $ok $duration $commits $size $forks]
 }
 
-proc ::m::store::rename {store newname} {
-    debug.m/store {}
-    m vcs rename $store $newname
-    return
-}
-
 proc ::m::store::check {storea storeb} {
     debug.m/store {}
     debug.m/store {}

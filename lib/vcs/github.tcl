@@ -124,12 +124,6 @@ proc ::m::vcs::github::version {} {
 
 proc ::m::vcs::github::setup {path url} {
     debug.m/vcs/github {}
-    # url = https://github.com/owner/repo
-    # origin = ................^^^^^^^^^^
-    #
-    # Saving origin information for `git hub fork` to use to always
-    # target the proper repository when asking for information about
-    # the forks.
 
     m vcs git setup $path $url
 
@@ -147,9 +141,9 @@ proc ::m::vcs::github::update {path url first} {
 
     # # ## ### ##### ######## #############
     # # ## discard leftover v2 github state files
-    file delete $path/origin	      
-    file delete $path/forks-local     
-    file delete $path/forks-remote    
+    file delete $path/origin
+    file delete $path/forks-local
+    file delete $path/forks-remote
     file delete $path/forks-unverified
     # # ## ### ##### ######## #############
     
@@ -232,7 +226,10 @@ proc ::m::vcs::github::ReportForks {url} {
     debug.m/vcs/github {}
     upvar 1 path path
     # for `git::Get` - TODO - redesign with proper state in the low-level code.
-    
+
+    # url = https://github.com/owner/repo
+    # origin = ................^^^^^^^^^^
+
     set origin [join [lrange [file split $url] end-1 end] /]
     set forks  [lsort -dict [m::vcs::git::Get hub forks --raw $origin]]
 

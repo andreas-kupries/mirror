@@ -19,9 +19,52 @@ package provide m::vcs 0
 # TODO: vcs/plugin extension - extract description
 
 # # ## ### ##### ######## ############# #####################
+## Stores
+#
+# - Stores are directories under a common path.
+# - Stores are identified by an integer id.
+# - Stores contain files and directories, managed by both common and
+#   VCS-dependent code.
+
+# - Common files are
+#     - setup      Epoch when the store created.
+#     - updated    Epoch when the store was last touched/updated.
+#     - log.stderr Log captures of stdout/err from the last update.
+#     - log.stdout
+#     - commits    Number of commits in the store.
+#     - size       Size of the store in KB.
+#     - f-*        Set of forks found for the associated url.
+#     - r-*        Url(s) used to update the store. Each url is stored
+#                  in a separate file. The name of the file uses the
+#                  url in base64-encoded form. Easy way of getting
+#                  unique files without having to deal with serial
+#                  numbers or some such.
+#
+#   These files replicate some of the information stored in the
+#   management database. Simplifies back-referencing into the database
+#   when debugging
+#
+# - The v2 files
+#
+#   - %name
+#   - %vcs
+#   - %stderr
+#   - %stdout
+#
+#   are invalid and are cleaned up when a v3 mirror touches the store.
+#
+# - The cloned repository is stored in a directory
+#
+#     - source.{git,fossil,hg,svn}
+#
+#   where the extension used indicates the primary VCS responsible for
+#   management. Note that this does not discriminate git vs github.
+#
+# # ## ### ##### ######## ############# #####################
 ## Requisites
 
 package require Tcl 8.5
+package require base64
 package require fileutil
 package require cmdr::color
 package require m::db
@@ -73,8 +116,8 @@ proc ::m::vcs::caps {store} {
     set path [Path $store]
 
     # Handle missing files ... TODO: future - stricter
-    try { lappend r [m futil cat $path/%stdout] } on error {} { lappend r {} }
-    try { lappend r [m futil cat $path/%stderr] } on error {} { lappend r {} }
+    try { lappend r [m futil cat $path/log.stdout] } on error {} { lappend r {} }
+    try { lappend r [m futil cat $path/log.stderr] } on error {} { lappend r {} }
     return $r
 }
 
@@ -113,9 +156,6 @@ proc ::m::vcs::setup {store vcs name url} {
     file delete -force -- $path
     file mkdir            $path
 
-    m futil write $path/%name $name  ;# Project
-    m futil write $path/%vcs  $vcode ;# Manager
-
     # Redirect through an external command. This command is currently
     # always `mirror-vcs VCS LOG setup STORE URL`.
 
@@ -142,6 +182,8 @@ proc ::m::vcs::setup {store vcs name url} {
 	E $msg CHILD
     }
 
+    Touch setup $path $url $commits $size $forks
+
     dict unset state results
     dict unset state msg
     dict unset state ok
@@ -158,22 +200,30 @@ proc ::m::vcs::update {store vcs url primary} {
     set path  [Path $store]
     set vcode [code $vcs]
 
+    # # ## ### ##### ######## #############
+    # # ## discard leftover v2 github state files
+    file delete $path/%name
+    file delete $path/%vcs
+    file delete $path/%stderr
+    file delete $path/%stdout
+    # # ## ### ##### ######## #############
+
     # Validate the url to ensure that it is still present. No need to
     # go for the vcs client when we know that it must fail. That said,
     # we store our failure as a pseudo error log for other parts to
     # pick up on.
 
-    m futil write $path/%stderr ""
-    m futil write $path/%stdout "Verifying url ...\n"
+    m futil write $path/log.stderr ""
+    m futil write $path/log.stdout "Verifying url ...\n"
     debug.m/vcs {Verifying $url ...}
     set ok [m url ok $url xr]
     if {!$ok} {
-	m futil append $path/%stderr "  Bad url: $u\n"
-	m futil append $path/%stderr "Unable to reach remote\n"
+	m futil append $path/log.stderr "  Bad url: $u\n"
+	m futil append $path/log.stderr "Unable to reach remote\n"
 	# Fake an error state ...
 	return {ok 0 commits 0 size 0 forks {} results {} msg {Invalid url} duration 0}
     }
-
+    
     # Ask plugin to update the store.
     # Redirect through an external command. This command is currently
     # always `mirror-vcs VCS LOG setup STORE URL`.
@@ -182,8 +232,6 @@ proc ::m::vcs::update {store vcs url primary} {
 	{*}[OpCmd $vcode $path $url $primary]
     set state [OpWait]
 
-    return $state
-    
     dict with state {}
     # [x] ok
     # [x] commits
@@ -192,15 +240,10 @@ proc ::m::vcs::update {store vcs url primary} {
     # [ ] results
     # [x] msg
     # [x] duration
-}
 
-proc ::m::vcs::rename {store name} {
-    debug.m/vcs {}
-    # store id -> Using for path.
-    # name     -  new mset name
-    set path [Path $store]
-    m futil write $path/%name $name
-    return
+    Touch updated $path $url $commits $size $forks
+    
+    return $state
 }
 
 proc ::m::vcs::cleanup {store vcs} {
@@ -346,9 +389,6 @@ proc ::m::vcs::cleave {vcs origin dst dstname} {
     # Ensure clean copy
     file delete -force -- $pdst
     file copy   -force -- $porigin $pdst
-
-    # Inlined rename of origin's new copy
-    m futil write $pdst/%name $dstname
     
     # Split/create vcs specific special resources, if any ...
 
@@ -592,10 +632,22 @@ proc ::m::vcs::id {x} {
 
 # # ## ### ##### ######## ############# #####################
 
+proc ::m::vcs::Touch {context path url commits size forks} {
+    debug.m/vcs {}
+    set code [string trim [base64::encode -maxlen 0 $url] =]
+    
+    m futil write $path/$context [clock seconds]\n
+    m futil write $path/commits  $commits\n
+    m futil write $path/size     $size\n
+    m futil write $path/f-$code  [join $forks \n]\n
+    m futil write $path/r-$code  $url\n
+    return
+}
+
 proc ::m::vcs::CAP {path script} {
     debug.m/vcs {}
     try {
-	m exec capture to $path/%stdout $path/%stderr
+	m exec capture to $path/log.stdout $path/log.stderr
 	uplevel 1 $script
     } on error {e o} {
 	debug.m/vcs {Caught}
@@ -603,7 +655,7 @@ proc ::m::vcs::CAP {path script} {
 	debug.m/vcs {M: $e}
 
 	m exec capture off
-	m futil append $path/%stderr \nCaught:\n\n$::errorInfo\n\n
+	m futil append $path/log.stderr \nCaught:\n\n$::errorInfo\n\n
 
 	return {*}$o $e
     } finally {

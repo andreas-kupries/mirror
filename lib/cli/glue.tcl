@@ -1026,7 +1026,7 @@ proc ::m::glue::cmd_merge {config} {
 
 	foreach secondary $secondaries {
 	    m msg "Merging: [color note [m repo url $secondary]]"
-	    MergeR $primary $secondary
+	    Merge $primary $secondary
 	}
     }
 
@@ -3016,11 +3016,6 @@ proc ::m::glue::MergeFill {repos} {
 
 proc ::m::glue::Rename {merge project newname} {
     debug.m/glue {[debug caller] | }
-
-    # Update all stores under the project to the new name.
-    foreach store [m project stores $project] {
-	m store rename $store $newname
-    }
     
     if {$merge} {
 	# Bulk move the repositories to the existing destination
@@ -3035,8 +3030,7 @@ proc ::m::glue::Rename {merge project newname} {
     return
 }
 
-
-proc ::m::glue::MergeR {target origin} {
+proc ::m::glue::Merge {target origin} {
     debug.m/glue {[debug caller] | }
     # Target and origin are repositories
 
