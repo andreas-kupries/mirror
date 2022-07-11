@@ -1264,13 +1264,10 @@ proc ::m::glue::cmd_update {config} {
 		m $m  "  $dvcs store ... "
 
 		lassign [m store add $vcs $url] \
-		    store duration commits size forks
-		#   id    seconds  int     int  list(url)
+		    ok store duration commits size forks
+		#      id    seconds  int     int  list(url)
 
 		m repo store! $repo $store
-
-		m msg "[color good OK]"
-		set ok yes
 
 	    } else {
 		# Store is set, update it.
@@ -1326,6 +1323,10 @@ proc ::m::glue::cmd_update {config} {
 		lassign [struct::set intersect3 $forks_prev $forks] same removed added
 		# previous - current => removed from previous
 		# current  - previous => added over previous
+
+		if {[llength $same   ]} { m msg "Forks unchanged:   [llength $same]" }
+		if {[llength $removed]} { m msg "Forks lost:        [llength $removed]" }
+		if {[llength $added  ]} { m msg "Forks maybe added: [llength $added]" }
 
 		# Actions:
 		# - The removed forks are detached from the primary.
@@ -1698,11 +1699,20 @@ proc ::m::glue::cmd_statistics {config} {
     set sz_mean   [m format size $sz_mean]
     set sz_median [m format size $sz_median]
 
+    set ng [dict get $rt phantom]
+
     [table/d t {
 	$t add Projects       $np
 	$t add Repositories   $nr
+	$t add "- Phantoms"   $ng
 	$t add "- Issues"     $ni
 	$t add "- Disabled"   $nd
+	$t add "- VCS" ""
+
+	foreach v [lsort -dict [dict keys [dict get $rt vcs]]] {
+	    $t add "  - $v" [dict get $rt vcs $v]
+	}
+
 	$t add Stores         $ns
 	$t add "- Lost"       $nl
 	$t add "- Statistics" ""
@@ -1713,12 +1723,18 @@ proc ::m::glue::cmd_statistics {config} {
 	$t add "  - Commits"  "$cm_min ... $cm_max"
 	$t add "      Mean  " $cm_mean
 	$t add "      Median" $cm_median
+	$t add "  - VCS"      ""
+
+	foreach v [lsort -dict [dict keys [dict get $st vcs]]] {
+	    $t add "    - $v" [dict get $st vcs $v]
+	}
+
 	$t add Cycles {}
 	$t add "- Current began" [m format epoch $cc]
 	$t add "  - Changes"     $ncc
 	$t add "- Last began"    [m format epoch $pc]
 	$t add "  - Changes"     $npc
-	$t add "- Taking"        [m format interval [expr {$cc - $pc}]]
+	$t add "  - Duration"    [m format interval [expr {$cc - $pc}]]
     }] show
     OK
 }
@@ -2868,10 +2884,18 @@ proc ::m::glue::AddStoreRepo {base vcs vcode url project {origin {}}} {
 
 	m msg* "  Setting up $ext $vcode store ... "
 	lassign [m store add $vcs $url] \
-	    store duration commits size forks
-	#   id    seconds  int     int  list(url)
+	    ok store duration commits size forks
+	#      id    seconds  int     int  list(url)
 	set x [expr {($commits == 1) ? "commit" : "commits"}]
-	m msg "[color good OK] in [color note [m format interval $duration]] ($commits $x, $size KB)"
+	set suffix ", in [color note [m format interval $duration]] ($commits $x, $size KB)"
+
+	if {$ok} {
+	    m msg "[color good OK]"
+	} else {
+	    lassign [m vcs caps $store] _ e
+	    m msg "[color bad Fail]$suffix"
+	    m msg $e
+	}
     } {
 	# `origin` is set - This repo is a fork. Add without a store. I.e. be a phantom.
 	# The setup happens on the first update for the repo.
@@ -3040,6 +3064,8 @@ proc ::m::glue::ComeAroundMail {width current newcycle} {
 	    titles series
 
 	table t $titles {
+	    $t style plain/cmdr/table/borders
+
 	    foreach row $series {
 		$t add {*}$row
 	    }
@@ -3702,6 +3728,27 @@ proc ::m::glue::Box {text} {
     }
     return
 }
+
+# # ## ### ##### ######## ############# ######################
+## Recreate the original plain table style of cmdr tables.
+## To be used in the ComeAroundMail, for better display portability.
+
+::report::defstyle plain/cmdr/table/borders {} {
+    data	set [split "[string repeat "| "   [columns]]|"]
+    top		set [split "[string repeat "+ - " [columns]]+"]
+    bottom	set [top get]
+    topdata	set [data get]
+    topcapsep	set [top get]
+    top		enable
+    bottom	enable
+    topcapsep	enable
+    tcaption	1
+    for {set i 0 ; set n [columns]} {$i < $n} {incr i} {
+	pad $i both { }
+    }
+    return
+}
+
 
 # # ## ### ##### ######## ############# ######################
 return

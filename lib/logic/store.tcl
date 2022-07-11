@@ -98,6 +98,18 @@ proc ::m::store::statistics {} {
     dict set stats cm_max    $cmax
     dict set stats cm_mean   $cmean
     dict set stats cm_median $cmedian
+    dict set stats vcs       {}
+
+    m db eval {
+	SELECT count(S.id) AS counts
+	,      V.name      AS vcs
+	FROM store                  S
+	,    version_control_system V
+	WHERE  S.vcs = V.id
+	GROUP BY V.id
+    } {
+	dict set stats vcs $vcs $counts
+    }
 
     return $stats
 }
@@ -108,12 +120,20 @@ proc ::m::store::add {vcs url} {
     set store [Add $vcs]
     set state [m vcs setup $store $vcs $url]
     dict with state {}
-    # commits, size, forks, duration
+    # ok, commits, size, forks, duration
 
-    Size    $store $size
-    Commits $store $commits
+    debug.m/store {setup = ($state)}
 
-    return [list $store $duration $commits $size $forks]
+    if {$ok} {
+	Size    $store $size
+	Commits $store $commits
+    } else {
+	# Remove debris of the partially initialized store
+	m vcs cleanup $store $vcs
+	set store {}
+    }
+
+    return [list $ok $store $duration $commits $size $forks]
 }
 
 proc ::m::store::remove {store} {
@@ -169,7 +189,7 @@ proc ::m::store::update {primary url store cycle now before} {
 
     debug.m/store {update = ($state)}
 
-    if {!$ok} {
+    if {$ok} {
 	Size    $store $size
 	Commits $store $commits
 	Times   $store $cycle $now [expr {$commits != $before}]
@@ -688,7 +708,8 @@ proc ::m::store::Norm {x} {
     # Remove leading/trailing whitespace
     set x [string trim $x]
     # Force into a single line, and do tab/space replacement
-    set x [string map [list \r\n { } \r { } \n { } \t { }] $x]
+    # Remove characters used by markdown table syntax
+    set x [string map [list \r\n { } \r { } \n { } \t { } | { }] $x]
     # Compress internal runs of white space.
     regsub -all { +} $x { } x
     return $x
@@ -857,17 +878,17 @@ proc ::m::store::Times {store cycle now haschanged} {
     if {$haschanged} {
 	m db eval {
 	    UPDATE store
-	    SET updated = :cycle
-	    ,   changed = :now
-	    WHERE store = :store
+	    SET    updated = :cycle
+	    ,      changed = :now
+	    WHERE  id = :store
 	}
 	return
     }
 
     m db eval {
 	UPDATE store
-	SET updated = :cycle
-	WHERE store = :store
+	SET    updated = :cycle
+	WHERE  id = :store
 	}
     return
 }

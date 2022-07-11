@@ -39,7 +39,8 @@ namespace eval ::m::repo {
 	add remove enable move/project move/1 has get name url \
 	store known get-n for forks project search id count \
 	claim count-pending add-pending drop-pending pending \
-	take-pending declaim times fork-locations store!
+	take-pending declaim times fork-locations store! \
+	statistics
     namespace ensemble create
 }
 
@@ -49,6 +50,32 @@ debug level  m/repo
 debug prefix m/repo {[debug caller] | }
 
 # # ## ### ##### ######## ############# ######################
+
+proc ::m::repo::statistics {} {
+    debug.m/repo {}
+
+    dict set stats vs {}
+
+    m db eval {
+	SELECT count(R.id) AS counts
+	,      V.name      AS vcs
+	FROM repository             R
+	,    version_control_system V
+	WHERE  R.vcs = V.id
+	GROUP BY V.id
+    } {
+	dict set stats vcs $vcs $counts
+    }
+
+    dict set stats phantom [m db onecolumn {
+	SELECT count (*)
+	FROM repository
+	WHERE store IS NULL
+	OR    store = ''
+    }]
+
+    return $stats
+}
 
 proc ::m::repo::known {} {
     # Return map to repository ids.
@@ -643,7 +670,8 @@ proc ::m::repo::Norm {x} {
     # Remove leading/trailing whitespace
     set x [string trim $x]
     # Force into a single line, and do tab/space replacement
-    set x [string map [list \r\n { } \r { } \n { } \t { }] $x]
+    # Remove characters used by markdown table syntax
+    set x [string map [list \r\n { } \r { } \n { } \t { } | { }] $x]
     # Compress internal runs of white space.
     regsub -all { +} $x { } x
     return $x

@@ -78,6 +78,7 @@ proc ::m::project::statistics {} {
 	dict set stats nd [llength [m store disabled]]
 
 	dict set stats st [m store statistics]
+	dict set stats rt [m repo statistics]
     }
 
     return $stats

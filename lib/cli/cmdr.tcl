@@ -901,7 +901,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 		Reduce verbosity of the generation process.
 	    } { presence }
 	} [m::cmdr::call glue cmd_site_make 1]
-	
+
 	private off {
 	    use .site
 	    description {

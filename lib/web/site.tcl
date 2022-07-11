@@ -122,9 +122,13 @@ proc ::m::web::site::Site {mode action script} {
 
     set path [m state site-store]
     m msg "$action $path"
+
     variable dst    $path/web
     variable silent [string equal $mode silent]
+    variable pages  0
+
     uplevel 1 $script
+
     unset dst silent
     return
 }
@@ -223,13 +227,29 @@ proc ::m::web::site::Statistics {} {
     set ni [L index_issues.html   "[I/Bad] $ni"]
     set nd [L index_disabled.html "[I/Offline] $nd"]
 
+    set ng "&#x1f47b; [dict get $rt phantom]"
+
+    set rvcs ""
+    foreach v [lsort -dict [dict keys [dict get $rt vcs]]] {
+	set vc [m vcs code [m vcs id $v]]
+	append rvcs " [I/VCS $vc] [dict get $rt vcs $v]"
+    }
+    set svcs ""
+    foreach v [lsort -dict [dict keys [dict get $st vcs]]] {
+	set vc [m vcs code [m vcs id $v]]
+	append svcs " [I/VCS $vc] [dict get $st vcs $v]"
+    }
+
+    set rvcs [string trim $rvcs]
+    set svcs [string trim $svcs]
+
     H Statistics
 
     S 3
     Align l l l
     Row Projects     $np
-    Row Repositories "$nr $ni $nd"
-    Row Stores       "$ns &sum; $sz"
+    Row Repositories "$nr $ni $nd $ng"    $rvcs
+    Row Stores       "$ns &sum; $sz"      $svcs
     Row Size         "$sz_min ... $sz_max " "&Oslash; $sz_mean &#x27d0; $sz_median"
     Row Commits      "$cm_min ... $cm_max " "&Oslash; $cm_mean &#x27d0; $cm_median"
     NL
@@ -283,7 +303,7 @@ proc ::m::web::site::OLink {repo} {
     set label  $active$issues$url
 
     if {$store eq {}} { return $label }
-    
+
     return [L/Store $store $label]
 }
 
@@ -617,7 +637,7 @@ proc ::m::web::site::List {suffix page series stats} {
 	    set url   [L/Store $store $url]
 	    if {$mname ne {}} { set mname [L/Store $store $mname] }
 	}
-	
+
 	if {$origin ne {}} { append tag $fork }
 
 	Row $img $mname $url $tag $vcode $size $changed $updated $created
@@ -695,7 +715,8 @@ proc ::m::web::site::Init {} {
 proc ::m::web::site::Fin {} { #return
     debug.m/web/site {}
     variable dst
-    !! "Completed markdown generation"
+    variable pages
+    !! "Completed markdown generation ($pages pages)"
     ! "= SSG build web ..."
     SSG build $dst ${dst}_out
 
@@ -1165,6 +1186,7 @@ proc ::m::web::site::D {child} {
 # Write site file from text buffer
 proc ::m::web::site::W {child} {
     debug.m/web/site {}
+    variable pages ; incr pages
     upvar 1 text text
     W= $child $text
     return
