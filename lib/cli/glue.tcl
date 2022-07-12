@@ -793,6 +793,7 @@ proc ::m::glue::cmd_details {config} { ;# XXX REWORK due the project/repo/store 
 	dict with rinfo {}
 	# -> url    : repo url
 	#    active : usage state
+	#    issues : attend y/n
 	#    vcs    : vcs id
 	#    vcode  : vcs code
         # *  project: project id
@@ -815,6 +816,7 @@ proc ::m::glue::cmd_details {config} { ;# XXX REWORK due the project/repo/store 
 	    dict unset sd max_sec
 	    dict unset sd win_sec
 	    dict with sd {}
+
 	    #  size, sizep
 	    #  commits, commitp
 	    #  vcsname
@@ -852,7 +854,7 @@ proc ::m::glue::cmd_details {config} { ;# XXX REWORK due the project/repo/store 
 
 	# Compute derived information ...
 
-	set status  [SI $stderr]
+	set status [SI $issues $stderr]
 
 	set active [color {*}[dict get {
 	    0 {warning offline}
@@ -966,8 +968,8 @@ proc ::m::glue::cmd_details {config} { ;# XXX REWORK due the project/repo/store 
     OK
 }
 
-proc ::m::glue::SI {stderr} {
-    SIB [expr {$stderr eq {}}]
+proc ::m::glue::SI {issues stderr} {
+    SIB [expr {!$issues && ($stderr eq {})}]
 }
 
 proc ::m::glue::SIB {ok} {
@@ -991,6 +993,16 @@ proc ::m::glue::cmd_enable {flag config} {
 	    if {$repo eq {}} continue
 
 	    m msg "$op [color note [m repo url $repo]] ..."
+
+	    # Prevent enabling of a (still) unreachable repository
+	    if {$flag} {
+		set url [m repo url $repo]
+		if {![m url ok $url xr]} {
+		    m msg "  [color warning {Not reachable}]: $url"
+		    m msg "  Ignored"
+		    continue
+		}
+	    }
 
 	    m repo enable $repo $flag
 
@@ -1237,7 +1249,12 @@ proc ::m::glue::cmd_update {config} {
 
 	debug.m/glue {repositories = ($repos)}
 
+	set cf %[string length [llength $repos]]s
+
 	foreach repo $repos {
+	    incr cr
+	    set counter [color magenta ([format $cf $cr])]
+
 	    set ri [m repo get $repo]
 	    dict with ri {}
 
@@ -1259,7 +1276,7 @@ proc ::m::glue::cmd_update {config} {
 
 		set before 0
 
-		m msg "Setting up repository $durl ..."
+		m msg "$counter Setting up repository $durl ..."
 		m msg "In project          [color note $name]"
 		m $m  "  $dvcs store ... "
 
@@ -1277,7 +1294,7 @@ proc ::m::glue::cmd_update {config} {
 		# (attend, min/max/win, remote, active)
 		set before [dict get $si commits]
 
-		m msg "Updating repository $durl ..."
+		m msg "$counter Updating repository $durl ..."
 		m msg "In project          [color note $name]"
 		m $m  "  $dvcs store ... "
 
@@ -1299,7 +1316,7 @@ proc ::m::glue::cmd_update {config} {
 		lassign [m vcs caps $store] _ e
 		m msg "[color bad Fail]$suffix"
 		m msg $e
-
+		m msg ""
 		continue
 	    } elseif {$before != $commits} {
 		set delta [expr {$commits - $before}]
@@ -1350,6 +1367,8 @@ proc ::m::glue::cmd_update {config} {
 		}
 
 		AddForks $added $repo $vcs $vcode $name $project
+
+		m msg ""
 	    }
 	}
     }
@@ -2832,11 +2851,28 @@ proc ::m::glue::AddForks {forks repo vcs vcode name project} {
     debug.m/glue {[debug caller] | }
 
     set nforks [llength $forks]
-    set format %-[string length $nforks]d
+    set format %[string length $nforks]s
     set pad [string repeat " " [expr {3+[string length $nforks]}]]
+
+    set cool 0
+    set ping 0
+    set bad  0
+    set max 49
 
     foreach fork $forks {
 	incr k
+	if {$k > $max} {
+	    m msg [color warning "Stopped before $max, limited ingestion"]
+	    break
+	}
+
+	incr ping
+	if {$ping % 10 == 0} {
+	    if {$cool < 10000} { incr cool 1000 }
+	    m msg "[color warning Cooling] [expr {$cool/1000}]"
+	    after $cool
+	}
+
 	m msg "  [color cyan "([format $format $k])"] Fork [color note $fork] ... "
 
 	if {[m repo has $fork]} {
@@ -2855,9 +2891,16 @@ proc ::m::glue::AddForks {forks repo vcs vcode name project} {
 	if {![m url ok $fork xr]} {
 	    m msg "  [color warning {Not reachable}], might be private or gone"
 	    m msg "  Ignored"
+	    incr bad
+	    if {$bad == 3} {
+		if {$cool < 10000} { incr cool 2000 }
+		m msg "[color warning Cooling] [expr {$cool/1000}]"
+		set bad 0
+	    }
 	    continue
 	}
 
+	set bad 0
 	AddStoreRepo {} $vcs $vcode $fork $project $repo
     }
     return

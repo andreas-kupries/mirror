@@ -132,6 +132,22 @@ proc ::m::vcs::setup {store vcs url} {
     file delete -force -- $path
     file mkdir            $path
 
+    # Validate the url to ensure that it is still present (setup may be much later than
+    # the addition of the repository (phantoms)). No need to go for the vcs client when we
+    # know that it must fail. That said, we store our failure as a pseudo error log for
+    # other parts to pick up on.
+
+    m futil write $path/log.stderr ""
+    m futil write $path/log.stdout "Verifying url ...\n"
+    debug.m/vcs {Verifying $url ...}
+    set ok [m url ok $url xr]
+    if {!$ok} {
+	m futil append $path/log.stderr "  Bad url: $url\n"
+	m futil append $path/log.stderr "Unable to reach remote\n"
+	# Fake an error state ...
+	return {ok 0 commits 0 size 0 forks {} results {} msg {Invalid url} duration 0}
+    }
+
     # Redirect through an external command. This command is currently
     # always `mirror-vcs VCS LOG setup STORE URL`.
 
@@ -162,8 +178,7 @@ proc ::m::vcs::setup {store vcs url} {
 
     dict unset state results
     dict unset state msg
-    dict unset state ok
-    # commits, size, forks, duration
+    # ok, commits, size, forks, duration
     return $state
 }
 
@@ -193,7 +208,7 @@ proc ::m::vcs::update {store vcs url primary} {
     debug.m/vcs {Verifying $url ...}
     set ok [m url ok $url xr]
     if {!$ok} {
-	m futil append $path/log.stderr "  Bad url: $u\n"
+	m futil append $path/log.stderr "  Bad url: $url\n"
 	m futil append $path/log.stderr "Unable to reach remote\n"
 	# Fake an error state ...
 	return {ok 0 commits 0 size 0 forks {} results {} msg {Invalid url} duration 0}
@@ -227,7 +242,8 @@ proc ::m::vcs::cleanup {store vcs} {
     set path  [Path $store]
     set vcode [code $vcs]
 
-    # TODO MAYBE: check vcode against contents of $path/%vcs.
+    # Nothing to do when there is no actual store directory
+    if {![file exists $path]} return
 
     # Ask plugin to fill the store.  Redirect through an external command. This command is
     # currently always `mirror-vcs VCS LOG cleanup STORE`.
@@ -606,7 +622,7 @@ proc ::m::vcs::id {x} {
 
 proc ::m::vcs::Touch {context path url commits size forks} {
     debug.m/vcs {}
-    set code [string trim [base64::encode -maxlen 0 $url] =]
+    set code [string map {/ _ + -} [string trim [base64::encode -maxlen 0 $url] =]]
 
     m futil write $path/$context [clock seconds]\n
     m futil write $path/commits  $commits\n

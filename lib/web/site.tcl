@@ -184,7 +184,7 @@ proc ::m::web::site::Project {id name} {
 
 	set tags  [StatusRefs $issues $active 0]
 	if {$tags eq {}} { append tags { } }
-	set vcode [I/VCS $vcode]
+	set vcode [X/VCS $vcode]
 	set fork  [expr {!$fork ? " " : [I/Fork]}]
 
 	if {$store ne {}} {
@@ -224,32 +224,33 @@ proc ::m::web::site::Statistics {} {
     set pc [m format epoch $pc]
     set cc [m format epoch $cc]
 
+    set np [L projects.html       $np]
     set ni [L index_issues.html   "[I/Bad] $ni"]
     set nd [L index_disabled.html "[I/Offline] $nd"]
 
     set ng "&#x1f47b; [dict get $rt phantom]"
 
-    set rvcs ""
+    set rvcs {}
     foreach v [lsort -dict [dict keys [dict get $rt vcs]]] {
 	set vc [m vcs code [m vcs id $v]]
-	append rvcs " [I/VCS $vc] [dict get $rt vcs $v]"
+	lappend rvcs [dict get $rt vcs $v] [I/VCS $vc]
     }
-    set svcs ""
+    set svcs {}
     foreach v [lsort -dict [dict keys [dict get $st vcs]]] {
 	set vc [m vcs code [m vcs id $v]]
-	append svcs " [I/VCS $vc] [dict get $st vcs $v]"
+	lappend svcs [dict get $st vcs $v] [I/VCS $vc]
     }
-
-    set rvcs [string trim $rvcs]
-    set svcs [string trim $svcs]
 
     H Statistics
 
     S 3
     Align l l l
     Row Projects     $np
-    Row Repositories "$nr $ni $nd $ng"    $rvcs
-    Row Stores       "$ns &sum; $sz"      $svcs
+
+    Row Repositories "$nr $ni $nd $ng"
+    Row ""           [join $rvcs { }]
+    Row Stores       "$ns &sum; $sz"
+    Row ""           [join $svcs { }]
     Row Size         "$sz_min ... $sz_max " "&Oslash; $sz_mean &#x27d0; $sz_median"
     Row Commits      "$cm_min ... $cm_max " "&Oslash; $cm_mean &#x27d0; $cm_median"
     NL
@@ -268,6 +269,9 @@ proc ::m::web::site::Stores {} {
     debug.m/web/site {}
 
     foreach store [m store all] {
+	# Skip stores without users.
+	if {![llength [m store repos $store]]} continue
+
 	Store $store
     }
     return
@@ -419,7 +423,7 @@ proc ::m::web::site::Store {store} {
     set commits [Commits $commits $commitp]
     set dsize   [Size $size $sizep]
     set export  [ExportStore $vcs $store]
-    set vcslogo [I/VCS [m vcs code $vcs]]
+    set vcslogo [X/VCS [m vcs code $vcs]]
 
     # Assemble page ...
 
@@ -545,7 +549,7 @@ proc ::m::web::site::ListSimple {title subtitle page series} {
 	set changed [m format epoch $changed]
 	set updated [m format epoch $updated]
 	set created [m format epoch $created]
-       	set vcode   [I/VCS $vcode]
+       	set vcode   [X/VCS $vcode]
 
 	if {$store ne {}} {
 	    set vcode [L/Store $store $vcode]
@@ -630,7 +634,7 @@ proc ::m::web::site::List {suffix page series stats} {
 	set changed [m format epoch $changed]
 	set updated [m format epoch $updated]
 	set created [m format epoch $created]
-       	set vcode   [I/VCS $vcode]
+       	set vcode   [X/VCS $vcode]
 
 	if {$store ne {}} {
 	    set vcode [L/Store $store $vcode]
@@ -936,6 +940,8 @@ proc ::m::web::site::FillIndex {} {
 	WHERE S.vcs = V.id
     } {
 	# store, pname, vcode, changed, updated, created, size, remote, active, attend
+	# skip lost stores
+	if {!$remote} continue
 
 	set page    [P/Store $store]
 	set status  [StatusIcons $attend $active $remote]
@@ -1051,12 +1057,18 @@ proc ::m::web::site::I/Offline {} { I     images/off.svg Offline }
 proc ::m::web::site::I/Bad     {} { I     images/bad.svg Attend  }
 proc ::m::web::site::I/Fork    {} { IH 32 images/fork.svg Fork   }
 
-proc ::m::web::site::I/VCS {vcode} {
+proc ::m::web::site::X/VCS {vcode} {
     debug.m/web/site {}
     set name [dict get [V] $vcode]
     append r [IH 32 images/logo/$vcode.svg $name]
     append r " " $name
     return $r
+}
+
+proc ::m::web::site::I/VCS {vcode} {
+    debug.m/web/site {}
+    set name [dict get [V] $vcode]
+    return [IH 32 images/logo/$vcode.svg $name]
 }
 
 # # ## ### ##### ######## ############# #####################
@@ -1261,6 +1273,7 @@ proc ::m::web::site::M {} {
     lappend map @-title-@      [m state site-title]
     lappend map @-url-@        $u
     lappend map @-year-@       [clock format [clock seconds] -format %Y]
+    lappend map @gentime@      [clock format [clock seconds]]
     proc ::m::web::site::M {} [list return $map]
     return $map
 }
@@ -1301,7 +1314,7 @@ return
 
 This is the disclaimer and copyright.
 website.confwebsiteTitle {@-title-@}
-copyright    {<a href="$rootDirPath/disclaimer.html">Copyright &copy;</a> @-year-@ <a href='mailto:@-mail-@'>@-management-@</a>}
+copyright    {<a href="$rootDirPath/disclaimer.html">Copyright &copy;</a> @-year-@ <a href='mailto:@-mail-@'>@-management-@</a>&nbsp;(Generated @gentime@)}
 url          {@-url-@}
 description  {@-title-@}
 

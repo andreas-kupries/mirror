@@ -129,7 +129,7 @@ proc ::m::store::add {vcs url} {
 	Commits $store $commits
     } else {
 	# Remove debris of the partially initialized store
-	m vcs cleanup $store $vcs
+	remove $store
 	set store {}
     }
 
