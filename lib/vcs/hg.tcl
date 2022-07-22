@@ -92,7 +92,7 @@ proc ::m::vcs::hg::setup {path url} {
 
     set repo [HgOf $path]
     Hg clone --noupdate $url $repo
-    PostPull $path
+    PostPull $path 0
     return
 }
 
@@ -107,7 +107,7 @@ proc ::m::vcs::hg::update {path url first} {
 
     set repo [HgOf $path]
     Hg pull $url -R $repo
-    PostPull $path
+    PostPull $path {}
     return
 }
 
@@ -167,7 +167,7 @@ proc ::m::vcs::hg::detect {url} {
 # # ## ### ##### ######## ############# #####################
 ## Helpers
 
-proc ::m::vcs::hg::PostPull {path} {
+proc ::m::vcs::hg::PostPull {path forks} {
     debug.m/vcs/hg {}
 
     if {[m exec err-last-get]} {
@@ -184,6 +184,7 @@ proc ::m::vcs::hg::PostPull {path} {
 	m ops client fail ; return
     }
 
+    m ops client fork    $forks
     m ops client commits $count
     m ops client size    $kb
     m ops client ok

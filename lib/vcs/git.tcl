@@ -109,7 +109,7 @@ proc ::m::vcs::git::setup {path url} {
 
     # Initial update
     Git fetch --tags $remote
-    PostPull $path
+    PostPull $path 0
     return
 }
 
@@ -132,7 +132,7 @@ proc ::m::vcs::git::update {path url first} {
     }
 
     Git fetch --tags $remote
-    PostPull $path
+    PostPull $path {}
     return
 }
 
@@ -207,7 +207,7 @@ proc ::m::vcs::git::detect {url} {
 # # ## ### ##### ######## ############# #####################
 ## Helpers
 
-proc ::m::vcs::git::PostPull {path} {
+proc ::m::vcs::git::PostPull {path forks} {
     debug.m/vcs/git {}
 
     if {[m exec err-last-get]} {
@@ -227,6 +227,7 @@ proc ::m::vcs::git::PostPull {path} {
     # TODO :: Execute conversion of git repository to fossil
     # TODO :: Run in background
 
+    m ops client fork    $forks
     m ops client commits $count
     m ops client size    $kb
     m ops client ok

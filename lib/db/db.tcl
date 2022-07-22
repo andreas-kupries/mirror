@@ -1,4 +1,4 @@
-## -*- tcl -*-
+# -*- mode: tcl; fill-column: 90 -*-
 # # ## ### ##### ######## ############# #####################
 ## Mirror database - core access and schema
 
@@ -43,8 +43,8 @@ namespace eval ::m::db {
     variable wait 0
 }
 
-# Database accessor command - auto open & initialize database on first
-# use TODO: Capture lock errors and re-try a few times, with backoff.
+# Database accessor command - auto open & initialize database on first use
+# TODO: Capture lock errors and re-try a few times, with backoff.
 
 proc ::m::db {args} {
     debug.m/db {Setup}
@@ -153,7 +153,7 @@ proc ::m::db::SETUP-201810051600 {} {
     > 'limit'		    '20'	      ;# Show this many repositories per `list`
     > 'store'		    '~/.mirror/store' ;# Directory for the backend stores
     > 'take'		    '5'		      ;# Check this many mirrors sets per `update`
-    > 'top'		    ''		      ;# State for `list`, next repository to show.
+    > 'top'		    ''		      ;# State for `list`, offset into the list to start from
 
     # - -- --- ----- -------- -------------
     ## Mirror Set Pending - List of repositories waiting for an update
@@ -387,10 +387,10 @@ proc ::m::db::SETUP-201811212300 {} {
 
 proc ::m::db::SETUP-201811272200 {} {
     debug.m/db {}
-    # Added optional columns `vcode` and `description` to the
-    # submissions table. Initialized to empty. Further dropped unique
-    # requirement from url, allowing multiple submissions of the same,
-    # enabling fixing of description, vcode. Added index instead.
+    # Added optional columns `vcode` and `description` to the submissions
+    # table. Initialized to empty. Further dropped unique requirement from url, allowing
+    # multiple submissions of the same, enabling fixing of description, vcode. Added index
+    # instead.
 
     D m::db
     # - -- --- ----- -------- -------------
@@ -410,11 +410,10 @@ proc ::m::db::SETUP-201811272200 {} {
 
 proc ::m::db::SETUP-201811282200 {} {
     debug.m/db {}
-    # Added special column `session` to the submissions
-    # table. Initialized to a value the other parts (cli, CGI) will
-    # not generate.  Made url + session unique, i.e. primary key.  A
-    # session is allowed to overwrite its submissions, but not the
-    # submissions of other sessions.
+    # Added special column `session` to the submissions table. Initialized to a value the
+    # other parts (cli, CGI) will not generate.  Made url + session unique, i.e. primary
+    # key.  A session is allowed to overwrite its submissions, but not the submissions of
+    # other sessions.
 
     D m::db
     # - -- --- ----- -------- -------------
@@ -436,10 +435,9 @@ proc ::m::db::SETUP-201811282200 {} {
 
 proc ::m::db::SETUP-201812042200 {} {
     debug.m/db {}
-    # Added sync helper table.
-    # Remember all submissions handled locally (accepted or rejected),
-    # for deletion from the CGI site database on next sync. Note that
-    # we only need the key information, i.e. url + session id.
+    # Added sync helper table. Remember all submissions handled locally (accepted or
+    # rejected), for deletion from the CGI site database on next sync. Note that we only
+    # need the key information, i.e. url + session id.
 
     D m::db
     # - -- --- ----- -------- -------------
@@ -453,8 +451,7 @@ proc ::m::db::SETUP-201812042200 {} {
 
 proc ::m::db::SETUP-201901112300 {} {
     debug.m/db {}
-    # Added column `attend` to `store_times`.
-    # Column records presence of issues in the
+    # Added column `attend` to `store_times`.  Column records presence of issues in the
     # last update for the store.
 
     D m::db
@@ -475,9 +472,8 @@ proc ::m::db::SETUP-201901112300 {} {
 proc ::m::db::SETUP-201901222300 {} {
     debug.m/db {}
 
-    # Extended the tables `store` and `store_times` with columns to
-    # track size changes (KB, #revisions) and time statistics for
-    # updates.
+    # Extended the tables `store` and `store_times` with columns to track size changes
+    # (KB, #revisions) and time statistics for updates.
 
     D m::db
     # - -- --- ----- -------- -------------
@@ -515,10 +511,9 @@ proc ::m::db::SETUP-201901242300 {} {
     debug.m/db {}
 
     # New table `store_github_forks`. Adjunct to table `store`, like
-    # `store_times`. Difference: Not general, specific to github
-    # stores. Tracks the number of forks. Primary source is the local
-    # git repository, the information in the table is derived. Used for
-    # easier access to statistics (size x forks ~?~ update time).
+    # `store_times`. Difference: Not general, specific to github stores. Tracks the number
+    # of forks. Primary source is the local git repository, the information in the table
+    # is derived. Used for easier access to statistics (size x forks ~?~ update time).
 
     D m::db
     # - -- --- ----- -------- -------------
@@ -559,8 +554,8 @@ proc ::m::db::SETUP-201901252301 {} {
 
 proc ::m::db::SETUP-201902052300 {} {
     debug.m/db {}
-    # Added more state, start of the previous cycle.
-    # Compare with current for rough length.
+    # Added more state, start of the previous cycle.  Compare with current for rough
+    # length.
 
     D m::db
     # - -- --- ----- -------- -------------
@@ -601,13 +596,13 @@ proc ::m::db::SETUP-201910031116 {} {
 proc ::m::db::SETUP-201910032120 {} {
     debug.m/db {}
 
-    # Drop table `name` as superfluous. The only user of this
-    # information is table `mirror_set`. Fold the data into a
-    # modified `mirror_set`. Further drop the auto-increment.
+    # Drop table `name` as superfluous. The only user of this information is table
+    # `mirror_set`. Fold the data into a modified `mirror_set`. Further drop the
+    # auto-increment.
 
-    # Note: The table `name` was intended as the hook for other
-    # systems (project indices, etc.) to link into this schema. With
-    # this change `mirror_set` itself becomes the place to hook into.
+    # Note: The table `name` was intended as the hook for other systems (project indices,
+    # etc.) to link into this schema. With this change `mirror_set` itself becomes the
+    # place to hook into.
 
     D m::db
     # - -- --- ----- -------- -------------
@@ -635,16 +630,13 @@ proc ::m::db::SETUP-202207020000 {} {
     # - -- --- ----- -------- -------------
 
     # Move to schema V3
-    # - The main change is the explicit representation and handling of
-    #	forks.
-    # - A number of small changes renaming and moving various tables
-    #	and fields.
+    # - The main change is the explicit representation and handling of forks.
+    # - A number of small changes renaming and moving various tables and fields.
 
     # - -- --- ----- -------- -------------
     # Drop `mset_pending`, and replace with proper `repo_pending`.
     #
-    ## Repository Pending - List of repositories waiting for an update
-    ##			    to process them
+    ## Repository Pending - List of repositories waiting for an update to process them
 
     C repository  INTEGER  NOT NULL  ^repository  PRIMARY KEY
     T repo_pending
@@ -663,9 +655,8 @@ proc ::m::db::SETUP-202207020000 {} {
     ## - Add checked stamp
     ## - Drop
     #
-    ## ATTENTION -- This is done before updating the store schema
-    ## because the code to find and link the store requires the mset
-    ## reference to be dropped.
+    ## ATTENTION -- This is done before updating the store schema because the code to find
+    ## and link the store requires the mset reference to be dropped.
 
     I+
     C url	      TEXT     NOT NULL	 UNIQUE
@@ -755,8 +746,7 @@ proc ::m::db::SETUP-202207020000 {} {
     }
 
     # - -- --- ----- -------- -------------
-    ## Drop various tables which became superfluous due to the
-    ## preceding changes.
+    ## Drop various tables which became superfluous due to the preceding changes.
 
     / mset_pending
     / store_github_forks
@@ -776,10 +766,10 @@ proc ::m::db::SETUP-202207022300 {} {
     > 'site-related-url'   '' ;# Url of a related site (*) ...
     > 'site-related-label' '' ;# ... and its name
 
-    # (*) While a related site could be any site we want the hoard to
-    # link to the expectation is that this is the site the hoard is a
-    # part of, and the link enables users of the hoard to get back to
-    # the wider site without the browser's help (i.e. back button).
+    # (*) While a related site could be any site we want the hoard to link to the
+    # expectation is that this is the site the hoard is a part of, and the link enables
+    # users of the hoard to get back to the wider site without the browser's help
+    # (i.e. back button).
 
     return
 }
@@ -787,8 +777,8 @@ proc ::m::db::SETUP-202207022300 {} {
 proc ::m::db::SETUP-202207041400 {} {
     debug.m/db {}
 
-    # Drop the auto-increment modifier from the primary key of all
-    # tables which have it. This is a dis-recommended thing.
+    # Drop the auto-increment modifier from the primary key of all tables which have
+    # it. This is a dis-recommended thing.
 
     D m::db
     # - -- --- ----- -------- -------------
@@ -855,6 +845,140 @@ proc ::m::db::SETUP-202207041400 {} {
     < store \
 	id vcs size_kb size_previous commits_current commits_previous \
 	created updated changed
+
+    return
+}
+
+proc ::m::db::SETUP-202207142310 {} {
+    debug.m/db {}
+
+    D m::db
+    # - -- --- ----- -------- -------------
+    ## Flag for each VCS, capability of tracking forks (in the github sense). At the
+    ## moment only github can do this. As the site as a whole performs the tracking.
+
+    I
+    C code          TEXT    NOT NULL  UNIQUE ; # Short semi-internal tag
+    C name          TEXT    NOT NULL  UNIQUE ; # Human readable name
+    C fork_tracking INTEGER NOT NULL         ; # Ability to track forks
+    < version_control_system \
+	id code name 0
+
+    R {
+	UPDATE version_control_system
+	SET    fork_tracking = 1
+	WHERE  code = 'github'
+    }
+
+    # - -- --- ----- -------- -------------
+    ## Additional repository flag and attributes.
+    ## - Hidden/Private
+    ## - Track Forks
+    ## - Number of Forks
+
+    I
+    C url	        TEXT     NOT NULL UNIQUE
+    C project	        INTEGER  NOT NULL ^project
+    C vcs	        INTEGER  NOT NULL ^version_control_system
+    C store	        INTEGER  NOT NULL ^store
+    C fork_origin       INTEGER		  ^repository
+    C fork_number       INTEGER
+    C is_tracking_forks INTEGER  NOT NULL
+    C is_active	        INTEGER  NOT NULL
+    C is_private        INTEGER  NOT NULL
+    C has_issues        INTEGER  NOT NULL
+    C checked	        INTEGER  NOT NULL ;# epoch
+    C min_duration      INTEGER  NOT NULL ;# overall minimum time spent on update
+    C max_duration      INTEGER  NOT NULL ;# overall maximum time spent on update
+    C window_duration   STRING   NOT NULL ;# time spent on last N updates (list of int)
+
+    < repository \
+	id url project vcs store fork_origin '' 0 is_active 0 has_issues checked \
+	min_duration max_duration window_duration
+
+    return
+}
+
+proc ::m::db::SETUP-202207210000 {} {
+    debug.m/db {}
+
+    D m::db
+    # - -- --- ----- -------- -------------
+    ## Additional project attribute
+    ## - lower project name (for pattern search)
+
+    I
+    C name  TEXT  NOT NULL  UNIQUE
+    C dname TEXT  NOT NULL
+
+    < project  id name ''
+
+    m::db eval {
+	SELECT id, name FROM project
+    } {
+	set dname [string tolower $name]
+	m::db eval {
+	    UPDATE project
+	    SET    dname = :dname
+	    WHERE  id    = :id
+	}
+    }
+    X dname
+
+    # - -- --- ----- -------- -------------
+    ## Additional repository attribute
+    ## - lower case url (for pattern search)
+
+    I
+    C url	        TEXT     NOT NULL UNIQUE
+    C durl	        TEXT     NOT NULL
+    C project	        INTEGER  NOT NULL ^project
+    C vcs	        INTEGER  NOT NULL ^version_control_system
+    C store	        INTEGER  NOT NULL ^store
+    C fork_origin       INTEGER		  ^repository
+    C fork_number       INTEGER
+    C is_tracking_forks INTEGER  NOT NULL
+    C is_active	        INTEGER  NOT NULL
+    C is_private        INTEGER  NOT NULL
+    C has_issues        INTEGER  NOT NULL
+    C checked	        INTEGER  NOT NULL ;# epoch
+    C min_duration      INTEGER  NOT NULL ;# overall minimum time spent on update
+    C max_duration      INTEGER  NOT NULL ;# overall maximum time spent on update
+    C window_duration   STRING   NOT NULL ;# time spent on last N updates (list of int)
+
+    < repository \
+	id url '' project vcs store fork_origin fork_number \
+	is_tracking_forks is_active is_private has_issues checked \
+	min_duration max_duration window_duration
+
+        m::db eval {
+	SELECT id, url FROM repository
+    } {
+	set durl [string tolower $url]
+	m::db eval {
+	    UPDATE repository
+	    SET    durl = :durl
+	    WHERE  id   = :id
+	}
+    }
+    X durl
+
+    # - -- --- ----- -------- -------------
+    ## Additional table: Phantom Trouble Tracking
+
+    ## Tracks for an url how many times it failed to complete its phantom. More than X
+    ## failures force the next phantom into disabled and hidden, i.e ignored from the
+    ## beginning
+
+    I
+    C url     TEXT    NOT NULL UNIQUE
+    C bounces INTEGER NOT NULL
+    T phantom_tracking
+
+    T^ state
+
+    > 'phantom-block-threshold' 5
+    # Initial threshold for bad phantoms to be dropped from further consideration.
 
     return
 }

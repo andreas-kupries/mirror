@@ -94,10 +94,9 @@ namespace eval ::m {
 
 namespace eval ::m::vcs {
     namespace export \
-	setup cleanup update check cleave merge \
-	rename id supported all code name \
-	detect url-norm name-from-url version \
-	move size caps export path revs
+	setup cleanup update check cleave merge rename id all \
+	supported code name detect url-norm name-from-url \
+	version move size caps export path revs tracking
     namespace ensemble create
 
     namespace import ::cmdr::color
@@ -145,7 +144,7 @@ proc ::m::vcs::setup {store vcs url} {
 	m futil append $path/log.stderr "  Bad url: $url\n"
 	m futil append $path/log.stderr "Unable to reach remote\n"
 	# Fake an error state ...
-	return {ok 0 commits 0 size 0 forks {} results {} msg {Invalid url} duration 0}
+	return {ok 0 commits 0 size 0 forks 0 results {} msg {Invalid url} duration 0}
     }
 
     # Redirect through an external command. This command is currently
@@ -161,7 +160,7 @@ proc ::m::vcs::setup {store vcs url} {
     # [x] ok
     # [x] commits
     # [x] size
-    # [x] forks
+    # [x] forks		(number of forks)
     # [ ] results
     # [x] msg
     # [x] duration
@@ -174,7 +173,7 @@ proc ::m::vcs::setup {store vcs url} {
 	E $msg CHILD
     }
 
-    Touch setup $path $url $commits $size $forks
+    Touch setup $path $url $commits $size {}
 
     dict unset state results
     dict unset state msg
@@ -225,7 +224,7 @@ proc ::m::vcs::update {store vcs url primary} {
     # [x] ok
     # [x] commits
     # [x] size
-    # [x] forks
+    # [x] forks		(list of forks)
     # [ ] results
     # [x] msg
     # [x] duration
@@ -460,6 +459,10 @@ proc ::m::vcs::version {vcode iv} {
 	{*}[OpCmd $vcode]
     set state [OpWait]
 
+    #puts %%%%%%%%%%%%%%%%%%%%%%%%%%%%%\t$vcode
+    #array set __ $state ; parray __
+    #puts %%%%%%%%%%%%%%%%%%%%%%%%%%%%%\t$vcode/
+
     dict with state {}
     # [x] ok
     # [ ] commits
@@ -525,13 +528,13 @@ proc ::m::vcs::url-norm {vcode url} {
 proc ::m::vcs::name-from-url {vcode url} {
     debug.m/vcs {}
 
-    # Redirect through an external command. This command is currently always `mirror-vcs
-    # VCS LOG url-to-name`.
+    # Redirect through an external command. This command is currently
+    # always `mirror-vcs VCS LOG url-to-name`.
 
     Operation ::m::vcs::OpComplete $vcode url-to-name \
 	{*}[OpCmd $vcode $url]
     set state [OpWait]
-
+    
     dict with state {}
     # [x] ok
     # [ ] commits
@@ -541,6 +544,8 @@ proc ::m::vcs::name-from-url {vcode url} {
     # [x] msg
     # [ ] duration
 
+    # array set __ $state ; parray __ ; unset __
+    
     if {!$ok} {
 	if {[llength $msg]}     { lappend issues {*}$msg     }
 	if {[llength $results]} { lappend issues {*}$results }
@@ -572,11 +577,21 @@ proc ::m::vcs::name {id} {
     }]
 }
 
+proc ::m::vcs::tracking {id} {
+    debug.m/vcs {}
+    return [m db onecolumn {
+	SELECT fork_tracking
+	FROM   version_control_system
+	WHERE  id = :id
+    }]
+}
+
 proc ::m::vcs::all {} {
     debug.m/vcs {}
     return [m db eval {
 	SELECT code
 	,      name
+	,      fork_tracking
 	FROM   version_control_system
 	ORDER BY name ASC
     }]
@@ -681,7 +696,8 @@ proc ::m::vcs::OpWait {} {
     debug.m/vcs {}
     vwait ::m::vcs::opsresult
 
-    #array set __ $::m::vcs::opsresult ; parray __
+    #array set __ops $::m::vcs::opsresult ; parray __ops
+    debug.m/vcs {[array set __state $::m::vcs::opsresult][debug parray __state][unset __state]}
 
     return $::m::vcs::opsresult
 }
@@ -696,6 +712,7 @@ proc ::m::vcs::OpCmd {vcs args} {
 
 proc ::m::vcs::Operation {done vcs op args} {
     debug.m/vcs {}
+
     variable opsid ; incr opsid
     variable ops
 
@@ -708,6 +725,9 @@ proc ::m::vcs::Operation {done vcs op args} {
     lappend map %%          %
 
     set args  [lmap w $args { string map $map $w }]
+
+    debug.m/vcs {cmd = (($args))}
+
     set jdone [list ::m::vcs::OpDone     $opsid]
     set jout  [list ::m::vcs::OpProgress $opsid]
 
@@ -769,9 +789,14 @@ proc ::m::vcs::OpDone {opsid ok msg} {
     set start    [dict get $state start] ; dict unset state start
     set duration [expr { [clock seconds] - $start }]
 
-    dict set state ok       $ok
-    dict set state msg      $msg
-    dict set state duration $duration
+    dict set     state ok       $ok
+    dict set     state duration $duration
+
+    if {$msg ne {}} {
+	dict lappend state msg $msg
+    } else {
+	dict set state msg {}
+    }
 
     if {$ok} {
 	# Process operations log.
@@ -779,14 +804,19 @@ proc ::m::vcs::OpDone {opsid ok msg} {
 	while {[gets $chan line] >= 0} {
 	    debug.m/vcs {-- $line}
 	    if {[catch {
-		set words [lassign $line tag]
+		set words [Decode [lassign $line tag]]
 	    } msg]} {
 		dict set state ok  0
-		dict set state msg $msg
+		dict lappend state msg $msg
 		break
 	    }
 	    set val [lindex $words 0]
 	    switch -exact -- $tag {
+		clear {
+		    dict set state [dict get {
+			fork forks
+		    } $val] {}
+		}
 		info -
 		note -
 		warn {
@@ -806,9 +836,29 @@ proc ::m::vcs::OpDone {opsid ok msg} {
 		result  { dict lappend state results $val }
 		default {
 		    # Fail on unknown tags
-		    dict set state ok  0
-		    dict set state msg "Unknown tag $tag"
+		    dict set     state ok  0
+		    dict lappend state msg "Unknown tag $tag"
 		    break
+		}
+	    }
+	}
+	close $chan
+    } else {
+	# Process operations log -- look only for error messages
+	set chan [open $log r]
+	set first 1
+	while {[gets $chan line] >= 0} {
+	    debug.m/vcs {-- $line}
+	    if {[catch {
+		set words [lassign $line tag]
+	    } msg]} { continue }
+	    set val [lindex $words 0]
+	    switch -exact -- $tag {
+		error -
+		fatal {
+		    if {$first} { dict set state msg {} }
+		    set first 0
+		    dict lappend state msg $val
 		}
 	    }
 	}
@@ -822,6 +872,11 @@ proc ::m::vcs::OpDone {opsid ok msg} {
 
     m::exec::Do $done $state
     return
+}
+
+# see also ops/client/Encode, project/Encode, glue/Decode
+proc ::m::vcs::Decode {words} {
+    lmap w $words { string map [list %n \n %% %] $w }
 }
 
 # # ## ### ##### ######## ############# #####################

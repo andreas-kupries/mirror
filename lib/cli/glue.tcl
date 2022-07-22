@@ -44,6 +44,8 @@ namespace eval ::m::glue {
 
 debug level  m/glue
 debug prefix m/glue {}
+debug level  m/glue/row
+debug prefix m/glue/row {}
 #debug prefix m/glue {[debug caller] | }
 
 # # ## ### ##### ######## ############# ######################
@@ -372,27 +374,37 @@ proc ::m::glue::cmd_show {config} {
 	set n [m state limit]
 	if {!$n} { set n [color note {adjust to terminal height}] }
 
-	[table/d t {
+	set c [[table/d t {
 	    $t add Store         [m state store]
 	    $t add Limit         $n
 	    $t add Take         "[m state take] ([m repo count-pending] pending/[m repo count] total)"
 	    $t add Window        [m state store-window-size]
 	    $t add {Report To}   [m state report-mail-destination]
-	    $t add {-} {}
-	    $t add {Cycle, Last} [m format epoch [m state start-of-previous-cycle]]
-	    $t add {Cycle, Now}  [m format epoch [m state start-of-current-cycle]]
+	    $t add {Block Threshold} [m state phantom-block-threshold]
+	}] show return]
 
-	    if {$all} {
-		package require m::db
-		package require m::reply
+	if {$all} {
+	    package require m::db
+	    package require m::reply
 
-		$t add Site {}
-		SiteConfigShow $t {- }
+	    set c [list $c]
 
-		$t add Mail {}
-		MailConfigShow $t {- }
-	    }
-	}] show
+	    lappend c [[table/d t {
+		SiteConfigShow $t
+	    }] show return]
+
+	    lappend c [[table/d t {
+		MailConfigShow $t
+	    }] show return]
+
+	    set c [[table t {General Site Mail} {
+		$t borders 0
+		#$t headers 0
+		$t add {*}$c
+	    }] show return]
+	}
+
+	m msg \n$c
     }
     OK
 }
@@ -554,6 +566,23 @@ proc ::m::glue::cmd_window {config} {
     OK
 }
 
+proc ::m::glue::cmd_block {config} {
+    debug.m/glue {[debug caller] | }
+    package require m::state
+
+    m db transaction {
+	if {[$config @threshold set?]} {
+	    m state phantom-block-threshold [$config @threshold]
+	}
+
+	set n [m state phantom-block-threshold]
+    }
+
+    set g [expr {$n == 1 ? "failure" : "failures"}]
+    m msg "Automatic blocking of new phantoms on [color note $n] completion $g"
+    OK
+}
+
 proc ::m::glue::cmd_vcs {config} {
     debug.m/glue {[debug caller] | }
     package require m::vcs
@@ -561,7 +590,7 @@ proc ::m::glue::cmd_vcs {config} {
     m db transaction {
 	set all [m vcs all]
     }
-    foreach {code name} $all {
+    foreach {code name tracking} $all {
 	set version [m vcs version $code issues]
 	set vmsg {}
 	if {$version ne {}} {
@@ -572,13 +601,16 @@ proc ::m::glue::cmd_vcs {config} {
 		lappend vmsg [color bad $issue]
 	    }
 	}
-	lappend series $code $name [join $vmsg \n]
+	lappend series $code $name [join $vmsg \n] $tracking
     }
 
     m msg [color note {Supported VCS}]
-    [table t {Code Name Version} {
-	foreach {code name msg} $series {
-	    $t add $code $name $msg
+    [table t {Code Name Version Forks} {
+	foreach {code name msg tracking} $series {
+	    $t add $code $name $msg [dict get {
+		0 {}
+		1 Tracked
+	    } $tracking]
 	}
     }] show
     OK
@@ -591,10 +623,8 @@ proc ::m::glue::cmd_add {config} {
     package require m::rolodex
     package require m::store
 
-    # puts [$config names] ; foreach n [$config names] { puts ${n}\t:\t([$config @$n]) }
-
     m db transaction {
-	Add $config [$config @extend]
+	AddRepository $config [$config @extend]
     }
     ShowCurrent $config
     SiteRegen
@@ -613,8 +643,8 @@ proc ::m::glue::cmd_remove {config} {
 
 	foreach repo $repos {
 	    if {$repo eq {}} continue
-
 	    set rinfo [m repo get $repo]
+	    if {![llength $rinfo]} continue
 	    dict with rinfo {}
 	    # -> url    : repo url
 	    #    vcs    : vcs id
@@ -763,15 +793,33 @@ proc m::glue::Short {repo} {
     set ri [m repo get $repo]
     dict with ri {}
 
+    ShortStatus active private store
+    
+    return "$url ([SIB [expr {!$issues}]] $active $private$store)"
+}
+
+proc m::glue::ShortStatus {av pv sv} {
+    upvar 1 $av active $pv private $sv store
+    
     set active [color {*}[dict get {
 	0 {warning offline}
 	1 {note UP}
     } [expr {!!$active}]]]
 
-    return "$url ([SIB [expr {!$issues}]] $active)"
+    set private [color {*}[dict get {
+	0 {note seen}
+	1 {warning private}
+    } [expr {!!$private}]]]
+
+    if {$store eq {}} {
+	append store " " [color bad phantom]
+    } else {
+	set store {}
+    }
+    return
 }
 
-proc ::m::glue::cmd_details {config} { ;# XXX REWORK due the project/repo/store relation changes
+proc ::m::glue::cmd_details {config} {
     debug.m/glue {[debug caller] | }
     package require m::project
     package require m::repo
@@ -846,7 +894,7 @@ proc ::m::glue::cmd_details {config} { ;# XXX REWORK due the project/repo/store 
 	    set dorigin [Short $origin]
 	}
 
-	# Find repositories which are siblings of the same project
+	# Find repositories which are siblings of the same project - includes phantoms
 
 	set projectsibs [m repo for $project]
 
@@ -855,12 +903,11 @@ proc ::m::glue::cmd_details {config} { ;# XXX REWORK due the project/repo/store 
 	# Compute derived information ...
 
 	set status [SI $issues $stderr]
+	set ghost $store
+	ShortStatus active private ghost
 
-	set active [color {*}[dict get {
-	    0 {warning offline}
-	    1 {note UP}
-	} [expr {!!$active}]]]
-
+	set checked [color note [m format epoch $checked]]
+	
 	if {$store ne {}} {
 	    set dcommit [DeltaCommitFull $commits $commitp]
 	    set dsize   [DeltaSizeFull $size $sizep]
@@ -916,7 +963,7 @@ proc ::m::glue::cmd_details {config} { ;# XXX REWORK due the project/repo/store 
 	    if {$origin ne {}} {
 		$t add Origin $dorigin
 	    }
-	    $t add Status        "$status $active @[color note [m format epoch $checked]]"
+	    $t add Status        "$status $active $private$ghost @ $checked"
 	    $t add Project       $name
 	    $t add VCS           $vcsname
 
@@ -932,6 +979,8 @@ proc ::m::glue::cmd_details {config} { ;# XXX REWORK due the project/repo/store 
 	    # store are __not excluded__ here.
 	    set sibs {}
 	    foreach sibling $projectsibs {
+		# ignore phantoms
+		if {[m repo store $sibling] eq {}} continue
 		if {$sibling == $repo} continue
 		if {$sibling == $origin} continue
 		#if {$sibling in $storesibs} continue
@@ -1011,6 +1060,72 @@ proc ::m::glue::cmd_enable {flag config} {
 	    # inactive. The commands to retrieve the pending repos
 	    # (all, or taken for update) is where we do the filtering,
 	    # i.e. exclusion of the inactive.
+	}
+    }
+
+    ShowCurrent $config
+    SiteRegen
+    OK
+}
+
+proc ::m::glue::cmd_track {flag config} {
+    debug.m/glue {[debug caller] | }
+    package require m::project
+    package require m::repo
+    package require m::rolodex
+    package require m::store
+
+    set op [expr {$flag ? "Enabling" : "Disabling"}]
+
+    m db transaction {
+	foreach repo [ReposOrCurrent] {
+	    if {$repo eq {}} continue
+
+	    m msg "$op tracking of forks for [color note [m repo url $repo]] ..."
+
+	    set ri [m repo get $repo]
+	    dict with ri {}
+
+	    # Prevent activation of fork tracking for repositories using a VCS not
+	    # supporting such.
+	    if {$flag} {
+		if {!$trackable} {
+		    m msg "  [color warning {Not supported by VCS}]: $vcode"
+		    m msg "  Ignored"
+		    continue
+		}
+		if {$origin ne {}} {
+		    m msg "  [color warning {No tracking of forks for forks}]"
+		    m msg "  Ignored"
+		    continue
+		}
+	    }
+
+	    m repo track $repo $flag
+	}
+    }
+
+    ShowCurrent $config
+    SiteRegen
+    OK
+}
+
+proc ::m::glue::cmd_private {flag config} {
+    debug.m/glue {[debug caller] | }
+    package require m::project
+    package require m::repo
+    package require m::rolodex
+    package require m::store
+
+    set op [expr {$flag ? "Hiding" : "Publishing"}]
+
+    m db transaction {
+	foreach repo [ReposOrCurrent] {
+	    if {$repo eq {}} continue
+
+	    m msg "$op [color note [m repo url $repo]] ..."
+
+	    m repo private $repo $flag
 	}
     }
 
@@ -1249,184 +1364,317 @@ proc ::m::glue::cmd_update {config} {
 
 	debug.m/glue {repositories = ($repos)}
 
+	if {![llength $repos]} {
+	    m msg [color warning {Nothing to update}]
+	}
+
 	set cf %[string length [llength $repos]]s
 
+	# remove bad repo references
+	set repos [lmap repo $repos {
+	    if {$repo eq {}} continue
+	    if {[m repo url $repo] eq {}} continue
+	    set repo
+	}]
+
+	# expand to full repo meta block, and insert the repo id
+	set repos [lmap repo $repos {
+	    list {*}[m repo get $repo] repo $repo
+	}]
+
+	# extract variable length parts and find their max
+	set umax [MaxLength [lmap repo $repos { dict get $repo url  }]]
+	set nmax [MaxLength [lmap repo $repos { dict get $repo name }]]
+	if {$nmax > 40} { set nmax 40 }
+	
 	foreach repo $repos {
 	    incr cr
-	    set counter [color magenta ([format $cf $cr])]
-
-	    set ri [m repo get $repo]
-	    dict with ri {}
-
-	    # url, active, issues, vcs, vcode, project, name, store
-	    # min/max/win_sec, checked, origin
-
-	    set durl [color note $url]
-	    if {$origin eq {}} { set durl [color bg-cyan $durl] }
-
-	    set primary [expr {$origin eq {}}]
-	    set now     [clock seconds]
-
-	    set dvcs [string totitle $vcode]
-	    set m msg*
-	    if {$verbose} { set m msg ; set dvcs [color note $dvcs] }
-
-	    if {$store eq {}} {
-		# Repo is phantom without a store - Time to set it up, and link
-
-		set before 0
-
-		m msg "$counter Setting up repository $durl ..."
-		m msg "In project          [color note $name]"
-		m $m  "  $dvcs store ... "
-
-		lassign [m store add $vcs $url] \
-		    ok store duration commits size forks
-		#      id    seconds  int     int  list(url)
-
-		m repo store! $repo $store
-
+	    m msg* "[color magenta ([format $cf $cr])] "
+	    dict set repo umax $umax
+	    dict set repo nmax $nmax
+	    
+	    if {[dict get $repo store] eq {}} {
+		CompletePhantom   $repo $verbose
 	    } else {
-		# Store is set, update it.
-
-		set si [m store get $store]
-		# size, vcs, sizep, commits, commitp, vcsname, updated, changed, created
-		# (attend, min/max/win, remote, active)
-		set before [dict get $si commits]
-
-		m msg "$counter Updating repository $durl ..."
-		m msg "In project          [color note $name]"
-		m $m  "  $dvcs store ... "
-
-		# -- has_issues, is_active/enable -- fork handling
-
-		lassign [m store update $primary $url $store $nowcycle $now $before] \
-		    ok duration commits size forks
+		UpdateRepository  $repo $verbose $nowcycle
 	    }
 
-	    set x [expr {($commits == 1) ? "commit" : "commits"}]
-	    set suffix ", in [color note [m format interval $duration]] ($commits $x, $size KB)"
-
-	    set attend [expr {!$ok || [m store has-issues $store]}]
-	    if {!$primary && $attend} { m repo enable $repo 0 }
-
-	    m repo times  $repo $duration $now $attend
-
-	    if {!$ok} {
-		lassign [m vcs caps $store] _ e
-		m msg "[color bad Fail]$suffix"
-		m msg $e
-		m msg ""
-		continue
-	    } elseif {$before != $commits} {
-		set delta [expr {$commits - $before}]
-		if {$delta < 0} {
-		    set mark bad
-		} else {
-		    set mark note
-		    set delta +$delta
-		}
-		m msg "[color note Changed] $before $commits ([color $mark $delta])$suffix"
-	    } elseif {$verbose} {
-		m msg "[color note "No changes"]$suffix"
-	    } else {
-		m msg "No changes$suffix"
-	    }
-
-	    if {$primary} {
-		# check currently found forks against what is claimed by the system
-		set forks_prev [m repo fork-locations $repo]
-
-		lassign [struct::set intersect3 $forks_prev $forks] same removed added
-		# previous - current => removed from previous
-		# current  - previous => added over previous
-
-		if {[llength $same   ]} { m msg "Forks unchanged:   [llength $same]" }
-		if {[llength $removed]} { m msg "Forks lost:        [llength $removed]" }
-		if {[llength $added  ]} { m msg "Forks maybe added: [llength $added]" }
-
-		# Actions:
-		# - The removed forks are detached from the primary.
-		#   We keep the repository. Activation state is unchanged
-		#
-		# - Unchanged forks are reactivated if they got disabled.
-		#
-		# - New forks are attempted to be added back
-		#   This may actually reclaim a fork which was declaimed before.
-		#
-		#   Note: Only these new forks have to be validated!
-		#   Note: Tracking threshold is irrelevant here.
-
-		foreach r $removed {
-		    m msg "  [color warning {Detaching lost}] [color note $r]"
-		    m repo declaim [m repo id $r]
-		}
-		foreach r $same {
-		    # m msg "  Unchanged      [color note $r], activating"
-		    m repo enable [m repo id $r]
-		}
-
-		AddForks $added $repo $vcs $vcode $name $project
-
-		m msg ""
-	    }
+	    # m msg ""
 	}
     }
 
+    set duration [expr {[clock seconds] - $nowcycle}]
+    m msg "Update completed in [color note [m format interval $duration]]"
+    
     SiteRegen
     OK
 }
 
+proc ::m::glue::Pad {max w} {
+    string repeat " " [expr {$max-[string length $w]}]
+}
+
+proc ::m::glue::MaxLength {words} {
+    return [lindex [lsort -integer -decreasing [lmap w $words { string length $w }]] 0]
+}
+
+proc ::m::glue::CompletePhantom {ri verbose} {
+    debug.m/glue {[debug caller] | }
+
+    dict with ri {}
+    # url, active, private, issues, tracking, vcs, vcode, trackable, project, name
+    # store, min/max/win_sec, checked, origin
+    # repo, umax, nmax
+
+    UpdateStartMessage "Completing phantom " $url $name $vcode $verbose $origin $nmax $umax
+
+    set now [clock seconds]
+
+    lassign [m store add $vcs $url] \
+	ok store duration commits size forks
+    #      id    seconds  int     int  int (nforks)
+
+    set x [expr {($commits == 1) ? "commit" : "commits"}]
+    set z [expr {($forks   == 1) ? "fork" : "forks"}]
+
+    set    suffix ", in [color note [m format interval $duration]]"
+    append suffix " ($commits $x, $size KB, $forks $z)"
+
+    UpdateEndMessage $verbose $ok $store $suffix 0 $commits
+
+    if {!$ok} {
+	# Was unable to initialize the phantom! Remove the fork!
+	m msg [color warning {Removing the failed phantom}]
+
+	m repo phantom-fail $url
+	m repo remove  $repo
+	m rolodex drop $repo
+	m rolodex commit
+	return
+    }
+
+    # Phantom is good! I.e. not a phantom any longer.
+
+    m repo phantom-ok $url
+    m repo store! $repo $store
+    m repo times  $repo $duration $now 0
+    m repo forks! $repo $forks
+
+    return
+}
+
+proc ::m::glue::UpdateRepository {ri verbose nowcycle} {
+    debug.m/glue {[debug caller] | }
+
+    dict with ri {}
+    # url, active, private, issues, tracking, vcs, vcode, trackable, project, name
+    # store, min/max/win_sec, checked, origin
+    # repo, umax, nmax
+
+    UpdateStartMessage "Updating repository" $url $name $vcode $verbose $origin $nmax $umax
+
+    set primary [expr {($origin eq {}) && $tracking}]
+    set now     [clock seconds]
+
+    set si [m store get $store]
+    # size, vcs, sizep, commits, commitp, vcsname, updated, changed, created
+    # (attend, min/max/win, remote, active)
+    set before [dict get $si commits]
+
+    lassign [m store update $primary $url $store $nowcycle $now $before] \
+	ok duration commits size forks
+    #                            ^:  primary: list (url)
+    #                               !primary: int, nforks
+
+    set nforks [expr {$primary ? [llength $forks] : [lindex $forks 0]}]
+    debug.m/glue {[debug caller] | nforks = ($nforks) /[llength $forks]/$forks/$primary}
+    if {$nforks eq {}} { set nforks 0 }
+
+    set x [expr {($commits == 1) ? "commit" : "commits"}]
+    set    suffix ", in [color note [m format interval $duration]]"
+    append suffix " ($commits $x, $size KB"
+    if {$trackable} {
+	set z [expr {($nforks  == 1) ? "fork" : "forks"}]
+	append suffix ", $nforks $z"
+    }
+    append suffix ")"
+
+    if {($origin ne {}) && !$ok} {
+	# failed fork - disable, disconnect
+	# do not remove however, this one has a store, so it worked at least once.
+	m repo enable  $repo 0
+	m repo declaim $repo
+    }
+
+    m repo times  $repo $duration $now [expr {!$ok}]
+
+    UpdateEndMessage $verbose $ok $store $suffix $before $commits
+    if {!$ok} return
+
+    m repo forks! $repo $nforks
+
+    if {!$primary} return
+
+    # Handle the returned forks now ...
+    ##
+    # Compare the currently found forks against what we know from the last update
+    set forks_prev [m repo fork-locations $repo]
+
+    lassign [struct::set intersect3 $forks_prev $forks] same removed added
+    # previous - current  => removed from previous
+    # current  - previous => added   over previous
+
+    if {[llength $same   ]} { m msg "Forks unchanged: [llength $same]"    }
+    if {[llength $removed]} { m msg "Forks lost:      [llength $removed]" }
+    if {[llength $added  ]} { m msg "Forks new:       [llength $added]"   }
+
+    # # ## ### Actions ### ## # #
+
+    # Same/Unchanged - (re)enable, (re)claim, do not track further
+    foreach r $same {
+	set fork [m repo id $r]
+	m repo claim  $repo $fork
+	m repo enable $fork
+	m repo track  $fork 0 ;# Forks do not track nested forks.
+    }
+
+    # Remove/Gone - No action - Disable, disconnect will happen when next update fails.
+    # Just report.
+    foreach r $removed {
+	m msg "  [color warning {Lost fork}] [color note $r]"
+    }
+
+    # Added/New - Skip if existing and phantom (**)
+    #           - Reclaim if existing (previously lost)
+    #           - Create phantom (state: **)
+
+    # Note! The phantoms are not verified. This happens on their first update, when the
+    # system attempts to initialize them. Those who fail are removed.
+    # This means that the creation does NOT incur any load on any remote servers
+    # (i.e. github). The verification load is distributed in time.
+
+    set nforks [llength $added]
+    set format %[string length $nforks]s
+    set pad [string repeat " " [expr {3+[string length $nforks]}]]
+
+    foreach fork $added {
+	incr k
+	m msg "  [color cyan "([format $format $k])"] Fork [color note $fork] ... "
+
+	if {[m repo has $fork]} {
+	    if {[m repo store [m repo id $fork]] eq {}} {
+		# Phantom. Ignore. (**) A hidden disabled thing from too many failed initializations.
+		m msg "  $pad[color warning "Ignoring phantom"]"
+		continue
+	    }
+
+	    m msg "  $pad[color note "Already known, claiming it"]"
+
+	    set fork [m repo id $fork]
+	    m repo claim  $repo $fork
+	    m repo enable $fork
+	    m repo track  $fork 0 ;# Forks do not track nested forks.
+	    continue
+	}
+
+	# Does not exist. Create a phantom linked to the base
+
+	m msg* "  Creating repository ... "
+	set fr [m repo add $vcs $fork $project {} 0 0 $repo]
+
+	# This phantom failed to complete several times. Do not bother trying again.
+	if {[m repo phantom-blocked $fork]} {
+	    set t [m state phantom-block-threshold]
+	    set g [expr {$t == 1 ? "failure" : "failures"}]
+
+	    m msg  [color warning {Not tracking this new phantom, hiding and disabling it.}]
+	    m msg* "                          "
+	    m msg  "[color warning {Reason: At least}] [color bad $t] [color warning "$g to complete."]"
+	    m repo enable  $fr 0
+	    m repo private $fr 1
+
+	    continue
+	}
+
+	OKx
+    }
+
+    m msg ""
+    return
+}
+
+proc ::m::glue::UpdateStartMessage {op url name vcode verbose origin nmax umax} {
+    debug.m/glue {[debug caller] | }
+
+    set name [string range $name 0 ${nmax}-1]
+    set upad [Pad $umax $url]
+    set npad [Pad $nmax $name]
+    
+    set url [color note $url]
+    if {$origin eq {}} { set url [color bg-cyan $url] }
+
+    set vcode [string totitle $vcode]
+    if {$verbose} { set vcode [color note $vcode] }
+
+    set name [color note $name]
+    
+    set m "$op $url,$upad in $name,$npad $vcode ... "
+
+    if {$verbose} { m msg $m } else { m msg* $m }
+    return
+}
+
+proc ::m::glue::UpdateEndMessage {verbose ok store suffix before commits} {
+    debug.m/glue {[debug caller] | }
+
+    if {!$ok} {
+	lassign [m vcs caps $store] _ e
+	m msg "[color bad Fail]$suffix"
+	if {$e ne {}} { m msg $e }
+	return
+    }
+
+    if {$before != $commits} {
+	set delta [expr {$commits - $before}]
+	if {$delta < 0} {
+	    set mark bad
+	} else {
+	    set mark note
+	    set delta +$delta
+	}
+	m msg "[color note Changed] $before $commits ([color $mark $delta])$suffix"
+	return
+    }
+
+    set m "No changes"
+    if {$verbose} { set m [color note $m] }
+    append m $suffix
+
+    m msg $m
+    return
+}
+
 proc ::m::glue::cmd_updates {config} {
     debug.m/glue {[debug caller] | }
-    package require m::store
+
+    package require m::repo
+
+    set height [$config @th] ; incr height -9 ;# Space for overhead and at most 2 separators
+    set width  [$config @tw]
 
     m db transaction {
-
-	# m store updates XXX rework actually repos
-
-	# TODO: get status (stderr), show - store id
-	set series {}
-	foreach row [TruncH [m store updates] [expr {[$config @th]-1}]] {
-
-
-
-	    if {[lindex $row 0] eq "..."} {
-		lappend series [list ... {} {} {} {} {} {}]
-		continue
-	    }
-	    # store mname vcode changed updated created size active
-	    # remote sizep commits commitp mins maxs lastn url origin
-
-	    dict with row {}
-	    if {$created eq "."} {
-		lappend series [list - - - - - - -]
-		continue
-	    }
-
-	    set changed [m format epoch $changed]
-	    set updated [m format epoch $updated]
-	    set created [m format epoch $created]
-	    set dsize   [DeltaSize $size $sizep]
-	    set dcommit [DeltaCommit $commits $commitp]
-	    set lastn   [LastTime $lastn]
-
-	    if {$origin eq {}} { set url [color bg-cyan $url] }
-
-	    lappend series [list $url $vcode $dsize $dcommit $lastn $changed $updated $created]
-	}
+	set series [m repo updates]
     }
-    lassign [TruncW \
-		 {Project VCS Size Commits Time Changed Updated Created} \
-		 {1       0   0    0       0    0       0       0} \
-		 $series [$config @tw]] \
-	titles series
-    m msg "Cycles: [m format epoch [m state start-of-previous-cycle]] ... [m format epoch [m state start-of-current-cycle]] ..."
-    [table t $titles {
-	foreach row $series {
-	    $t add {*}$row
-	}
-    }] show
+
+    set n [llength $series]
+    
+    set series [TruncH           $series $height]
+    set series [Reduce           $series]
+    set series [UpdateSeparators $series]
+    set series [RolodexTags      $series]
+    set series [StateTags        $series]
+
+    ShowTable {*}[RepositoryTable $series $width 0 $n]
     OK
 }
 
@@ -1435,135 +1683,24 @@ proc ::m::glue::cmd_pending {config} {
     package require m::project
     package require m::state
 
-    set tw [$config @tw]
-    set th [$config @th] ; incr th -1 ;# Additional line before the table (counts).
-
-    set nrepo    [m repo count]
-    set npending [m repo count-pending]
+    set height [$config @th] ; incr height -9 ;# Space for overhead, plus separator and add. title
+    set width  [$config @tw]
 
     m db transaction {
-	set series {}
-	set take   [m state take]
-
-	foreach {pname url origin nforks} [m repo pending] {
-	    if {$origin eq {}} { set url [color bg-cyan $url] }
-	    set row {}
-	    if {$take} {
-		lappend row *
-		incr take -1
-	    } else {
-		lappend row {}
-	    }
-	    lappend row $url $nforks $pname
-	    lappend series $row
-	}
+	set nrepo    [m repo count]
+	set npending [m repo count-pending]
+	set take     [m state take]
+	set series   [m repo pending]
     }
 
-    lassign [TruncW \
-		 {{} Repository Forks Project} \
-		 {0  0          0     1} \
-		 [TruncH $series $th] $tw] \
-	titles series
+    set series [TruncH      $series $height]
+    set series [Reduce      $series]
+    set series [linsert     $series $take {}]
+    set series [RolodexTags $series]
+    set series [StateTags   $series]
 
-    puts @[color note $npending]/$nrepo
-    [table t $titles {
-	foreach row $series {
-	    $t add {*}$row
-	}
-    }] show
-    OK
-}
-
-proc ::m::glue::cmd_issues {config} {
-    debug.m/glue {[debug caller] | }
-    package require m::project
-    package require m::repo
-    package require m::rolodex
-    package require m::store
-
-    m db transaction {
-	set series {}
-	foreach row [m store issues] {	;# XXX rework actually repo issues
-	    dict with row {}
-	    # store mname vcode changed updated created size active remote rid url
-	    set size [m format size $size]
-
-	    if {$origin eq {}} { set url [color bg-cyan $url] }
-
-	    lappend series [list $rid $url $mname $vcode $size]
-	    m rolodex push $rid
-	}
-
-	m rolodex commit
-	set n [llength $series]
-
-	set table {}
-	foreach row $series {
-	    incr n -1
-	    set row [lassign $row rid]
-	    set dex [m rolodex id $rid]
-	    set tag @$dex
-	    if {$n == 1} { lappend tag @p }
-	    if {$n == 0} { lappend tag @c }
-	    lappend table [list $tag {*}$row]
-	}
-    }
-    lassign [TruncW \
-		 {Tag Repository Project VCS Size} \
-		 {0   0          1       0   0} \
-		 $table [$config @tw]] \
-	titles series
-    [table t $titles {
-	foreach row $series {
-	    $t add {*}[C $row 1 note] ;# 1 => url
-	}
-    }] show
-    OK
-}
-
-proc ::m::glue::cmd_disabled {config} {
-    debug.m/glue {[debug caller] | }
-    package require m::project
-    package require m::repo
-    package require m::rolodex
-    package require m::store
-
-    m db transaction {
-	set series {}
-	foreach row [m store disabled] {	# XXX REWORK actually repo state
-	    dict with row {}
-	    # store mname vcode changed updated created size active remote attend rid url origin
-	    set size [m format size $size]
-
-	    if {$origin eq {}} { set url [color bg-cyan $url] }
-
-	    lappend series [list $rid $url $mname $vcode $size]
-	    m rolodex push $rid
-	}
-	m rolodex commit
-	set n [llength $series]
-
-	set table {}
-	foreach row $series {
-	    incr n -1
-	    set row [lassign $row rid]
-	    set dex [m rolodex id $rid]
-	    set tag @$dex
-	    if {$n == 1} { lappend tag @p }
-	    if {$n == 0} { lappend tag @c }
-	    lappend table [list $tag {*}$row]
-	}
-    }
-    lassign [TruncW \
-		 {Tag Repository Project VCS Size} \
-		 {0   0          1       0   0} \
-		 $table [$config @tw]] \
-	titles series
-    [table t $titles {
-	foreach row $series {
-	    $t add {*}[C $row 1 note] ;# 1 => url
-	}
-    }] show
+    m msg "Unprocessed [color note $npending] of [color note $nrepo]"
+    ShowTable {*}[RepositoryTable $series $width 0 $nrepo]
     OK
 }
 
@@ -1573,87 +1710,45 @@ proc ::m::glue::cmd_list {config} {
     package require m::rolodex
     package require m::state
 
-    m db transaction {
-	if {[$config @pattern set?]} {
-	    # Search, shows all results. Does not move the cursor.
-	    set pattern [$config @pattern]
-	    set series [m repo search $pattern]
-	} else {
-	    # No search, show a chunk of the list as per options.
-	    if {[$config @repository set?]} {
-		set repo [$config @repository]
-		set ri [m repo get $repo]
-		dict with ri {}
-		# -> url    : repo url
-		#    vcs    : vcs id
-		#    vcode  : vcs code
-		#    project: project id
-		# -> name   : project name
-		#    store  : id of backing store for repo
-		set first [list $name $url]
-		debug.m/glue {from request: $first}
-		unset name url vcs vcode store ri project
-	    } else {
-		set first [m state top]
-		debug.m/glue {from state: $first}
-	    }
-	    set limit [$config @limit]
-	    if {$limit == 0} {
-		set limit [expr {[$p config @th]-7}]
-	    }
+    set height [$config @th]
+    set width  [$config @tw]
 
-	    lassign [m repo get-n $first $limit] next series
+    dict set c start      [First $config]
+    dict set c limit      [Limit $config]
+    dict set c vcs        [VCS   $config]
+    dict set c order      [$config @ordering]
+    dict set c odirection [$config @orderdir]
+    dict set c use        [$config @use]
+    dict set c fork       [$config @fork]
+    dict set c visibility [$config @visibility]
+    dict set c troubled   [$config @troubled]
+    dict set c phantom    [$config @phantom]
 
-	    debug.m/glue {next   ($next)}
-	    m state top $next
-	}
-	# series = list (dict (primary name url rid vcode sizekb active sizep commits commitp mins maxs lastn))
-
-	debug.m/glue {series ($series)}
-
-	set n 0
-	foreach row $series {
-	    m rolodex push [dict get $row id]
-	    incr n
-	}
-
-	set idx -1
-	set table {}
-	foreach row $series {
-	    dict with row {}
-	    # primary name url id vcode sizekb active sizep commits commitp mins maxs lastn
-	    incr idx
-	    #set url [color note $url]
-	    set ix  [m rolodex id $id]
-	    set tag {}
-	    if {$ix  ne {}}     { lappend tag @$ix }
-	    if {$idx == ($n-2)} { lappend tag @p }
-	    if {$idx == ($n-1)} { lappend tag @c }
-	    set a [expr {$active ? "A" : "-"}]
-
-	    if {$primary} { set url [color bg-cyan $url] }
-
-	    set dsize   [DeltaSize $sizekb $sizep]
-	    set dcommit [DeltaCommit $commits $commitp]
-	    set lastn   [LastTime $lastn]
-
-	    lappend table [list $tag $a $url $name $vcode $dsize $dcommit $lastn]
-	    # ................. 0    1   2    3    4      5      6        7
-	}
+    if {[$config @pattern set?]} {
+	dict set c match [$config @pattern]
     }
 
-    # See also ShowCurrent
-    # TODO: extend list with store times ?
-    lassign [TruncW \
-		 {Tag {} Repository Project VCS Size Commits Time} \
-		 {0   0  0          1       0   -1   -1      0} \
-		 $table [$config @tw]] \
-	titles series
-    [table t $titles {
-	foreach row $series {
-	    $t add {*}[C $row 2 note] ;# 2 => url
-	}
-    }] show
+    m db transaction {
+	# If the offset into the list is beyond the end of the list, auto-reset
+	# This is likely because of a change in the constraints since the last call.
+	set n [m repo count-for $c]
+	if {[dict get $c start] > $n} { dict set c start 0 }
+	set offset [dict get $c start]
+
+	m repo list-for c
+    }
+
+    set next    [dict get $c start]
+    m state top $next
+
+    debug.m/glue {next = ($next)}
+
+    set series [dict get $c  series] ;# due to limit already truncated to desired height
+    set series [Reduce      $series]
+    set series [RolodexTags $series]
+    set series [StateTags   $series]
+
+    ShowTable {*}[RepositoryTable $series $width $offset $n]
     OK
 }
 
@@ -1663,7 +1758,7 @@ proc ::m::glue::cmd_reset {config} {
 
     m state top {}
 
-    m msg "List paging reset to start from the top/bottom"
+    m msg "List paging reset to start from the top/bottom per the chosen order"
     OK
 }
 
@@ -1706,35 +1801,56 @@ proc ::m::glue::cmd_statistics {config} {
 
     m db transaction {
 	set stats [m project statistics]
+	if {[$config @blocks]} {
+	    set bl [m repo phantom-blocklist]
+	    set bt [m state phantom-block-threshold]
+	}
     }
 
     dict with stats {}
-    #array set _ $stats ; parray _
+    # ncc, npc, np, nr, nw, ns, nl, sz, cc, pc, ni, nd, st, rt
     dict with st    {}
-    #unset _ ; array set _ $st ; parray _
+    # sz_(min,max,mean,median), cm_(...), vcs
+    # rt ---
+    # vcs, phantom, blocked, private
+
+    #array set _ $stats ; parray _ ; unset _
+    #array set _ $st    ; parray _ ; unset _
+
+    set tp [m state take]
 
     set sz_min    [m format size $sz_min]
     set sz_max    [m format size $sz_max]
     set sz_mean   [m format size $sz_mean]
     set sz_median [m format size $sz_median]
 
+    set nh [dict get $rt private]
     set ng [dict get $rt phantom]
+    set lk [dict get $rt blocked]
+    if {$lk} { append ng " ([color warning $lk] blocked)" }
+    if {$nl} { set nl [color bad     $nl] }
+    if {$ni} { set nl [color bad     $ni] }
+    if {$nd} { set nd [color warning $nd] }
+    if {$nh} { set nh [color warning $nh] }
 
-    [table/d t {
+    lappend panels [[table/d t {
 	$t add Projects       $np
 	$t add Repositories   $nr
 	$t add "- Phantoms"   $ng
 	$t add "- Issues"     $ni
 	$t add "- Disabled"   $nd
-	$t add "- VCS" ""
+	$t add "- Private"    $nh
 
+	$t add "- VCS" {}
 	foreach v [lsort -dict [dict keys [dict get $rt vcs]]] {
 	    $t add "  - $v" [dict get $rt vcs $v]
 	}
+    }] show return]
 
+    lappend panels [[table/d t {
 	$t add Stores         $ns
 	$t add "- Lost"       $nl
-	$t add "- Statistics" ""
+	$t add "- Statistics" {}
 	$t add "  - Size"     "$sz_min ... $sz_max"
 	$t add "      Total " [m format size $sz]
 	$t add "      Mean  " $sz_mean
@@ -1742,18 +1858,41 @@ proc ::m::glue::cmd_statistics {config} {
 	$t add "  - Commits"  "$cm_min ... $cm_max"
 	$t add "      Mean  " $cm_mean
 	$t add "      Median" $cm_median
-	$t add "  - VCS"      ""
 
+	$t add "- VCS"      {}
 	foreach v [lsort -dict [dict keys [dict get $st vcs]]] {
-	    $t add "    - $v" [dict get $st vcs $v]
+	    $t add "  - $v" [dict get $st vcs $v]
 	}
+    }] show return]
 
+    lappend panels [[table/d t {
 	$t add Cycles {}
-	$t add "- Current began" [m format epoch $cc]
+	$t add "- Current"       {}
+	$t add "  - Pending"     "[color note $nw] (of [color note $nr], taking [color note $tp])"
+	$t add "  - Started"     [m format epoch $cc]
 	$t add "  - Changes"     $ncc
-	$t add "- Last began"    [m format epoch $pc]
+	$t add "- Last"          {}
+	$t add "  - Started"     [m format epoch $pc]
 	$t add "  - Changes"     $npc
 	$t add "  - Duration"    [m format interval [expr {$cc - $pc}]]
+    }] show return]
+
+    if {[$config @blocks]} {
+	lappend panels [[table t {Url Bounces} {
+	    foreach {url bounce} $bl {
+		if {$bounce >= $bt} {
+		    set url    [color warning $url]
+		    set bounce [color warning $bounce]
+		}
+		$t add $url $bounce
+	    }
+	}] show return]
+    }
+
+    [table t [lrepeat [llength $panels] {}] {
+	$t borders 0
+	$t headers 0
+	$t add {*}$panels
     }] show
     OK
 }
@@ -1792,73 +1931,35 @@ proc ::m::glue::cmd_projects {config} {
     package require m::project
     package require m::state
 
+    set height [$config @th]
+    set width  [$config @tw]
+
+    dict set c start      [First $config]
+    dict set c limit      [Limit $config]
+    dict set c order      [$config @ordering]
+    dict incr c limit -3
+    
+    if {[$config @pattern set?]} { dict set c match [$config @pattern] }
+
     m db transaction {
-	if {[$config @pattern set?]} {
-	    # Search, shows all results. Does not move the cursor.
-	    set pattern [$config @pattern]
-	    set series [m project search $pattern]
-	} else {
-	    # No search, show a chunk of the list as per options.
-	    if {[$config @project set?]} {
-		set project [$config @project]
-		set pi [m project get $project]
-		dict with pi {}
-		# - name nrepos nforks
-		set first $name
-		debug.m/glue {from request: $first}
-		unset name nrepos nforks
-	    } else {
-		# Note: top is repository, use containing project.
-		set first [m repo project [m state top]]
-		debug.m/glue {from state: $first}
-	    }
-	    set limit [$config @limit]
-	    if {$limit == 0} {
-		set limit [expr {[$p config @th]-7}]
-	    }
+	# If the offset into the list is beyond the end of the list, auto-reset
+	# This is likely because of a change in the constraints since the last call.
+	set n [m project count-for $c]
+	if {[dict get $c start] > $n} { dict set c start 0 }
+	set offset [dict get $c start]
 
-	    lassign [m project get-n $first $limit] next series
-
-	    debug.m/glue {next   ($next)}
-	    # next is project -> chose any repo in it as new top.
-	    m state top [m project a-repo $next]
-	}
-	# series = list (dict (id name nrepos nstores))
-	# #x, for x in set-of-vcs ?
-
-	debug.m/glue {series ($series)}
-
-	set idx -1
-	set table {}
-
-	set trepos  0
-	set tstores 0
-
-	foreach row $series {
-	    dict with row {}
-	    # name nrepos nstores
-	    lappend table [list $name $nrepos $nstores]
-	    # ................. 0     1       2
-	    incr trepos $nrepos
-	    incr tstores $nstores
-	}
+	m project list-for c
     }
 
-    set seprepos  [string repeat - [string length $trepos]]
-    set sepstores [string repeat - [string length $tstores]]
+    set next    [dict get $c start]
+    m state top $next
 
-    lassign [TruncW \
-		 {Project #Repositories #Stores} \
-		 {1       0             0} \
-		 $table [$config @tw]] \
-	titles series
-    [table t $titles {
-	foreach row $series {
-	    $t add {*}[C $row 0 note] ;# 0 => name
-	}
-	$t add {}     $seprepos $sepstores
-	$t add Totals $trepos $tstores
-    }] show
+    debug.m/glue {next = ($next)}
+
+    set series [dict get $c series]
+    set series [TruncH     $series $height]
+
+    ShowTable {*}[ProjectTable $series $width $offset $n]
     OK
 }
 
@@ -1988,11 +2089,14 @@ proc ::m::glue::cmd_accept {config} {
 	m msg "Accepted $url"
 	m msg "By       $name"
 
-	Add $config
+	AddRepository $config
 	m submission accept $submission
 
-	# TODO: Ordering ... mail failure has to undo the store
-	# creation, and other non-database effects of `Add`.
+	# TODO: Ordering ... mail failure has (?) to undo the store creation, and other
+	# non-database effects of `Add`.
+	#
+	# TODO: Alt - mail failure - record in table - admin view - action log -
+	
 	if {!$nomail} {
 	    m msg "Sending acceptance mail to $email ..."
 
@@ -2094,19 +2198,54 @@ proc ::m::glue::cmd_drop {config} {
     OK
 }
 
+proc ::m::glue::cmd_test_url_ok {config} {
+    debug.m/glue {[debug caller] | }
+    package require m::url
+    
+    foreach url [$config @url] {
+	m msg* "Checking $url ..."
+	if {![m url ok $url xr]} {
+	    m msg " [color warning {Not reachable}]"
+	    continue
+	}
+	m msg " Resolved as: $xr"
+    }
+    OK
+}
+
+proc ::m::glue::cmd_test_colors {config} {
+    debug.m/glue {[debug caller] | }
+    [table t {{} Text Background {} Other} {
+        foreach {fg bg ot} {
+            black    bg-black    {}          
+            red      bg-red      bold         
+            green    bg-green    dim          
+            yellow   bg-yellow   italic       
+            blue     bg-blue     underline    
+            magenta  bg-magenta  blink        
+            cyan     bg-cyan     revers       
+            white    bg-white    hidden       
+            default  bg-default  strike           
+        } {
+	    set xfg [color $fg Hello]
+	    set xbg [color $bg World]
+	    set xot {}
+	    if {$ot ne {}} { set xot [color $ot Today] }
+	    $t add $fg $xfg $xbg $ot $xot
+	}
+    }] show
+    OK
+}
+
 proc ::m::glue::cmd_test_cycle_mail {config} {
     debug.m/glue {[debug caller] | }
     package require m::db
     package require m::state
 
     if {[$config @mail]} {
-	# For mailing no color control sequences in the output!
-	set active [cmdr color active]
-	cmdr color activate 0
-	m db transaction {
-	    set message [ComeAroundMail [m state mail-width] [m state start-of-current-cycle] [clock seconds]]
-	}
-	cmdr color activate $active
+
+	set message [ComeAroundMail [m state mail-width] [m state start-of-current-cycle] [clock seconds]]
+
 	package require m::mail::generator
 	package require m::mailer
 	m mailer to [$config @destination] [m mail generator reply $message {}]
@@ -2196,6 +2335,259 @@ proc ::m::glue::cmd_debug_levels {config} {
 }
 
 # # ## ### ##### ######## ############# ######################
+## List support, common blocks.
+
+proc ::m::glue::VCS {config} {
+    if {[$config @vcs set?]} { return [$config @vcs] }
+    return
+}
+
+proc ::m::glue::First {config} {
+    if {[$config @offset set?]} {
+	set first [$config @offset]
+	debug.m/glue {from request: $first}
+    } else {
+	set first [m state top]
+	debug.m/glue {from state: $first}
+    }
+    return $first
+}
+
+proc ::m::glue::Limit {config} {
+    set limit [$config @limit]
+    if {$limit <= 0} {
+	set limit [expr {[$config @th] - 8}] ;# space for various custom headings.
+    }
+    return $limit
+}
+
+proc ::m::glue::ShowTable {titles series {offset {}} {total {}}} {
+    debug.m/glue { | }
+
+    if {$total ne {}} {
+	if {$offset eq {}} { set offset 0 } ; incr offset
+        m msg "[color note [llength $series]] of [color note $total] from [color note $offset]"
+    }
+    [table t $titles {
+	foreach row $series {
+	    if {![llength $row]} { $t add {} {} {} {} {} {} {} {} {} ; continue }
+	    $t add {*}$row
+	}
+    }] show
+    return
+}
+
+proc ::m::glue::ProjectTable {series width offset n} {
+    debug.m/glue { | }
+
+    # Now pull the desired columns out of the series.
+    # No dynamic colorization.
+    # Derived totals however.
+
+    set trepos  0
+    set tstores 0
+
+    if {$offset eq {}} { set offset 0 }
+    set rowid $offset ; incr rowid -1
+    set series [lmap row $series {
+	dict with row {}
+	incr trepos $nrepos
+	incr tstores $nstores
+	list [incr rowid] $name $nrepos $nstores
+    }]
+
+    set seprepos  [string repeat - [string length $trepos]]
+    set sepstores [string repeat - [string length $tstores]]
+
+    lappend series [list {} {}     $seprepos $sepstores]
+    lappend series [list {} Totals $trepos   $tstores]
+
+    # Shrink to fit into the terminal ...
+
+    lappend titles @$offset/$n
+    lappend titles Project
+    lappend titles #Repositories
+    lappend titles #Stores
+
+    return [TruncW $titles {0 1 0 0} $series $width]
+}
+
+proc ::m::glue::RepositoryTable {series width offset n} {
+    debug.m/glue { | }
+
+    # Now pull the desired columns out of the series, as well as columns controlling
+    # formatting (colorization)
+
+    set display {}
+    set control {}
+    if {$offset eq {}} { set offset 0 }
+    set rowid $offset ; incr rowid -1
+    foreach row $series {
+	if {![llength $row]} {
+	    lappend display {}
+	    lappend control {}
+	    continue
+	}
+	
+	dict with row {}
+	lappend display [list [incr rowid] $tags $pname $vname $url $lastn $nforks $dsize $dcommit \
+			     $changed $updated $created]
+	lappend control [list $origin $has_issues $is_tracking $is_active]
+    }
+
+    # Shrink to fit into the terminal ...
+
+    lappend titles @$offset/$n
+    lappend titles Tags
+    lappend titles Project
+    lappend titles VCS
+    lappend titles Url
+    lappend titles Time
+    lappend titles Forks
+    lappend titles Size
+    lappend titles Commits
+    lappend titles Changed
+    lappend titles Updated
+    lappend titles Created
+    
+    lassign \
+	[TruncW $titles {0 0 1 0 0 0 0 0 0 0 0 0} $display $width] \
+	titles display
+
+    # Determine colorization based on the control fields
+
+    list $titles [lmap row $display flags $control {
+	if {[llength $row]} {
+	    lassign $flags origin issues tracking active
+	    if {$tracking}     { set row [C  $row 6 green] }
+	    if {$origin eq {}} { set row [C  $row 4 bg-cyan] }
+	    if {$issues}       { set row [CA $row   bg-yellow] }
+	    if {!$active}      { set row [CA $row   strike] }
+	    set row [C $row 4 note]
+	}
+	set row
+    }]
+}
+
+proc ::m::glue::RepositoryMailTable {series width} {
+    debug.m/glue { | }
+
+    # Now pull the desired columns out of the series, as well as columns controlling
+    # formatting (colorization)
+
+    set series [lmap row $series {
+	if {[llength $row]} {
+	    dict with row {}
+	    set row [list $pname $vname $url $lastn $nforks $dsize $dcommit $changed]
+	}
+	set row
+    }]
+
+    # Shrink to fit into the terminal ...
+
+    return [TruncW \
+		{Project VCS Url Time Forks Size Commits Changed} \
+		{1       0   0   0    0     0    0       0      } \
+		$series $width]
+}
+
+proc ::m::glue::StateTags {series} {
+    debug.m/glue { | }
+    if {![llength $series]} return
+
+    return [lmap row $series {
+	if {[llength $row]} {
+	    dict with row {}
+
+	    set i [expr {$has_issues  ? "I" : "-"}]
+	    set a [expr {$is_active   ? "A" : "-"}]
+	    set p [expr {$is_private  ? "P" : "-"}]
+	    set t [expr {$is_tracking ? "T" : "-"}]
+
+	    dict set row tags [linsert $tags 0 $i$p$a$t]
+	}
+	set row
+    }]
+}
+
+proc ::m::glue::RolodexTags {series} {
+    debug.m/glue { | }
+    if {![llength $series]} return
+
+    set n 0
+    foreach row $series {
+	if {![llength $row]} continue
+	m rolodex push [dict get $row rid]
+	incr n
+    }
+
+    m rolodex commit
+
+    return [lmap row $series {
+	if {[llength $row]} {
+	    incr n -1
+	    set dex [m rolodex id [dict get $row rid]]
+	    set tags {}
+	    if {$dex ne {}} { lappend tags @$dex }
+	    if {$n == 1}    { lappend tags @p }
+	    if {$n == 0}    { lappend tags @c }
+	    dict set row tags $tags
+	}
+	set row
+    }]
+}
+
+proc ::m::glue::Reduce {series} {
+    debug.m/glue { | }
+    if {![llength $series]} return
+
+    return [lmap row $series {
+	dict with row {}
+	if {$store ne {}} {
+	    dict set row changed [m format epoch $changed]
+	    dict set row updated [m format epoch $updated]
+	    dict set row created [m format epoch $created]
+	    dict set row dsize   [DeltaSize $size $sizep]
+	    dict set row dcommit [DeltaCommit $commits $commitsp]
+	} else {
+	    dict set row dsize   {}
+	    dict set row dcommit {}
+	}
+
+	dict set row lastn  [LastTime $lastn]
+	dict set row nforks [expr {$is_trackable ? (($origin eq {}) ? $nforks : "-") : "n/a" }]
+
+	set row
+    }]
+}
+
+# cmd_updates
+proc ::m::glue::UpdateSeparators {series} {
+    debug.m/glue { | }
+    if {![llength $series]} return
+
+    # Separator at the start of each block, if not the first.
+    set tmp {}
+    set last {}
+    foreach row $series {
+	dict with row {}
+	set block [Block $changed $created]
+	if {($block ne $last) && [llength $tmp]} { lappend tmp {} }
+	set last $block
+	lappend tmp $row
+    }
+    return $tmp
+}
+
+proc ::m::glue::Block {changed created} {
+    debug.m/glue { | }
+
+    if {$created eq {}}       { return phantom   }
+    if {$changed == $created} { return unchanged }
+    return changed
+}
+
+# # ## ### ##### ######## ############# ######################
 
 proc ::m::glue::MailFooter {mv} {
     debug.m/glue {[debug caller] | }
@@ -2252,16 +2644,26 @@ proc ::m::glue::Url {config} {
     return $url
 }
 
+# see also project/Encode, ops/client/Encode, vcs/Decode
+proc ::m::glue::Decode {words} {
+    lmap w $words { string map [list %n \n %% %] $w }
+}
+
 proc ::m::glue::ImportRead {label chan} {
     debug.m/glue {[debug caller] | }
     m msg "Reading [color note $label] ..."
-    return [split [string trim [read $chan]] \n]
+    return [Decode [lmap line [split [string trim [read $chan]] \n] {
+	string trim $line
+    }]]
     #         :: list (command)
     # command :: list ('M' name)        - old: Mirrorset
     #          | list ('P' name)        - new: Project
     #          | list ('R' vcode url)   -      Repository
     #          | list ('E' vcode url)   - new: Repository, Extend previous
     #          | list ('B' url)         - new: Repository, Set Base
+    #          | list ('PRI')           - new: Mark as private
+    #          | list ('D')             - new: Mark as disabled
+    #          | list ('T')             - new: Mark as tracking forks
 }
 
 proc ::m::glue::ImportVerify {commands} {
@@ -2272,6 +2674,9 @@ proc ::m::glue::ImportVerify {commands} {
     #           | list ('R' vcode url)  -      Repository
     #           | list ('E' vcode url)  - new: Repository, Extend previous
     #           | list ('B' url)        - new: Repository, Set Base
+    #           | list ('PRI')          - new: Mark as private
+    #           | list ('D')            - new: Mark as disabled
+    #           | list ('T')            - new: Mark as tracking forks
     #
     # The verification not only checks syntax and use of the commands,
     # it also assembles the internal data structures linking projects,
@@ -2288,9 +2693,10 @@ proc ::m::glue::ImportVerify {commands} {
     #                   -> 'store'   -> id
     #                   -> 'project' -> name)
     # 'store'   -> (id -> (url -> '.'))
+    # 'last'    -> url
 
     # In memory quick access to VCS data
-    foreach {code name} [m vcs all] {
+    foreach {code name tracking} [m vcs all] {
 	dict set state vcs $code .
 	dict set state vcs $name .
     }
@@ -2306,8 +2712,33 @@ proc ::m::glue::ImportVerify {commands} {
     dict set state repo     {} ;# url -> (vcs, store)
     dict set state store    {} ;# id  -> list (url)
 
-    set expected  {
-	m 2 p 2 b 2 e 3 r 3 proj 2 base 2 extr 3 repo 3
+    
+    set norm {
+        extend-previous Extend  tracking-forks Tracking  base     Base      private Private  repository Repo
+        extend-previou  Extend  tracking-fork  Tracking  bas      Base      privat  Private  repositor  Repo
+        extend-previo   Extend  tracking-for   Tracking  ba       Base      priva   Private  reposito   Repo
+        extend-previ    Extend  tracking-fo    Tracking  b        Base      priv    Private  reposit    Repo
+        extend-prev     Extend  tracking-f     Tracking  disabled Disabled  pri     Private  reposi     Repo
+        extend-pre      Extend  tracking-      Tracking  disable  Disabled  project Project  repos	Repo
+        extend-pr       Extend  tracking       Tracking  disabl   Disabled  projec  Project  repo	Repo
+        extend-p        Extend  trackin        Tracking  disab    Disabled  proje   Project  rep	Repo
+        extend-         Extend  tracki         Tracking  disa     Disabled  proj    Project  re         Repo
+        extend          Extend  track          Tracking  dis      Disabled  pro     Project  r		Repo
+        exten           Extend  trac           Tracking  di       Disabled  p       Project
+        exte            Extend  tra            Tracking  d        Disabled  m       Project
+        ext             Extend  tr             Tracking
+        ex              Extend  t              Tracking
+        e               Extend
+    }
+    
+    set expected {
+	Base     2
+	Disabled 1
+	Extend   3
+	Private  1
+	Project  2
+	Repo     3
+	Tracking 1
     }
 
     foreach command $commands {
@@ -2322,22 +2753,23 @@ proc ::m::glue::ImportVerify {commands} {
 	if {$command eq {}} continue
 
 	Ping "  $command"
-
+	# Import{Error,Warning} need a state flag to know who is the first and has to
+	# close this ping before writing
+	
 	set args [lassign $command cmd]
 	set lcmd [string tolower $cmd]
-	if {![dict exists $expected $lcmd]} {
+
+	if {![dict exists $norm $lcmd]} {
 	    ImportError "Unknown command: $command"
 	    continue
-	} elseif {![ImportCheckArgs [dict get $expected $lcmd]]} {
+	}
+	set lcmd [dict get $norm $lcmd]
+	if {![ImportCheckArgs [dict get $expected $lcmd]]} {
 	    ImportError "Bad syntax: $command"
 	    continue
 	}
 
-	ImportVerify/[dict get {
-	    m    Project
-	    p    Project b    Base e    Extend r    Repository
-	    proj Project base Base extr Extend repo Repository
-	} $lcmd] {*}$args
+	ImportVerify/$lcmd {*}$args
     }
 
     # Start a last ping to erase the animation remnants.
@@ -2372,6 +2804,7 @@ proc ::m::glue::IS/AddResolved {url resolved} {
     debug.m/glue {[debug caller] | }
     upvar 1 state state
     dict set state resolved $url $resolved
+    dict set state last     $url
     return
 }
 
@@ -2394,6 +2827,7 @@ proc ::m::glue::IS/HasRepo {url} {
 
 proc ::m::glue::IS/CheckVCS {vcs} {
     upvar 1 state state
+    debug.m/glue {[debug caller] | ==> [dict exists $state vcs $vcs]}
     return [dict exists $state vcs $vcs]
 }
 
@@ -2405,6 +2839,7 @@ proc ::m::glue::IS/NewStore {} {
 }
 
 proc ::m::glue::IS/SetBase {store} {
+    debug.m/glue {[debug caller] | }
     upvar 1 state state
     dict set state base $store
     return
@@ -2412,15 +2847,18 @@ proc ::m::glue::IS/SetBase {store} {
 
 proc ::m::glue::IS/Base {} {
     upvar 1 state state
+    debug.m/glue {[debug caller] | ==> [dict get $state base]}
     return [dict get $state base]
 }
 
 proc ::m::glue::IS/RepoStore {url} {
     upvar 1 state state
+    debug.m/glue {[debug caller] | ==> [dict get $state repo $url store]}
     return [dict get $state repo $url store]
 }
 
 proc ::m::glue::IS/AddRepo {url vcs store} {
+    debug.m/glue {[debug caller] | }
     upvar 1 state state
     dict set state repo $url vcs   $vcs
     dict set state repo $url store $store
@@ -2437,11 +2875,12 @@ proc ::m::glue::IS/AddRepo {url vcs store} {
 
 proc ::m::glue::IS/HasProject {name} {
     upvar 1 state state
-
+    debug.m/glue {[debug caller] | ==> [dict exists $state project $name]}
     return [dict exists $state project $name]
 }
 
 proc ::m::glue::IS/ExtendProject {name} {
+    debug.m/glue {[debug caller] | }
     upvar 1 state state
 
     dict for {url _} [dict get $state run] {
@@ -2454,10 +2893,12 @@ proc ::m::glue::IS/ExtendProject {name} {
 
 proc ::m::glue::IS/NumProjects {} {
     upvar 1 state state
+    debug.m/glue {[debug caller] | ==> [dict size [dict get $state project]]}
     return [dict size [dict get $state project]]
 }
 
 proc ::m::glue::IS/AddProject {name} {
+    debug.m/glue {[debug caller] | }
     upvar 1 state state
 
     set run [dict get $state run]
@@ -2473,13 +2914,41 @@ proc ::m::glue::IS/AddProject {name} {
     return
 }
 
+proc ::m::glue::IS/CR/TMR/Delay {delay} {
+    m msg* [color warning {Server rejection. Too many requests. }]
+    m msg* [color warning {Retrying in }]
+    m msg* [color note $delay]
+    m msg* [color warning { seconds, as requested. }]
+    return
+}
+
 proc ::m::glue::IS/CheckRepo {vcs url} {
+    debug.m/glue {[debug caller] | }
     upvar 1 state state
 
-    if {![IS/CheckVCS $vcs]} { ImportError "Unknown vcs '$vcs'"; return }
+    if {![IS/CheckVCS $vcs]} { ImportError "Unknown vcs '$vcs'"; return {no {}} }
     Ping+ " ..."
 
-    if {![m url ok $url resolved]} { ImportError "Bad url: $url" ; return }
+    # This is a high-load operation of the import and may hit rate limiting.
+    # I.e. if a lot of github urls have to verified.
+    # This check however is needed, i.e. cannot be circumvented ...
+    # Like we cannot do for the `add` and `submission accept` commands.
+    # The difference is that these will not ping a server quickly over a short span as
+    # this does.
+
+    # We can check if the url refers to an existing repository however, under the
+    # assumption that url == resolved. In that case we have an existing repository not
+    # requiring an import, and no url check is required. However even this kind of guard
+    # is expected to reduce the load only minimally. Because there is an expectation that
+    # the majority of the repositories to import will not exist in the system.
+
+    if {[m repo has $url]} {
+	set resolved $url
+    } else {
+	if {![m url ok $url resolved ::m::glue::IS/CR/TMR/Delay]} {
+	    ImportError "Bad url: $url" ; return {no {}}
+	}
+    }
     IS/AddResolved $url $resolved
 
     if {$url ne $resolved} {
@@ -2487,15 +2956,13 @@ proc ::m::glue::IS/CheckRepo {vcs url} {
     }
     Ping+ " [color good Ok]"
 
-    if {[IS/HasRepo $resolved]} {
-	ImportError "Duplicate repository $url" ; return {no {}}
-    }
+    if {[IS/HasRepo $resolved]} { ImportError "Duplicate repository $url" ; return {no {}} }
 
     Close
     return [list yes $resolved]
 }
 
-proc ::m::glue::ImportVerify/Repository {vcs url} {
+proc ::m::glue::ImportVerify/Repo {vcs url} {
     debug.m/glue {[debug caller] | }
     upvar 1 state state
 
@@ -2548,6 +3015,43 @@ proc ::m::glue::ImportVerify/Project {name} {
     }
 
     IS/SetBase {}
+    return
+}
+
+proc ::m::glue::ImportVerify/Disabled {} {
+    debug.m/glue {[debug caller] | }
+    upvar 1 state state
+
+    dict with state {}
+    if {![info exists last]} { ImportError "Cannot disable, no repository found" ; return }
+
+    debug.m/glue {[debug caller] | disable ($last) }    
+    
+    dict set state repo $last disabled .
+    return
+}
+
+proc ::m::glue::ImportVerify/Private {} {
+    debug.m/glue {[debug caller] | }
+    upvar 1 state state
+
+    dict with state {}
+    if {![info exists last]} { ImportError "Cannot hide, no repository found" ; return }
+
+    debug.m/glue {[debug caller] | hide ($last) }    
+    dict set state repo $last private .
+    return
+}
+
+proc ::m::glue::ImportVerify/Tracking {} {
+    debug.m/glue {[debug caller] | }
+    upvar 1 state state
+
+    dict with state {}
+    if {![info exists last]} { ImportError "Cannot activate tracking, no repository found" ; return }
+
+    debug.m/glue {[debug caller] | track ($last) }    
+    dict set state repo $last tracking .
     return
 }
 
@@ -2682,6 +3186,8 @@ proc ::m::glue::ImportDo {dated state} {
 	return
     }
 
+    # array set __state $state ; parray __state ; unset __state
+
     set n [dict size [dict get $state project]]
     set x [expr {($n == 1) ? "project" : "projects"}]
     m msg "Importing $n $x ..."
@@ -2693,10 +3199,10 @@ proc ::m::glue::ImportDo {dated state} {
     }
 
     foreach name [lsort -dict [dict keys [dict get $state project]]] {
-	debug.m/glue { | project $name}
+	debug.m/glue {ImportDo() | project $name}
 
 	m db transaction {
-	    Import1 $name$date $state [dict keys [dict get $state project $name]]
+	    Import1 $name$date state [dict keys [dict get $state project $name]]
 	}
 	# signal commit
 	m msg [color good OK]
@@ -2704,51 +3210,71 @@ proc ::m::glue::ImportDo {dated state} {
     return
 }
 
-proc ::m::glue::Import1 {pname state repos} {
-    debug.m/glue {[debug caller] | }
+proc ::m::glue::Import1 {pname sv repos} {
+    debug.m/glue {Import1() | $sv ($pname)}
     # repos = list (url)
-
+    upvar 1 $sv state
+    
     set n [llength $repos]
     set x [expr {($n == 1) ? "repository" : "repositories"}]
     m msg "Handling [color note $pname] ($n $x) ..."
 
-    if {![m project has $pname]} {
-	m msg* "  Setting up the project ... "
-	set project [m project add $pname]
-	OKx
-    } else {
-	m msg "  Project is known"
-	set project [m project id $pname]
-    }
+    set project [GetProject $pname]
 
-    debug.m/glue {[debug caller] | ($repos) }
+    debug.m/glue {Import1() | ($repos) }
 
     foreach url $repos {
 	set ri [dict get $state repo $url]
 	dict with ri {}
-	# -> vcs, store
-	set base [dict get $state store $store]
+	# -> vcs, store, (disabled, private, tracking)
+	# store is a state id, not a system store id
 
-	debug.m/glue { | + $vcs $url ($base)}
+	# puts %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%\t$url
+	# array set __ri $ri ; parray __ri ; unset __ri
+	
+	set vcsid [m vcs id $vcs]
+	set base  [dict get $state store $store]
+	# base is an url
+
+	debug.m/glue {Import1() | +Repo $vcs $url ($store:|$base)}
 
 	m msg "Repository [color note $url]"
+
+	if {[info exists tracking] && ![m vcs tracking $vcsid]} {
+	    m msg "  [color warning {Tracking not supported, ignored}"
+	    unset tracking
+	}
 
 	if {$base ne {}} {
 	    set base [m repo id $base]
 	    m msg "Extending  [color note [m repo url $base]]"
 	}
-
-	set vcsid [m vcs id $vcs]
-
+	# base is an id, if set.
+	
 	try {
-	    lassign [AddStoreRepo $base $vcsid $vcs $url $project] repo forks
-
-	    # Forks are not processed. It is expected that forks are in the import file.
-	    # The next update of the primary will link them to the origin.
-	    set nforks [llength $forks]
+	    lassign [AddStore $base $vcsid $vcs $url $project] \
+		storeid duration nforks
+	    
+	    m msg* "  Creating repository ..."
+	    set repo [m repo add $vcsid $url $project $storeid $duration $nforks]
+	    # Default flags: active, public, no issues, no tracking
+	    
 	    if {$nforks} {
-		m msg "  [color warning "Forks found ($nforks), ignored"]"
+		set x [expr {$nforks == 1 ? "fork" : "forks"}]
+		m msg* " [color warning "$nforks $x found, ignored"]"
 	    }
+
+	    # Override flags as specified
+	    if {[info exists disabled]} { m msg* " [color warning Disabling]" ; m repo enable  $repo 0 }
+	    if {[info exists private] } { m msg* " [color warning Hiding]"    ; m repo private $repo   }
+	    if {[info exists tracking]} { m msg* " [color note +Tracking]"    ; m repo track   $repo   }
+	    m msg* " "
+	    
+	    OKx
+
+	    # Remember repo with store map for possible future sharing, here or in coming projects.
+	    dict set state store $store $url
+	    debug.m/glue {Import1() | =Store $store:|$url}
 
 	    m rolodex push $repo
 
@@ -2758,6 +3284,8 @@ proc ::m::glue::Import1 {pname state repos} {
 
 	    # undo repo, undo unused stores
 	}
+
+	unset -nocomplain disabled private tracking
     }
 
     # undo project if empty.
@@ -2770,7 +3298,7 @@ proc ::m::glue::Import1 {pname state repos} {
     return
 }
 
-proc ::m::glue::Add {config {base {}}} {
+proc ::m::glue::AddRepository {config {base {}}} {
     debug.m/glue {[debug caller] | }
 
     set url   [Url $config]
@@ -2812,34 +3340,16 @@ proc ::m::glue::Add {config {base {}}} {
 
     m msg "Actions ..."
 
-    # ---------------------------------- Project
-    if {![m project has $name]} {
-	m msg* "  Setting up the project ... "
-	set project [m project add $name]
-	OKx
-    } else {
-	m msg "  Project is known"
-    }
+    set project [GetProject $name]
+    lassign [AddStore $base $vcs $vcode $url $project] \
+	store duration nforks
 
-    lassign [AddStoreRepo $base $vcs $vcode $url $project] repo forks
+    m msg* "  Creating repository ... "
+    set repo [m repo add $vcs $url $project $store $duration $nforks]
+    OKx
+    # Flags: active, public, no issues, no tracking
 
-    # ---------------------------------- Forks
-    if {$forks ne {}} {
-	set threshold 22
-	set nforks [llength $forks]
-	m msg "Found [color note $nforks] forks to track."
-
-	if {![$config @track-forks] && ($nforks > $threshold)} {
-	    m msg [color warning "Auto-tracking threshold of $threshold forks exceeded"]
-	    m::cmdr::error "Please confirm using [color note --track-forks] that this many forks should be tracked." \
-		TRACKING-THRESHOLD
-	}
-
-	AddForks $forks $repo $vcs $vcode $name $project
-    }
-
-    # ----------------------------------
-    m msg "Setting new primary as current repository"
+    m msg "Setting as current repository"
 
     m rolodex push $repo
     m rolodex commit
@@ -2847,138 +3357,108 @@ proc ::m::glue::Add {config {base {}}} {
     return
 }
 
-proc ::m::glue::AddForks {forks repo vcs vcode name project} {
+proc ::m::glue::GetProject {name} {
     debug.m/glue {[debug caller] | }
 
-    set nforks [llength $forks]
-    set format %[string length $nforks]s
-    set pad [string repeat " " [expr {3+[string length $nforks]}]]
-
-    set cool 0
-    set ping 0
-    set bad  0
-    set max 49
-
-    foreach fork $forks {
-	incr k
-	if {$k > $max} {
-	    m msg [color warning "Stopped before $max, limited ingestion"]
-	    break
-	}
-
-	incr ping
-	if {$ping % 10 == 0} {
-	    if {$cool < 10000} { incr cool 1000 }
-	    m msg "[color warning Cooling] [expr {$cool/1000}]"
-	    after $cool
-	}
-
-	m msg "  [color cyan "([format $format $k])"] Fork [color note $fork] ... "
-
-	if {[m repo has $fork]} {
-	    m msg "  $pad[color note "Already known, claiming it"]"
-
-	    # NOTE: The fork exists in a different project. We
-	    # leave that part alone.  The ERD allows that, a fork
-	    # and its origin do not have to be in the same
-	    # project.
-
-	    m repo claim $repo [m repo id $fork]
-	    continue
-	}
-
-	# Note: Fork urls have to be validated, same as the primary location.
-	if {![m url ok $fork xr]} {
-	    m msg "  [color warning {Not reachable}], might be private or gone"
-	    m msg "  Ignored"
-	    incr bad
-	    if {$bad == 3} {
-		if {$cool < 10000} { incr cool 2000 }
-		m msg "[color warning Cooling] [expr {$cool/1000}]"
-		set bad 0
-	    }
-	    continue
-	}
-
-	set bad 0
-	AddStoreRepo {} $vcs $vcode $fork $project $repo
+    if {[m project has $name]} {
+	m msg "  Project is known"
+	return [m project id $name]
     }
+
+    m msg* "  Setting up the project ... "
+    set project [m project add $name]
+    OKx
+    return $project
+}
+
+proc ::m::glue::AddStore {base vcs vcode url project {origin {}}} {
+    debug.m/glue {[debug caller] | }
+
+    CheckExtensibility $base $vcs
+
+    lassign [MakeStore $origin $base $vcs $vcode $url] \
+	store duration nforks
+
+    set store [CheckExtensibilityDeep $base $vcs $store]
+
+    list $store $duration $nforks
+}
+
+proc ::m::glue::MakeStore {origin base vcs vcode url} {
+    debug.m/glue {[debug caller] | }
+
+    if {$origin ne {}} { return {{} {} {}} }
+
+    set ext [expr {($base ne {}) ? "a transient" : "the"}]
+
+    m msg* "  Setting up $ext $vcode store ... "
+    lassign [m store add $vcs $url] \
+	ok store duration commits size forks
+    #      id    seconds  int     int  int (setup: #forks)
+
+    set x [expr {($commits == 1) ? "commit" : "commits"}]
+    set d [color note [m format interval $duration]]
+    set s ", in $d ($commits $x, $size KB)"
+
+    if {$ok} {
+	m msg [color good OK]$s
+    } else {
+	lassign [m vcs caps $store] _ e
+	m msg [color bad Fail]$s
+	m msg $e
+    }
+
+    list $store $duration $forks
+}
+
+proc ::m::glue::CheckExtensibility {base vcs} {
+    debug.m/glue {[debug caller] | }
+
+    if {$base eq {}} return
+
+    set binfo [m repo get $base]
+    set bvcs  [dict get $binfo vcs]
+
+    if {$vcs == $bvcs} return
+
+    set vcs  [m vcs name $vcs]
+    set bvcs [m vcs name $bvcs]
+
+    m::cmdr::error \
+	"Extension rejected due to VCS mismatch ($vcs vs $bvcs)" \
+	MISMATCH
     return
 }
 
-proc ::m::glue::AddStoreRepo {base vcs vcode url project {origin {}}} {
+proc ::m::glue::CheckExtensibilityDeep {base vcs store} {
     debug.m/glue {[debug caller] | }
 
-    # ---------------------------------- Store
+    if {$base eq {}} { return $store }
 
-    if {$base ne {}} {
-	set binfo [m repo get $base]
-	set bvcs  [dict get $binfo vcs]
+    set binfo  [m repo get $base]
+    set bstore [dict get $binfo store]
 
-	if {$vcs != $bvcs} {
+    if {$store ne {}} {
+	if {![m store check $store $bstore]} {
+	    m store remove $store
 	    m::cmdr::error \
-		"Extension rejected due to VCS mismatch ([m vcs name $vcs] vs [m vcs name $bvcs])" \
+		"Extension rejected by [m vcs name $vcs]" \
 		MISMATCH
 	}
+
+	# Extension is ok. Drop the created store again, it was only needed to perform
+	# the checks.
+	m store remove $store
     }
 
-    if {$origin eq {}} {
-	set ext [expr {($base ne {}) ? "a transient" : "the"}]
+    # And point the new repository to the store of the base.
 
-	m msg* "  Setting up $ext $vcode store ... "
-	lassign [m store add $vcs $url] \
-	    ok store duration commits size forks
-	#      id    seconds  int     int  list(url)
-	set x [expr {($commits == 1) ? "commit" : "commits"}]
-	set suffix ", in [color note [m format interval $duration]] ($commits $x, $size KB)"
+    m msg "  Extension [color good accepted] by [m vcs name $vcs]."
 
-	if {$ok} {
-	    m msg "[color good OK]"
-	} else {
-	    lassign [m vcs caps $store] _ e
-	    m msg "[color bad Fail]$suffix"
-	    m msg $e
-	}
-    } {
-	# `origin` is set - This repo is a fork. Add without a store. I.e. be a phantom.
-	# The setup happens on the first update for the repo.
-	set store    {}
-	set duration {}
-	set forks    {}
-
-	# This is invalidated when `base` is set, providing a store to use (share).
-    }
-
-    if {$base ne {}} {
-	set bstore [dict get $binfo store]
-
-	if {$store ne {}} {
-	    if {![m store check $store $bstore]} {
-		m store remove $store
-		m::cmdr::error \
-		    "Extension rejected by [m vcs name $vcs]" \
-		    MISMATCH
-	    }
-
-	    # Extension is ok. Drop the created store again, it was only needed to perform
-	    # the checks.
-	    m store remove $store
-	}
-
-	# And point the new repository to the store of the base.
-	set store $bstore
-
-	m msg "  Extension [color good accepted] by [m vcs name $vcs]."
-    }
-
-    # ---------------------------------- Repository
-
-    m msg* "  Creating repository ... "
-    set repo [m repo add $vcs $project $store $url $duration $origin]
-    OKx
-
-    return [list $repo $forks]
+    return $bstore
 }
+
+# # ## ### ##### ######## ############# ######################
 
 proc ::m::glue::InvalE {label key} {
     set v [m state $key]
@@ -3014,6 +3494,11 @@ proc ::m::glue::ShowCurrent {config} {
 	    foreach r $rolodex {
 		incr id
 		set rinfo [m repo get $r]
+		if {![llength $rinfo]} {
+		    m rolodex drop $r
+		    m rolodex commit
+		    continue
+		}
 		dict with rinfo {}
 		# -> url    : repo url
 		#    vcs    : vcs id
@@ -3062,34 +3547,36 @@ proc ::m::glue::MakeName {prefix} {
     debug.m/glue {[debug caller] | }
     if {![m project has $prefix]} { return $prefix }
     set n 1
-    while {[m project has ${prefix}#$n]} { incr n }
-    return "${prefix}#$n"
+    while {[m project has ${prefix}.$n]} { incr n }
+    return "${prefix}.$n"
 }
 
 proc ::m::glue::ComeAroundMail {width current newcycle} {
     debug.m/glue {[debug caller] | }
+    package require m::repo
     package require m::db
     package require m::state
-    package require m::store
     package require m::format
 
-    # Get updates and convert into a series for the table. A series we
-    # can compress width-wise before formatting.
-    set series {}
-    foreach row [m store updates] {
-	dict with row {}
-	# store mname vcode changed updated created size active remote
-	# sizep commits commitp mins maxs lastn
-	if {$created eq "."} continue ;# ignore separations
-	if {$changed < $current} continue ;# older cycle
+    # Mailing! Ensure that there are no color control sequences in the output!
+    set colored [cmdr color active]
+    cmdr color activate 0
 
-	set dcommit [DeltaCommit $commits $commitp]
-	set dsize   [DeltaSize $size $sizep]
-	set changed [m format epoch/short $changed]
-	set spent   [LastTime $lastn]
-
-	lappend series [list $changed $vcode $mname $spent $dsize $dcommit]
+    m db transaction {
+	set series [m repo updates]
     }
+
+    set series [Reduce $series]
+
+    # Reduce length of series to the first block (actual changed, and in the cycle)
+    set series [lmap row $series {
+	set changed [lindex $row 7]
+	set created [lindex $row 9]
+	if {$changed eq {}} continue      ;# phantoms
+	if {$changed < $current} continue ;# older cycle
+	# in cycle, keep
+	set row
+    }]
 
     lappend mail "\[[info hostname]\] Cycle Report."
     lappend mail "Cycle\nFrom [clock format $current]\nTo   [clock format $newcycle]"
@@ -3099,25 +3586,22 @@ proc ::m::glue::ComeAroundMail {width current newcycle} {
     } else {
 	lappend mail "Found @/n/@ changed repositories:\n"
 
-	lassign [TruncW \
-		     {Changed VCS Project Time Size Commits} \
-		     {0       0   1       0    0    0} \
-		     $series \
-		     $width] \
-	    titles series
+	# TODO: Remove various unneeded columns (tag, created, updated)
+	# NOTE: Requires a modified T.A.W, or flag for internal change.
+
+	lassign [RepositoryMailTable $series $width] titles series
 
 	table t $titles {
 	    $t style plain/cmdr/table/borders
-
-	    foreach row $series {
-		$t add {*}$row
-	    }
+	    foreach row $series { $t add {*}$row }
 	}
 	lappend mail [$t show return]
 	$t destroy
     }
 
     MailFooter mail
+
+    cmdr color activate $colored
     return [string map [list @/n/@ $n] [join $mail \n]]
 }
 
@@ -3168,7 +3652,14 @@ proc ::m::glue::UpdateRepos {start now repos} {
     set nrepo    [m repo count]
     set npending [m repo count-pending]
 
-    m msg "In cycle started on [m format epoch $start]: $take/$npending/$nrepo"
+    set dtake    [color note $take]
+    set dpending [color note $npending]
+    set drepo    [color note $nrepo]
+    set dstart   [color note [m format epoch $start]]
+
+    m msg ""
+    m msg "In cycle started on $dstart: Taking $dtake of $dpending pending from $drepo repositories"
+    m msg ""
 
     # No repositories specified.
     # Pull repositories directly from pending
@@ -3284,6 +3775,9 @@ proc ::m::glue::Merge {target origin} {
     return
 }
 
+# # ## ### ##### ######## ############# ######################
+## Configuration display/validation
+
 proc ::m::glue::MailConfigShow {t {prefix {}}} {
     debug.m/glue {[debug caller] | }
 
@@ -3383,6 +3877,9 @@ proc ::m::glue::SiteConfigValidate {} {
 	SITE CONFIG INCOMPLETE
 }
 
+# # ## ### ##### ######## ############# ######################
+## Progress reporting
+
 proc ::m::glue::Ping+ {text} {
     debug.m/glue {[debug caller] | }
     # Extend current line with more text, stay on the line, except
@@ -3403,35 +3900,32 @@ proc ::m::glue::Ping {text} {
 
 proc ::m::glue::Close {} { puts "" }
 
+# # ## ### ##### ######## ############# ######################
+## Low level table helpers
+
+proc ::m::glue::Decolor {text} {
+    regsub -all "\033\\\[\[^m\]+m" $text {} text
+    return $text
+}
+
 proc ::m::glue::C {row index color} {
     return [lreplace $row $index $index [color $color [lindex $row $index]]]
 }
 
-proc ::m::glue::W {wv} {
-    upvar 1 $wv wc
-    set cols [lsort -integer [array names wc]]
-    set ww {}
-    foreach c $cols { lappend ww $wc($c) }
-    return $ww
+proc ::m::glue::CA {row color} {
+    return [lmap col $row { color $color $col }]
 }
 
 proc ::m::glue::TruncH {series height} {
     debug.m/glue {[debug caller] | }
-    incr height -4 ; # table overhead (header and borders)
-    incr height -3 ; # lines before and after table (prompt with command + OK)
-    if {[llength $series] > $height} {
-	set     series [lrange $series 0 ${height}-2]
-	lappend series [lrepeat [llength [lindex $series 0]] ...]
-    }
-    return $series
+    if {[llength $series] <= $height} { return $series }
+    return [lrange $series 0 ${height}-1]
 }
 
 ##
 ## TODO column specific minimum widths
 ## TODO column specific shaving (currently all on the right, urls: left better, or middle)
 ## TODO column specific shave commands (ex: size rounding)
-## TODO
-## TODO
 ##
 
 proc ::m::glue::TruncW {titles weights series width} {
@@ -3444,30 +3938,26 @@ proc ::m::glue::TruncW {titles weights series width} {
     # n < k => Ignore superfluous weights.
     # n > k => Pad to the right with weight 0.
     #
-    # weight -1: Do not touch at all. (Colorized?!)
+    # weight -1: Does not count. Do not touch at all.
+
+    if {![llength $series]} { return [list $titles {}] }
 
     set n [llength [lindex $series 0]]
     set k [llength $weights]
 
+    debug.m/glue { titles       : ($titles) }
     debug.m/glue { terminal     : $width }
     debug.m/glue { len(series)  : [llength $series] }
     debug.m/glue { len(row)     : $n }
     debug.m/glue { len(weights) : $k ($weights)}
 
-    if {$n < $k} {
-	set d [expr {$k - $n}]
-	set weights [lreplace $weights end-$d end]
-	# TODO: Check arith (off by x ?)
-    }
-    if {$n > $k} {
-	set d [expr {$n - $k}]
-	lappend weights {*}[lrepeat $d 0]
-    }
+    set weights [Wfit $weights $n]
 
     # Remove table border overhead to get usable terminal space
-    set width [expr {$width - (3*$n+1)}]
+    set ohead [expr {3*$n+1}]
+    set width [expr {$width - $ohead}]
 
-    debug.m/glue { terminal'    : $width (-[expr {3*$n+1}]) }
+    debug.m/glue { terminal'    : $width (-$ohead) }
     debug.m/glue { weights'     : ($weights)}
 
     # Compute series column widths (max len) for all columns.  If the
@@ -3476,25 +3966,13 @@ proc ::m::glue::TruncW {titles weights series width} {
     # show something for each column).  If shrink by weight goes below
     # this min width bump up to it and remove the needed characters
     # from the weight 0 columns, but not below min width.
+
     set min 6
 
-    while {$k} { incr k -1 ; set wc($k) 0 }
-
-    foreach row [linsert $series 0 $titles] {
-	set col 0
-	foreach el $row {
-	    set n [string length $el]
-	    if {$n > $wc($col)} { set wc($col) $n }
-	    incr col
-	}
-    }
-
-    debug.m/glue { col.widths  = [W wc] }
+    set fw [Cmax wc $series $titles]
+    debug.m/glue { col.widths  = [W wc] ($fw) }
 
     # max width over all rows.
-
-    set fw 0
-    foreach {_ v} [array get wc] { incr fw $v }
 
     debug.m/glue { full        = $fw vs terminal $width }
 
@@ -3505,7 +3983,7 @@ proc ::m::glue::TruncW {titles weights series width} {
 
     # Sum of weights to apportion
     set tw 0
-    foreach w $weights { if {$w <= 0} continue ; incr tw $w }
+    foreach w $weights { if {($w eq {}) || ($w <= 0)} continue ; incr tw $w }
 
     # Number of characters over the allowed width.
     set over [expr {$fw - $width}]
@@ -3515,13 +3993,13 @@ proc ::m::glue::TruncW {titles weights series width} {
     set col 0 ; set removed 0
     foreach w $weights {
 	set c $col ; incr col
-	if {$w <= 0} {
-	    debug.m/glue { ($col): skip }
+	if {($w eq {}) || ($w <= 0)} {
+	    debug.m/glue { ($c): skip }
 	    continue
 	}
 	set drop [format %.0f [expr {double($over * $w)/$tw}]]
 
-	debug.m/glue { ($col): drop $drop int(($over*$w)/$tw)) }
+	debug.m/glue { ($c): drop $drop int(($over*$w)/$tw) }
 
 	incr removed $drop
 	incr wc($c) -$drop
@@ -3542,7 +4020,7 @@ proc ::m::glue::TruncW {titles weights series width} {
     set under 0
     foreach w $weights {
 	set c $col ; incr col
-	if {($w <= 0) || ($wc($c) >= $min)} continue
+	if {($w eq {}) || ($w <= 0) || ($wc($c) >= $min)} continue
 	incr under [expr {$min - $wc($c)}]
 	set wc($c) $min
     }
@@ -3552,7 +4030,7 @@ proc ::m::glue::TruncW {titles weights series width} {
 
     # Claw back the added characters from other columns now, as much
     # as we can.  We try to shrink other weighted columns first before
-    # goign for the unweighted, i.e. strongly fixed ones.
+    # going for the unweighted, i.e. strongly fixed ones.
     if {$under} { set under [ShaveWeighted   wc $weights $under] }
     if {$under} { set under [ShaveUnweighted wc $weights $under] }
 
@@ -3562,15 +4040,23 @@ proc ::m::glue::TruncW {titles weights series width} {
     # widths. Same for the titles.
     set new {}
     foreach row $series {
-	set col 0
-	set newrow {}
-	foreach el $row {
-	    if {[string length $el] > $wc($col)} {
-		set el [string range $el 0 $wc($col)-1]
+	debug.m/glue/row { row0 ($row) }
+
+	if {[llength $row]} {
+	    set col 0
+	    set newrow {}
+	    foreach el $row w $weights {
+		if {($w ne {}) && ([string length [Decolor $el]] > $wc($col))} {
+		    set el [string range $el 0 $wc($col)-1]
+		}
+		lappend newrow $el
+		incr col
 	    }
-	    lappend newrow $el
-	    incr col
+	} else {
+	    set newrow {}
 	}
+
+	debug.m/glue/row { row1 ($newrow) }
 	lappend new $newrow
     }
 
@@ -3625,6 +4111,65 @@ proc ::m::glue::ShaveUnweighted {wv weights shave} {
 	}
     }
     return $shave
+}
+
+proc ::m::glue::W {wv} {
+    debug.m/glue {[debug caller] | }
+
+    upvar 1 $wv wc
+    set cols [lsort -integer [array names wc]]
+    return [lmap c $cols { set wc($c) }]
+}
+
+proc ::m::glue::Wfit {w n} {
+    debug.m/glue {[debug caller] | }
+
+    set k [llength $w]
+    if {$n < $k} {
+	set d [expr {$k - $n}]
+	set w [lreplace $w end-$d end]
+	# TODO: Check arith (off by x ?)
+    } elseif {$n > $k} {
+	set d [expr {$n - $k}]
+	lappend w {*}[lrepeat $d 0]
+    }
+    return $w
+}
+
+proc ::m::glue::Cmax {wcv series titles} {
+    debug.m/glue { | }
+
+    upvar 1 $wcv wc
+    set k [llength [lindex $series 0]]
+
+    while {$k} { incr k -1 ; set wc($k) 0 }
+
+    # # max support
+    # set k [llength [lindex $series 0]]
+    # while {$k} { incr k -1 ; set mx($k) {} }
+
+    foreach row [linsert $series 0 $titles] {
+	if {![llength $row]} continue
+	set col 0
+	foreach el $row {
+	    set n [string length [Decolor $el]]
+	    if {$n > $wc($col)} {
+		set wc($col) $n
+		set mx($col) '$el'/$n
+	    }
+	    incr col
+	}
+    }
+
+    set fw 0
+    foreach {_ v} [array get wc] { incr fw $v }
+
+    # puts %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    # parray mx
+    # parray wc
+    # puts %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+    return $fw
 }
 
 # # ## ### ##### ######## ############# ######################

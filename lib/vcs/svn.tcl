@@ -90,7 +90,7 @@ proc ::m::vcs::svn::setup {path url} {
 
     set repo [SvnOf $path]
     Svn checkout $url $repo
-    PostPull $path
+    PostPull $path 0
     return
 }
 
@@ -105,7 +105,7 @@ proc ::m::vcs::svn::update {path url first} {
 
     set repo [SvnOf $path]
     Svn update $repo
-    PostPull $path
+    PostPull $path {}
     return
 }
 
@@ -163,7 +163,7 @@ proc ::m::vcs::svn::detect {url} {
 # # ## ### ##### ######## ############# #####################
 ## Helpers
 
-proc ::m::vcs::svn::PostPull {path} {
+proc ::m::vcs::svn::PostPull {path forks} {
     debug.m/vcs/svn {}
 
     if {[m exec err-last-get]} {
@@ -180,6 +180,7 @@ proc ::m::vcs::svn::PostPull {path} {
 	m ops client fail ; return
     }
 
+    m ops client fork    $forks
     m ops client commits $count
     m ops client size    $kb
     m ops client ok

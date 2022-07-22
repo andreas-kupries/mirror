@@ -38,7 +38,7 @@ namespace eval ::m {
 namespace eval ::m::state {
     namespace ensemble create -map [apply {{} {
 	foreach k {
-	    take store limit top
+	    take store limit top phantom-block-threshold
 	    store-window-size
 	    report-mail-destination
 

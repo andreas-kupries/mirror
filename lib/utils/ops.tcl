@@ -44,7 +44,7 @@ namespace eval m::ops::client {
     namespace export set main \
         info note warn err fatal \
 	result ok fail commits fork size \
-	ok?
+	ok? clear
     namespace ensemble create
 }
 
@@ -68,6 +68,7 @@ proc ::m::ops::client::size    {v} {     R size $v }
 proc ::m::ops::client::ok      {}  {     R ok }
 proc ::m::ops::client::fail    {}  { F ; R fail }
 proc ::m::ops::client::result  {v} {     R result $v }
+proc ::m::ops::client::clear   {k} {     C $k }
 
 proc ::m::ops::client::main {} {
     m app debugflags
@@ -182,13 +183,30 @@ proc ::m::ops::client::LogTo {path} {
     return
 }
 
+proc ::m::ops::client::C {tag} {
+    debug.m/ops/client {}
+    variable logchan
+
+    if {$logchan eq {}} return
+
+    # Record everything in the operations log, if present.
+    puts  $logchan [list clear $tag]
+    flush $logchan
+    return
+}
+
+# see also project/Encode, vcs/Decode, glue/Decode
+proc ::m::ops::client::Encode {words} {
+    lmap w $words { string map [list % %% \n %n] $w }
+}
+
 proc ::m::ops::client::R {tag args} {
     debug.m/ops/client {}
     variable logchan
 
     if {$logchan ne {}} {
 	# Record everything in the operations log, if present.
-	puts  $logchan [linsert $args 0 $tag]
+	puts  $logchan [linsert [Encode $args] 0 $tag]
 	flush $logchan
     }
 

@@ -92,7 +92,7 @@ proc ::m::vcs::fossil::setup {path url} {
     }
 
     Fossil remote-url off -R $repo
-    PostPull $path
+    PostPull $path 0
     return
 }
 
@@ -108,7 +108,7 @@ proc ::m::vcs::fossil::update {path url first} {
 
     set repo [FossilOf $path]
     Fossil pull $url --once -R $repo
-    PostPull $path
+    PostPull $path {}
     return
 }
 
@@ -177,7 +177,7 @@ proc ::m::vcs::fossil::detect {url} {
 # # ## ### ##### ######## ############# #####################
 ## Helpers
 
-proc ::m::vcs::fossil::PostPull {path} {
+proc ::m::vcs::fossil::PostPull {path forks} {
     debug.m/vcs/fossil {}
 
     if {[m exec err-last-get]} {
@@ -194,6 +194,7 @@ proc ::m::vcs::fossil::PostPull {path} {
 	m ops client fail ; return
     }
 
+    m ops client fork    $forks
     m ops client commits $count
     m ops client size    $kb
     m ops client ok

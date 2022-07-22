@@ -102,22 +102,45 @@ proc ::m::vcs::github::version {} {
 	return
     }
 
-    # git hub cannot be looked for in the path. Must be available as a
-    # subcommand of `git` however.
-    if {[catch {
-	m exec silent git hub help
-    }]} {
-	m ops client err "`git hub` not installed."
+    if 0 {
+	# git hub cannot be looked for in the path. Must be available as a
+	# subcommand of `git` however.
+	if {[catch {
+	    m exec silent git hub help
+	}]} {
+	    m ops client err "`git hub` not installed."
+	    m ops client fail
+	    return
+	}
+    }
+
+    if {![llength [auto_execok curl]]} {
+	m ops client err "`curl` not found in PATH"
 	m ops client fail
 	return
     }
 
-    set v [m exec get-- git hub version]
-    set v [::split $v \n]
-    set v [lindex $v 0 end]
-    set v [string trim $v ']
+    set path [file join ~ .mirror github-authorization]
+    if {![file exists $path]} {
+	m ops client err "No github authorization file found at $path"
+	m ops client fail
+	return
+    }
 
-    m ops client result $v
+    if 0 {
+	set v [m exec get-- git hub version]
+	set v [::split $v \n]
+	set v [lindex $v 0 end]
+	set v [string trim $v ']
+    }
+
+    set vg [lindex [m exec get-- git version] end]
+
+    set v [m exec get-- curl --version]
+    set v [::split $v \n]
+    set v [lindex $v 0 1]
+
+    m ops client result "git $vg, curl $v"
     m ops client ok
     return
 }
@@ -128,11 +151,16 @@ proc ::m::vcs::github::setup {path url} {
     m vcs git setup $path $url
 
     if {![m ops client ok?]} {
+	debug.m/vcs/github {git fail - abort}
+
 	# git setup has already cleaned up.
 	return
     }
 
-    ReportForks $url
+    debug.m/vcs/github {fork processing: count}
+
+    m ops client clear fork
+    m ops client fork [CountForks $url]
     return
 }
 
@@ -150,12 +178,19 @@ proc ::m::vcs::github::update {path url first} {
     m vcs git update $path $url $first
 
     if {![m ops client ok?]} {
+	debug.m/vcs/github {git fail - abort}
+
 	# git update has already cleaned up.
 	return
     }
 
+    m ops client clear fork
     if {$first} {
-	ReportForks $url
+	debug.m/vcs/github {fork processing: list}
+	foreach f [ListForks $url] { m ops client fork $f }
+    } else {
+	debug.m/vcs/github {fork processing: count}
+	m ops client fork [CountForks $url]
     }
     return
 }
@@ -176,24 +211,35 @@ proc ::m::vcs::github::url-to-name {url} {
     try {
 	set desc [string trim [m exec get git hub repo-get $owner/$repo description]]
     } on error {e o} {
+	debug.m/vcs/github {error: $e}
 	set desc {}
-	puts stderr $e
-	puts stderr $o
+	#puts stderr $e
+	#puts stderr $o
     }
 
     if {$desc ne {}} {
+	debug.m/vcs/github {+ desc: $desc}
+	
 	append n $desc
     } else {
+	debug.m/vcs/github {+ repo}
+	
 	append n $repo
     }
     if {$name ne {}} {
+	debug.m/vcs/github {+ name: $name}
+	
 	regexp {^([^[:space:]]*[[:space:]]*)(.*)$} $name -> _ name
 	set name [string trim $name "{}"]
 	append n " - $name - $owner"
     } else {
+	debug.m/vcs/github {+ owner: $owner}
+	
 	append n "@gh - $owner"
     }
 
+    debug.m/vcs/github {name: $n}
+    
     m ops client result $n
     m ops client ok
     return
@@ -203,6 +249,7 @@ proc ::m::vcs::github::url-to-name {url} {
 
 proc ::m::vcs::github::detect {url} {
     debug.m/vcs/github {}
+
     if {![string match *github* $url]} return
     if {[catch {
 	m exec silent git hub help
@@ -221,6 +268,148 @@ proc ::m::vcs::github::detect {url} {
 
 # # ## ### ##### ######## ############# #####################
 ## Helpers
+
+proc ::m::vcs::github::Link {headers direction} {
+    debug.m/vcs/github {}
+
+    # matches ~ ((link: <https://api.github.com/*?sort=newest&per_page=1&page=2>; rel="next"
+    #                 , <https://api.github.com/*?sort=newest&per_page=1&page=1423>; rel="last"))
+
+    set lines [::split [m futil cat $headers] \n]
+
+    debug.m/vcs/github {headers: $headers}
+    debug.m/vcs/github {lines:   [llength $lines]}
+
+    lassign [m futil grep link: $lines] matches _
+
+    debug.m/vcs/github {matches: [llength $matches]}
+
+    if {[llength $matches]} {
+	debug.m/vcs/github {match: [lindex $matches 0]}
+
+	set pattern "*rel=\"$direction\""
+
+	# strip `link:` header
+	set header [string map {{link: } {}} [lindex $matches 0]]
+
+	foreach piece [::split $header ,] {
+	    debug.m/vcs/github {piece: ($piece)}
+
+	    lassign [::split $piece \;] link key
+
+	    debug.m/vcs/github {link:  ($link)}
+	    debug.m/vcs/github {key:   ($key)}
+
+	    if {![string match $pattern $key]} continue
+
+	    return [string trim $link {> <}]
+	}
+    }
+
+    return
+}
+
+proc ::m::vcs::github::ListForks {url} {
+    debug.m/vcs/github {}
+
+    set orgrepo [OrgAndRepo $url]
+    set url     "https://api.github.com/repos/$orgrepo/forks?sort=newest;per_page=100"
+    # per page 100 - max sized chunks of data
+
+    set forks {}
+    while {1} {
+	debug.m/vcs/github {query: ($url)}
+
+	lassign [QueryAPI $url]	headers stdout stderr
+	lassign [m futil grep full_name [::split [m futil cat $stdout] \n]] matches _
+
+	m ops client note matches=[llength $matches]
+
+	foreach match $matches {
+	    debug.m/vcs/github {match: ($match)}
+	    #    "full_name": "cyanogilvie/critcl",
+	    set repo [string trim [lindex [::split $match :] end] ",\" "]
+
+	    debug.m/vcs/github {repo:  $repo}
+
+	    lappend forks https://github.com/$repo
+	}
+
+	set url [Link $headers next]
+
+	file delete $headers $stdout $stderr
+
+	if {$url eq {}} break
+    }
+
+    return [lsort -dict $forks]
+}
+
+proc ::m::vcs::github::CountForks {url} {
+    debug.m/vcs/github {}
+
+    set orgrepo [OrgAndRepo $url]
+
+    # The `per_page=1` modifier o nthe url means that we get #forks as #pages,
+    # and only the minimal amount of additional data (description of first fork).
+    lassign [QueryAPI "https://api.github.com/repos/$orgrepo/forks?sort=newest;per_page=1"] \
+	headers stdout stderr
+
+    set url [Link $headers last]
+
+    file delete $headers $stdout $stderr
+
+    if {$url eq {}} {
+	# No link `last` found. No forks!
+	return 0
+    }
+
+    if {[regexp {page=(\d+)$} $url -> count]} {
+	debug.m/vcs/github {count: ($count)}
+	return $count
+    }
+
+    m ops client err "Unable to find fork count"
+    m ops client fail
+    return
+}
+
+proc ::m::vcs::github::QueryAPI {url} {
+    debug.m/vcs/github {}
+
+    set path [file join ~ .mirror github-authorization]
+    if {![file exists $path]} {
+	m ops client err "No github authorization file found at $path"
+	m ops client fail
+	exit 0
+    }
+
+    set token   [string trim [m futil cat $path]]
+    set headers [fileutil::tempfile mirror_vcs_gh_hdr_]
+    set stdout  [fileutil::tempfile mirror_vcs_gh_out_]
+    set stderr  [fileutil::tempfile mirror_vcs_gh_err_]
+
+    m exec get-- curl \
+	--request GET \
+        $url \
+	--header      "Authorization: token $token" \
+        --user-agent  curl-mirror-0 \
+        --dump-header $headers \
+        --output      $stdout \
+        --stderr      $stderr \
+        --silent \
+        --show-error
+
+    list $headers $stdout $stderr
+}
+
+proc ::m::vcs::github::OrgAndRepo {url} {
+    debug.m/vcs/github {}
+    # url = https://github.com/owner/repo
+    # origin = ................^^^^^^^^^^
+
+    return [join [lrange [file split $url] end-1 end] /]
+}
 
 proc ::m::vcs::github::ReportForks {url} {
     debug.m/vcs/github {}

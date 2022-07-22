@@ -323,6 +323,19 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 		"auto" by default, adjusting itself to the terminal height.
 	    } { optional ; validate [m::cmdr::vt limit] }
 	} [m::cmdr::call glue cmd_limit]
+
+	private block {
+	    description {
+		Query/change default threshold for automatic lockout of phantoms
+		which fail to complete
+	    }
+	    input threshold {
+		Number of times a phantom has to fail to complete to be blocked.
+		This means that the next time the phantom is created again it will be
+		immediately put into a state where the system will not even try to
+		complete it anymore (disabled and private).
+	    } { optional ; validate cmdr::validate::posint }
+	} [m::cmdr::call glue cmd_block]
     }
 
     # # ## ### ##### ######## ############# ######################
@@ -360,7 +373,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
     private disable {
 	use .cms
 	description {
-	    Disable the specified repository, or current.
+	    Disable the specified repositories, or current.
 	}
 	use .list-optional-repository
     } [m::cmdr::call glue cmd_enable 0]
@@ -368,10 +381,42 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
     private enable {
 	use .cms
 	description {
-	    Enable the specified repository, or current.
+	    Enable the specified repositories, or current.
 	}
 	use .list-optional-repository
     } [m::cmdr::call glue cmd_enable 1]
+
+    private track {
+	use .cms
+	description {
+	    Enable fork tracking for the specified repositories, or current.
+	}
+	use .list-optional-repository
+    } [m::cmdr::call glue cmd_track 1]
+
+    private untrack {
+	use .cms
+	description {
+	    Disable fork tracking for the specified repositories, or current.
+	}
+	use .list-optional-repository
+    } [m::cmdr::call glue cmd_track 0]
+
+    private hide {
+	use .cms
+	description {
+	    Mark the specified repositories, or current as private.
+	}
+	use .list-optional-repository
+    } [m::cmdr::call glue cmd_private 1]
+
+    private publish {
+	use .cms
+	description {
+	    Mark the specified repositories, or current, as public.
+	}
+	use .list-optional-repository
+    } [m::cmdr::call glue cmd_private 0]
 
     private remove {
 	use .cms
@@ -411,9 +456,6 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	    tries to auto-detect vcs type if not specified. The command derives a name
 	    from the url if not specified. The new repository becomes current.
 	}
-	option track-forks {
-	    Force tracking when seeing a large number of forks.
-	} { presence }
 	option vcs {
 	    Version control system handling the repository.
 	} {
@@ -441,6 +483,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	} {
 	    alias E
 	    validate [m::cmdr::vt repository]
+	    default {} ;# prevent rolodex top
 	}
     } [m::cmdr::call glue cmd_add]
 
@@ -595,31 +638,17 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	}
     } [m::cmdr::call glue cmd_pending]
 
-    private issues {
-	use .cms.in
-	description {
-	    Show list of active stores with issues.
-	    Disabled stores with issues are not shown.
-	}
-    } [m::cmdr::call glue cmd_issues]
-
-    private disabled {
-	use .cms.in
-	description {
-	    Show list of disabled repositories.
-	}
-    } [m::cmdr::call glue cmd_disabled]
-
     private list {
 	use .cms.nav
 	description {
 	    Show (partial) list of the known repositories.
 	}
-	option repository {
-	    Repository to start the listing with.
+	option offset {
+	    Number of entries to skip before starting display.
+	    Advanced option. Normally managed automatically.
 	} {
-	    alias R
-	    validate [m::cmdr::vt repository]
+	    alias O
+	    validate cmdr::validate::posint
 	}
 	option limit {
 	    Number of repositories to show.
@@ -629,14 +658,127 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	    validate [m::cmdr::vt limit]
 	    generate [m::cmdr::call glue gen_limit]
 	}
+
+	# constraint options - repository usage status
+
+	option disabled {
+	    Limit output to disabled repositories
+	} {  alias D ; presence ; when-set [touch @use disabled] }
+	option active {
+	    Limit output to active repositories
+	} { alias A ; presence ; when-set [touch @use active] }
+	option any-use {
+	    Clear limit on repository usage (--active, --disabled)
+	} { presence ; when-set [touch @use {}] }
+	state use {
+	    Constraint chosen by --disabled, --active, --any-use
+	} { default {} }
+
+	# constraint options - repository fork status
+
+	option primary {
+	    Limit output to primary repositories
+	} {  alias D ; presence ; when-set [touch @fork primary] }
+	option forks {
+	    Limit output to forks of primary repositories
+	} { alias A ; presence ; when-set [touch @fork fork] }
+	option any-origin {
+	    Clear limit on repository fork status (--primary, --fork)
+	} { presence ; when-set [touch @fork {}] }
+	state fork {
+	    Constraint chosen by --primary, --forks, --any-
+	} { default {} }
+
+	# constraint options - repository visibility
+
+	option private {
+	    Limit output to private repositories. These are hidden from the generated web site.
+	} { alias P ; alias hidden ; presence ; when-set [touch @visibility private] }
+	option public {
+	    Limit output to public repositories. These are visible on the generated web site.
+	} { alias p ; alias visible ; alias hidden ; presence ; when-set [touch @visibility public] }
+	option any-visibility {
+	    Clear limit on repository visibility (--private, --public)
+	} { presence ; when-set [touch @visibility {}] }
+	state visibility {
+	    Constraint chosen by --public, --private, --any-visibility
+	} { default {} }
+
+	# constraint options - repository trouble status
+
+	option issues {
+	    Limit output to repositories with issues
+	} { alias I ; presence ; when-set [touch @troubled yes] }
+	option no-issues {
+	    Limit output to repositories without issues
+	} { presence; when-set [touch @troubled no] }
+	option dont-care {
+	    Clear limit on repository troubles (--issues, --no-issues)
+	} { presence ; when-set [touch @visibility {}] }
+	state troubled {
+	    Constraint chosen by --issues, --no-issues, --dont-care
+	} { default {} }
+
+	# constraint options - store presence
+
+	option phantoms {
+	    Limit output to repositories without a store
+	} { alias G ; presence ; when-set [touch @phantom yes] }
+	option no-phantoms {
+	    Limit output to repositories with a store
+	} { presence ; when-set [touch @phantom no] }
+	option any-store {
+	    Clear limit on repository storage status
+	} { presence ; when-set [touch @phantom {}] }
+	state phantom {
+	    Constraint chosen by --phantoms, --no-phantoms, --any-store
+	} { default {} }
+
+	# constraint options - repository vcs
+
+	option vcs {
+	    Limit output to the named VCS
+	} { validate [m::cmdr::vt vcs] }
+
+	# ordering options
+
+	option by-name {
+	    Order result by project name, url, vcs, and size (default)
+	} {  alias N ; presence ; when-set [touch @ordering name] }
+	option by-forks {
+	    Order result by fork number, project name, url, vcs, and size
+	} {  alias F ; presence ; when-set [touch @ordering nforks] }
+	option by-url {
+	    Order result by url, project name, vcs, and size
+	} {  alias N ; presence ; when-set [touch @ordering url] }
+	option by-vcs {
+	    Order result by vcs, project name, url, and size
+	} {  alias V ; presence ; when-set [touch @ordering vcs] }
+	option by-size {
+	    Order result by size, project name, url, and vcs
+	} {  alias S ; presence ; when-set [touch @ordering size] }
+	state ordering {
+	    Constraint chosen by --by-name, --by-url, --by-vcs, --by-size, --by-fork
+	} { default name }
+
+	option up {
+	    Return results in increasing order (default)
+	} { presence ; when-set [touch @orderdir up] }
+	option down {
+	    Return results in decreasing order.
+	} {  presence ; when-set [touch @orderdir down] }
+	state orderdir {
+	    Order direction
+	} { default up }
+
+	# constraint options - substring search
+
 	input pattern {
-	    When specified, search for repositories matching the
-	    pattern.  This is a case-insensitive substring search on
-	    repository urls and project names. A search overrides
-	    and voids any and all repository and limit specifications.
-	    This also keeps the cursor unchanged. The rolodex however
-	    is filled with the search results.
-	} { optional ; validate str }
+	    When specified, search for repositories matching the pattern.  This is a
+	    case-insensitive substring search on repository urls and project names.  When
+	    multiple patterns are specified all of them have to match (and, intersection).
+	    Cursor and rolodex are managed as normal.
+	} { list ; optional ; validate str }
     } [m::cmdr::call glue cmd_list]
 
     private reset {
@@ -658,11 +800,13 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	description {
 	    Show (partial) list of the known projects.
 	}
-	option project {
-	    Project to start the listing with.
+
+	option offset {
+	    Number of entries to skip before starting display.
+	    Advanced option. Normally managed automatically.
 	} {
-	    alias P
-	    validate [m::cmdr::vt project]
+	    alias O
+	    validate cmdr::validate::posint
 	}
 	option limit {
 	    Number of projects to show.
@@ -672,11 +816,25 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	    validate [m::cmdr::vt limit]
 	    generate [m::cmdr::call glue gen_limit]
 	}
+
+	# ordering options
+	option by-name {
+	    Order result by name, #repos, and #stores
+	} {  alias N ; presence ; when-set [touch @ordering name] }
+	option by-repos {
+	    Order result by #repos, name, and #stores
+	} {  alias R ; presence ; when-set [touch @ordering nrepos] }
+	option by-stores {
+	    Order result by #stores, name, and #repos
+	} {  alias S ; presence ; when-set [touch @ordering nstores] }
+	state ordering {
+	    Constraint chosen by --by-name, --by-repos, --by-stores
+	} { default name }
+
 	input pattern {
 	    When specified, search for projects matching the
 	    pattern.  This is a case-insensitive substring search on
-	    repository urls and project names. A search overrides
-	    and voids any and all project and limit specifications.
+	    project names. For search on repository urls use `list` instead.
 	} { optional ; validate str }
     } [m::cmdr::call glue cmd_projects]
 
@@ -691,6 +849,9 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 
     private statistics {
 	use .cms.in
+	option blocks {
+	    Show the url block list.
+	} { presence }
 	description {
 	    Show system statistics.
 	}
@@ -767,9 +928,6 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 		validate [m::cmdr::vt vcs]
 		generate [m::cmdr::call glue gen_submit_vcs]
 	    }
-	    option track-forks {
-		Force tracking when seeing a large number of forks.
-	    } { presence }
 	    option nomail {
 		Disable generation and sending of acceptance mail.
 	    } { presence }
@@ -1038,6 +1196,21 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	common *all* -extend {
 	    section Advanced Debugging
 	}
+
+	private url-ok {
+	    description {
+		Test if url is ok to mirror.
+	    }
+	    input url {
+		The urls to check
+	    } { list ; validate str }
+	} [m::cmdr::call glue cmd_test_url_ok]
+
+	private colors {
+	    description {
+		Show a table of the available text colors
+	    }
+	} [m::cmdr::call glue cmd_test_colors]
 
 	private cycle-mail {
 	    description {

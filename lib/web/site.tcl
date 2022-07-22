@@ -1,4 +1,4 @@
-## -*- tcl -*-
+# -*- mode: tcl; fill-column: 90 -*-
 # # ## ### ##### ######## ############# #####################
 ## Site generation
 
@@ -78,21 +78,21 @@ proc ::m::web::site::build {{mode verbose}} {
 	Export		;# (See `export`)
 	Search
 	Submit
-	Stores	;# Incremental ? As communicated from `update`
 	Statistics
 	Private
 	Projects
+	Stores	;# Incremental ? As communicated from `update`
 
-	# constrained lists --
+	# ZZZ TODO constrained lists --
 	# -- just primaries, no forks
 	# -- per VCS, just managed by such
 
-	set bytime   [m store updates]
-	set byname   [m store by-name]
-	set bysize   [m store by-size]
-	set byvcs    [m store by-vcs]
-	set issues   [m store issues] ;# excludes disabled
-	set disabled [m store disabled]
+	set bytime   [m::glue::UpdateSeparators [m repo updates 1]]
+	set byname   [NameSeparators            [BY-NAME]]
+	set byvcs    [VCSSeparators             [BY-VCS]]
+	set bysize   [BY-SIZE]
+	set issues   [m repo issues   1]
+	set disabled [m repo disabled 1]
 
 	dict set stats issues    [llength $issues]
 	dict set stats disabled  [llength $disabled]
@@ -113,6 +113,42 @@ proc ::m::web::site::build {{mode verbose}} {
 	Fin
     }
     return
+}
+
+# # ## ### ##### ######## ############# #####################
+
+proc ::m::web::site::NameSeparators {series} {
+    debug.m/web/site {}
+
+    if {![llength $series]} { return $series }
+
+    set new {}
+    set last [dict get [lindex $series 0] pname]
+    foreach row $series {
+	set pname [dict get $row pname]
+	if {$pname ne $last} { lappend new {} }
+	lappend new $row
+	set last $pname
+    }
+
+    return $new
+}
+
+proc ::m::web::site::VCSSeparators {series} {
+    debug.m/web/site {}
+
+    if {![llength $series]} { return $series }
+
+    set new {}
+    set last [dict get [lindex $series 0] vname]
+    foreach row $series {
+	set vname [dict get $row vname]
+	if {$vname ne $last} { lappend new {} }
+	lappend new $row
+	set last $vname
+    }
+
+    return $new
 }
 
 # # ## ### ##### ######## ############# #####################
@@ -146,7 +182,7 @@ proc ::m::web::site::Projects {} {
     foreach p $series {
 	dict with p {}
 	# id, name, nrepos, nstores
-	set name [m::store::Norm $name]
+	set name [m::repo::Norm $name]
 
         Project $id $name
 
@@ -170,6 +206,8 @@ proc ::m::web::site::Project {id name} {
 	set ri [m repo get $repo]
 	dict with ri {}
 	# -> vcode, store, active, issues, url, origin
+	# ignore phantoms
+	if {$store eq {}} continue
 
 	lappend series [list [expr {$origin ne {}}] $issues $active $vcode $url $store]
     }
@@ -182,7 +220,7 @@ proc ::m::web::site::Project {id name} {
     foreach item [lsort -dict -index 4 $series] {
 	lassign $item fork issues active vcode url store
 
-	set tags  [StatusRefs $issues $active 0]
+	set tags  [StatusRefs $issues $active]
 	if {$tags eq {}} { append tags { } }
 	set vcode [X/VCS $vcode]
 	set fork  [expr {!$fork ? " " : [I/Fork]}]
@@ -206,7 +244,7 @@ proc ::m::web::site::Project {id name} {
 proc ::m::web::site::Statistics {} {
     debug.m/web/site {}
 
-    set stats [m project statistics]
+    set stats [m project statistics 1]
 
     dict with stats {}
     #array set _ $stats ; parray _
@@ -225,10 +263,9 @@ proc ::m::web::site::Statistics {} {
     set cc [m format epoch $cc]
 
     set np [L projects.html       $np]
-    set ni [L index_issues.html   "[I/Bad] $ni"]
-    set nd [L index_disabled.html "[I/Offline] $nd"]
-
-    set ng "&#x1f47b; [dict get $rt phantom]"
+    set nr                        "$nr &odot;"
+    set ni [L index_issues.html   "$ni [I/Bad]"]
+    set nd [L index_disabled.html "$nd [I/Offline]"]
 
     set rvcs {}
     foreach v [lsort -dict [dict keys [dict get $rt vcs]]] {
@@ -247,12 +284,12 @@ proc ::m::web::site::Statistics {} {
     Align l l l
     Row Projects     $np
 
-    Row Repositories "$nr $ni $nd $ng"
+    Row Repositories "$nr $ni $nd"
     Row ""           [join $rvcs { }]
-    Row Stores       "$ns &sum; $sz"
+    Row Stores       "$ns &odot; $sz &sum;"
     Row ""           [join $svcs { }]
-    Row Size         "$sz_min ... $sz_max " "&Oslash; $sz_mean &#x27d0; $sz_median"
-    Row Commits      "$cm_min ... $cm_max " "&Oslash; $cm_mean &#x27d0; $cm_median"
+    Row Size         "$sz_min &perp; $sz_max &top;" "$sz_mean &Oslash; $sz_median &#x27d0;"
+    Row Commits      "$cm_min &perp; $cm_max &top;" "$cm_mean &Oslash; $cm_median &#x27d0;"
     NL
 
     Row Cycle Start Changes Duration
@@ -378,7 +415,7 @@ proc ::m::web::site::ExportStore {vcs store} {
 proc ::m::web::site::StoreForks {url store serial forks} {
     debug.m/web/site {}
 
-    set series [m store getx $forks]
+    set series [JUST $forks]
     set page   [P/StoreForks $store $serial]
     set up     [L/Store $store $url]
     set title  "[llength $forks] [I/Fork] of $up"
@@ -533,19 +570,19 @@ proc ::m::web::site::ListSimple {title subtitle page series} {
 
     set fork [I/Fork]
 
-    set mname {}
-    set last {}
     foreach row $series {
 	dict with row {}
+	# [repo]  url rid checked nforks origin mins maxs lastn
+	#         has_issues is_active is_private is_tracking
+	# [vcs]   vcode vname is_trackable
+	# [proj]  pname
+	# [store] store changed updated created size commits sizep commitp
 
-	# store mname vcode changed updated created size active remote attend
-	# -- origin url
 	set tag {}
+	if {$origin ne {}} { append tag $fork }
 
-	if {$created eq "."} { S 9 ; continue }
-
-	set img     [StatusRefs $attend $active $remote]
-	set size    [m format size $size]
+	set img     [StatusRefs $has_issues $is_active]
+	set size    [m format size  $size]
 	set changed [m format epoch $changed]
 	set updated [m format epoch $updated]
 	set created [m format epoch $created]
@@ -554,14 +591,10 @@ proc ::m::web::site::ListSimple {title subtitle page series} {
 	if {$store ne {}} {
 	    set vcode [L/Store $store $vcode]
 	    set url   [L/Store $store $url]
-	    if {$mname ne {}} { set mname [L/Store $store $mname] }
+	    if {$pname ne {}} { set pname [L/Store $store $pname] }
 	}
 
-	if {$origin ne {}} { append tag $fork }
-
-	Row $img $mname $url $tag $vcode $size $changed $updated $created
-
-	set last $mname
+	Row $img $pname $url $tag $vcode $size $changed $updated $created
     }
 
     NL ; NL
@@ -608,29 +641,32 @@ proc ::m::web::site::List {suffix page series stats} {
 
     set fork [I/Fork]
 
-    set mname {}
-    set last {}
     foreach row $series {
+	if {![llength $row]} { S 9 ; continue }
+
 	dict with row {}
+	# [repo]  url rid checked nforks origin mins maxs lastn
+	#         has_issues is_active is_private is_tracking
+	# [vcs]   vcode vname is_trackable
+	# [proj]  pname
+	# [store] store changed updated created size commits sizep commitp
 
-	# store mname vcode changed updated created size active remote attend
-	# -- origin url
 	set tag {}
+	if {$origin ne {}} { append tag $fork }
 
-	if {$created eq "."} { S 9 ; continue }
 	if {$changed ne {}} {
 	    if {$changed < $ccycle} {
-		Row {} "__$ccf Start Of Current Cycle__" {} {} {} {} {} {} {}
+		Row {} "__${ccf}__" "__Start Of Current Cycle__" {} {} {} {} {} {}
 		set ccycle -1 ;# Prevent further triggers
 	    }
 	    if {$changed < $pcycle} {
-		Row {} "__$pcf Start Of Last Cycle__" {} {} {} {} {} {} {}
+		Row {} "__${pcf}__" "__Start Of Last Cycle__"    {} {} {} {} {} {}
 		set pcycle -1 ;# Prevent further triggers
 	    }
 	}
 
-	set img     [StatusRefs $attend $active $remote]
-	set size    [m format size $size]
+	set img     [StatusRefs $has_issues $is_active]
+	set size    [m format size  $size]
 	set changed [m format epoch $changed]
 	set updated [m format epoch $updated]
 	set created [m format epoch $created]
@@ -639,13 +675,11 @@ proc ::m::web::site::List {suffix page series stats} {
 	if {$store ne {}} {
 	    set vcode [L/Store $store $vcode]
 	    set url   [L/Store $store $url]
-	    if {$mname ne {}} { set mname [L/Store $store $mname] }
+	    if {$pname ne {}} { set pname [L/Store $store $pname] }
 	}
 
-	if {$origin ne {}} { append tag $fork }
 
-	Row $img $mname $url $tag $vcode $size $changed $updated $created
-	set last $mname
+	Row $img $pname $url $tag $vcode $size $changed $updated $created
     }
 
     NL ; NL
@@ -746,6 +780,8 @@ proc ::m::web::site::Fin {} { #return
 	}
 	file rename $stage $serve
     }
+
+    !! "Done"
     return
 }
 
@@ -923,7 +959,7 @@ proc ::m::web::site::FillIndex {} {
 
     m site eval { DELETE FROM store_index }
 
-    # m store search '' (inlined, simply all)
+    # ZZZ -- m::repo::REPOS ? -- no subqueries -- data collection here
     m db eval {
 	SELECT S.id      AS store
 	,      (SELECT max (P.name) FROM project P, repository R WHERE P.id = R.project AND R.store = S.id) AS pname
@@ -1012,21 +1048,12 @@ proc ::m::web::site::StatusIcons {attend active remote} {
     return $icons
 }
 
-proc ::m::web::site::StatusRefs {attend active remote} {
+proc ::m::web::site::StatusRefs {issues active} {
     debug.m/web/site {}
     set img {}
-
-    if {!$active} {
-	append img [I/Offline]
-    } elseif {$active < $remote} {
-	append img [I/Warning]
-    }
-    if {$attend} {
-	append img [I/Bad]
-    }
+    if {!$active} { append img [I/Offline] }
+    if {$issues}  { append img [I/Bad]     }
     return $img
-    #set status images/ok.svg
-    #set stext  OK
 }
 
 # # ## ### ##### ######## ############# #####################
@@ -1069,6 +1096,51 @@ proc ::m::web::site::I/VCS {vcode} {
     debug.m/web/site {}
     set name [dict get [V] $vcode]
     return [IH 32 images/logo/$vcode.svg $name]
+}
+
+# # ## ### ##### ######## ############# #####################
+## Site specific repository queries
+## Important: All queries exclude phantoms from their results.
+
+proc ::m::web::site::BY-NAME {} {
+    debug.m/web/site {}
+
+    dict set c phantom no
+    dict set c order   name
+    m repo list-for c
+
+    return [dict get $c series]
+}
+
+proc ::m::web::site::BY-VCS {} {
+    debug.m/web/site {}
+
+    dict set c phantom no
+    dict set c order   vcs
+    m repo list-for c
+
+    return [dict get $c series]
+}
+
+proc ::m::web::site::BY-SIZE {} {
+    debug.m/web/site {}
+
+    dict set c phantom no
+    dict set c order   size
+    m repo list-for c
+
+    return [dict get $c series]
+}
+
+proc ::m::web::site::JUST {repos} {
+    debug.m/web/site {}
+
+    dict set c subset  $repos
+    dict set c phantom no
+    dict set c order   name
+    m repo list-for c
+
+    return [dict get $c series]
 }
 
 # # ## ### ##### ######## ############# #####################
@@ -1224,7 +1296,8 @@ proc ::m::web::site::W= {child content} {
 }
 
 proc ::m::web::site::V {} {
-    set map [m vcs all]
+    debug.m/web/site {}
+    foreach {code name tracking} [m vcs all] { dict set map $code $name }
     proc ::m::web::site::V {} [list return $map]
     return $map
 }

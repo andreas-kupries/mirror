@@ -31,9 +31,8 @@ namespace eval ::m {
 }
 namespace eval ::m::project {
     namespace export \
-	all add remove rename has name used-vcs has-vcs size \
-	stores known spec id count get get-n search a-repo \
-	statistics get-all
+	add remove rename has name size id a-repo count-for \
+	statistics get-all list-for known spec count
     namespace ensemble create
 }
 
@@ -44,7 +43,7 @@ debug prefix m/project {[debug caller] | }
 
 # # ## ### ##### ######## ############# ######################
 
-proc ::m::project::statistics {} {
+proc ::m::project::statistics {{nophantoms 0}} {
     debug.m/project {}
 
     m db transaction {
@@ -53,9 +52,9 @@ proc ::m::project::statistics {} {
 
 	set ncc 0
 	set npc 0
-	foreach row [m store updates] {
+	foreach row [m repo updates $nophantoms] {
 	    dict with row {}
-	    # store mname vcode changed updated created size active remote
+	    # store pname vcode changed updated created size active remote
 	    # sizep commits commitp mins maxs lastn
 	    if {$created eq "."} continue ;# ignore separations
 	    if {$changed >= $cc} { incr ncc ; continue }
@@ -66,7 +65,12 @@ proc ::m::project::statistics {} {
 	dict set stats npc $npc
 
 	dict set stats np [m project count]
+
+	# TODO: move down into the repo and store statistics
+
 	dict set stats nr [m repo count]
+	dict set stats nw [m repo count-pending]
+	#
 	dict set stats ns [m store count]
 	dict set stats nl [llength [m store lost]]
 	dict set stats sz [m store total-size]
@@ -74,11 +78,15 @@ proc ::m::project::statistics {} {
 	dict set stats cc $cc
 	dict set stats pc $pc
 
-	dict set stats ni [llength [m store issues]] ;# excludes disabled
-	dict set stats nd [llength [m store disabled]]
+	dict set stats ni [llength [m repo issues   $nophantoms]] ;# excludes disabled
+	dict set stats nd [llength [m repo disabled $nophantoms]]
 
 	dict set stats st [m store statistics]
-	dict set stats rt [m repo statistics]
+	dict set stats rt [m repo  statistics $nophantoms]
+
+	if {$nophantoms} {
+	    dict incr stats nr -[dict get $stats rt phantom]
+	}
     }
 
     return $stats
@@ -114,25 +122,34 @@ proc ::m::project::spec {} {
     # And then there is of course compatibility with old specs.
 
     # Design:
-    # - command based, as before.
-    # - commands
+    # - Command based, as before.
+    #
+    # - Short-form commands
+    #
     #   - `P name`	Specify project. Contains preceding repositories.
     #	- `R vcs url`	Specify repository by location and manager.
     #	- `E vcs url`	As `R`, share store with previous repository.
     #   - `B url`	Set a base repository for sharing.
-    #   - `M vcs url`	Not generated. Still recognized. Behaves as `P`.
+    #   - `M vcs url`	Not generated. Still recognized. Behaves as `R`.
     #
-    # - Extended command names - Generated
-    #   - proj
-    #   - repo
-    #   - extR
+    # - Long-form command names - Generated
+    #
+    #   - project
+    #   - repository
+    #   - extend-previous
+    #   - disable
+    #   - private
+    #   - tracking-forks
     #   - base
     #
-    # - Import accepts both short and long forms. Case-insensitive.
+    # - Import accepts both short and long forms. Case-insensitive.  Any unique prefix is
+    #   recognized. The non-unique `p` prefix maps to `project` as per the desired
+    #   short-form commands.
     #
     # - `B` is only generated when a shared store cuts across projects.
-    # - Everything else uses `E`, which uses an implicit base from the
-    #   precending `R`. In other words, the sequence
+    #
+    # - Everything else uses `E`, which uses an implicit base from the preceding `R`. In
+    #   other words, the sequence
     #
     #     R ... foo
     #     E ... bar
@@ -142,14 +159,37 @@ proc ::m::project::spec {} {
     #     R ... foo
     #     B     foo
     #     E ... foo
+    #
+    # - Command order.
+    #
+    #   - `repository`, `extend-previous` are prefix relative to `project`.
+    #     A `project` command closes the preceding run of `reository` and
+    #     `extend-previous` commands.
+    #
+    #   - `base` commands have to be placed immediately before the `extend-previous`
+    #     commands they apply to.
+    #
+    #   - `disabled`, `private`, and `tracking-forks` are attribute commands which have to
+    #     follow immediately after the `repository`/`extend-previous` command they apply
+    #     to.
+    #
+    # The exporter uses indentation to hint at these relationship. This indentation has no
+    # syntactic nor semantic meaning. The importer ignores it. Only the command order
+    # matters to it.
 
     set p {} ;# dict (name -> id)
     set v {} ;# dict (url -> vcs)		vcs per repo, all repos!
     set g {} ;# dict (pname -> store -> url -> .)
     set b {} ;# dict (store -> url)		store base
-
+    set s {} ;# dict (url -> (active, private, tracking))
+    
     # Collect projects
-    foreach {project pname} [all] {
+    foreach {project pname} [m db eval {
+	SELECT id
+	,      name
+	FROM   project
+	ORDER BY name ASC
+    }] {
 	debug.m/project {P $project $pname}
 
 	dict set p $pname $project
@@ -160,22 +200,24 @@ proc ::m::project::spec {} {
 	foreach repo [m repo for $project] {
 	    set ri [m repo get $repo]
 	    dict with ri {}
-	    # -> url	: repo url
-	    # -> vcode	: vcs code
-	    # -> store  : id of backing store for repo
+	    # - url, vcode, store, active, private, tracking
+	    # ignore phantoms!
+	    if {$store eq {}} continue
 	    dict set v $url   $vcode
 	    dict set b $store {} ;# initially no base
 	    dict set g $pname $store $url .
+	    dict set s $url   [list $active $private $tracking]
 	}
     }
 
     # Spec emitter
 
     #puts ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    #array set _p $p ; parray _p
-    #array set _v $v ; parray _v
-    #array set _g $g ; parray _g
-    #array set _b $b ; parray _b
+    #array set _p $p ; parray _p ; unset _p
+    #array set _v $v ; parray _v ; unset _v
+    #array set _g $g ; parray _g ; unset _g
+    #array set _b $b ; parray _b ; unset _b
+    #array set _s $s ; parray _s ; unset _s
 
     set lines {}
     foreach pname [lsort -dict [dict keys $p]] {
@@ -184,29 +226,54 @@ proc ::m::project::spec {} {
 
 	foreach store [lsort -dict [dict keys $groups]] {
 	    #puts /$store
-
 	    set urls [lsort -dict [dict keys [dict get $groups $store]]]
 	    set base [dict get $b $store]
 	    if {$base ne {}} {
-		lappend lines [list base $base]
-		set cmd extR
+		EMIT base $base
+		set cmd extend-previous
 	    } else {
-		set cmd repo
+		set cmd repository
 	    }
 	    foreach u $urls {
-		set vcs [dict get $v $u]
-		lappend lines [list $cmd $vcs $u]
-		set cmd extR
+		EMIT $cmd [dict get $v $u] $u
+		set cmd extend-previous
+		
+		lassign [dict get $s $u] a p t
+		if {!$a} { EMIT disabled }
+		if {$p}  { EMIT private }
+		if {$t}  { EMIT tracking-forks }
 	    }
 	    # Save store base for possible cross cut
 	    dict set b $store $u
 	}
-	lappend lines [list proj $pname]
+	EMIT project $pname
     }
 
     #puts ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     return [join $lines \n]
+}
+
+# see also - ops/client/Encode, vcs/Decode, glue/Decode
+proc ::m::project::Encode {words} {
+    lmap w $words { string map [list % %% \n %n] $w }
+}
+
+proc ::m::project::EMIT {args} {
+    upvar 1 lines lines
+
+    set cmd [dict get {
+	base		{    base            }
+	disabled	{        disabled}
+	extend-previous	{    extend-previous }
+	private         {        private}
+	project         {project        }
+	repository	{    repository      }
+	tracking-forks	{        tracking-forks}
+    } [lindex $args 0]]
+
+    lappend lines "$cmd[join [lmap w [Encode [lrange $args 1 end]] { list $w }] { }]"
+    return
 }
 
 proc ::m::project::known {} {
@@ -259,16 +326,6 @@ proc ::m::project::known {} {
     return $map
 }
 
-proc ::m::project::all {} {
-    debug.m/project {}
-    return [m db eval {
-	SELECT id
-	,      name
-	FROM   project
-	ORDER BY name ASC
-    }]
-}
-
 proc ::m::project::id {name} {
     debug.m/project {}
     return [m db onecolumn {
@@ -289,10 +346,11 @@ proc ::m::project::count {} {
 proc ::m::project::add {name} {
     debug.m/project {}
 
+    set dname [string tolower $name]
     m db eval {
 	INSERT
 	INTO project
-	VALUES ( NULL, :name )
+	VALUES ( NULL, :name, :dname )
     }
 
     return [m db last_insert_rowid]
@@ -330,42 +388,12 @@ proc ::m::project::has {name} {
     }]
 }
 
-proc ::m::project::stores {project} {	;# XXX REWORK still used ?
-    debug.m/project {}
-    return [m db eval {
-	SELECT DISTINCT S.id
-	FROM   store      S
-	,      repository R
-	WHERE  S.id = R.store
-	AND    R.project = :project
-    }]
-}
-
-proc ::m::project::used-vcs {project} {	;# XXX REWORK still used ?
-    debug.m/project {}
-    return [m db eval {
-	SELECT DISTINCT vcs
-	FROM   repository
-	WHERE  project = :project
-    }]
-}
-
 proc ::m::project::size {project} {
     debug.m/project {}
     return [m db onecolumn {
 	SELECT count (*)
 	FROM   repository
 	WHERE  project = :project
-    }]
-}
-
-proc ::m::project::has-vcs {project vcs} {	;# XXX REWORK still used ?
-    debug.m/project {}
-    return [m db onecolumn {
-	SELECT count (*)
-	FROM   repository
-	WHERE  project = :project
-	AND    vcs     = :vcs
     }]
 }
 
@@ -378,136 +406,12 @@ proc ::m::project::name {project} {
     }]
 }
 
-proc ::m::project::get {project} {
-    debug.m/project {}
-    return [m db onecolumn {
-	SELECT 'name'   , P.name
-	,      'nrepos' , (SELECT count (*)                               FROM repository A WHERE A.project = P.id)
-	,      'nstores', (SELECT count (*) FROM (SELECT DISTINCT B.store FROM repository B WHERE B.project = P.id))
-	FROM   project P
-	WHERE  id = :project
-    }]
-}
-
-proc ::m::project::get-n {first n} {
-    debug.m/project {}
-
-    # project : id of first project to pull.
-    #        Default to 1st if not specified
-    # n    : Number of projects to retrieve.
-    #
-    # Taking n+1 projects, last becomes top for next call.  If we get
-    # less than n, top shall be empty, to reset the cursor.
-
-    if {$first eq {}} {
-	set first [FIRST]
-	debug.m/project {first = ($first)}
-    }
-
-    set results {}
-    set lim [expr {$n + 1}]
-    m db eval {
-	SELECT P.id   AS id
-	,      P.name AS name
-	,      (SELECT count (*)                               FROM repository A WHERE A.project = P.id)  AS nrepos
-	,      (SELECT count (*) FROM (SELECT DISTINCT B.store FROM repository B WHERE B.project = P.id)) AS nstores
-	FROM   project P
-	-- cursor start clause ...
-	WHERE (P.name >= :first)
-	ORDER BY P.name ASC
-	LIMIT :lim
-    } {
-	lappend results [dict create   id $id name $name nrepos $nrepos nstores $nstores]
-    }
-
-    debug.m/project {reps = (($results))}
-
-    set have [llength $results]
-    debug.m/project {have $have of $n requested}
-
-    if {$have <= $n} {
-	# Short read. Reset to top.
-	set next {}
-	debug.m/project {short}
-    } else {
-	# Full read. Data from the last element is next top, and not
-	# part of the shown list.
-	set next    [dict get [lindex $results end] name]
-	set results [lrange $results 0 end-1]
-	debug.m/project {cut}
-    }
-
-    return [list $next $results]
-}
-
 proc ::m::project::get-all {} {
     debug.m/project {}
 
-    # project : id of first project to pull.
-    #        Default to 1st if not specified
-    # n    : Number of projects to retrieve.
-    #
-    # Taking n+1 projects, last becomes top for next call.  If we get
-    # less than n, top shall be empty, to reset the cursor.
-
-    set results {}
-    m db eval {
-	SELECT P.id   AS id
-	,      P.name AS name
-	,      (SELECT count (*)                               FROM repository A WHERE A.project = P.id)  AS nrepos
-	,      (SELECT count (*) FROM (SELECT DISTINCT B.store FROM repository B WHERE B.project = P.id)) AS nstores
-	FROM   project P
-	ORDER BY P.name ASC
-    } {
-	lappend results [dict create   id $id name $name nrepos $nrepos nstores $nstores]
-    }
-
-    debug.m/project {reps = (($results))}
-
-    return $results
-}
-
-proc ::m::project::search {substring} {
-    debug.m/project {}
-
-    set sub [string tolower $substring]
-    set series {}
-    set have {}
-    m db eval {
-	SELECT P.id   AS id
-	,      P.name AS name
-	,      R.url  AS url
-	FROM   project    P
-	,      repository R
-	WHERE R.project = P.id
-	ORDER BY P.name ASC
-    } {
-	# Ignore all already collected
-	if {[dict exists $have $id]} continue
-	# Ignore non-matches
-	if {
-	    ([string first $sub [string tolower $name]] < 0) &&
-	    ([string first $sub [string tolower $url ]] < 0)
-	} continue
-
-	# Compute derived values only for matches
-	m db eval {
-	    SELECT (SELECT count (*)                               FROM repository A WHERE A.project = P.id)  AS nrepos
-	    ,      (SELECT count (*) FROM (SELECT DISTINCT B.store FROM repository B WHERE B.project = P.id)) AS nstores
-	    FROM project P
-	    WHERE P.id = :id
-	} {}
-	# Collect
-	lappend results [dict create \
-			     name    $name \
-			     nrepos  $nrepos \
-			     nstores $nstores ]
-
-	# Record collection
-	dict set have $id .
-    }
-
-    return $results
+    dict set c order name
+    list-for c
+    return [dict get $c series]
 }
 
 proc ::m::project::a-repo {project} {
@@ -522,17 +426,113 @@ proc ::m::project::a-repo {project} {
 
 # # ## ### ##### ######## ############# ######################
 
-proc ::m::project::FIRST {} {
-    debug.m/project {}
-    # First known project
-    # Ordered by project name
+proc ::m::project::count-for {config} {
+    # Suboptimal counting - get entire list, without start/limit restrictions, and compute
+    # its length. Might be quicker to let the SQL count. More complex too, regarding the
+    # SQL generation.
 
-    return [m db onecolumn {
-	SELECT P.name
-	FROM   project    P
-	ORDER BY P.name ASC
-	LIMIT 1
-    }]
+    dict unset config start
+    dict unset config limit
+
+    list-for config
+    return [llength [dict get $config series]]
+}
+
+proc ::m::project::list-for {cv} {
+    upvar 1 $cv config
+
+    # dict :: 'order'        - name, nrepos, nstores            /3 .
+    #      :: 'match'        - '', substring                    /2 .
+    #      :: 'start'        - '', number                       /2 .
+    #      :: 'limit'        - '', number                       /2 .
+    #                                                          =/24
+    dict with config {}
+    set clauses {}
+    set op "WHERE"
+
+    set has_start [expr {[info exists start] && ($start ne {}) && ($start > 0)}]
+    set has_limit [expr {[info exists limit] && ($limit ne {}) && ($limit > 0)}]
+
+    if {$has_start && !$has_limit} {
+	set has_limit 1 ; set limit -1 ;# force limit as 'no limit' to satisfy sql syntax.
+    }
+
+    if {[info exists match]} {
+	set match [string tolower $match]
+	# Disable all glob-special characters in the pattern. We want a proper substring
+	# search, not globbing.
+	set match [string map [list * \\* ? \\? \[ \\\[ \{ \\\{ \\ \\\\] $match]
+	append clauses \n "$op GLOB('*${match}*', P.dname)"
+	set op AND
+    }
+
+    switch -exact -- $order {
+	name    { append clauses \n "ORDER BY name    ASC, nstores ASC, nrepos  ASC" }
+	nrepos  { append clauses \n "ORDER BY nrepos  ASC, name    ASC, nstores ASC" }
+	nstores { append clauses \n "ORDER BY nstores ASC, name    ASC, nrepos  ASC" }
+    }
+
+    # Apply offset and limit to be handled in SQL, ...
+    if {$has_limit} { append clauses \n "LIMIT $limit" }
+    if {$has_start} { append clauses  " OFFSET $start" }
+
+    # ... and retrieve the data
+    dict set config series [PROJECTS $clauses]
+
+    # Compute a new start offset based on incoming start, limit, and length of result.
+    if {$has_limit && ($limit >= 0)} {
+	# Actual limit present
+	if {[llength [dict get $config series]] < $limit} {
+	    # Short read (less than limit), reached end, reset to top
+	    dict set config start {}
+	} else {
+	    # Full read, increment start offset to jump chunk on next run
+	    if {!$has_start} { set start 0 }
+	    incr start $limit
+	    dict set config start $start
+	}
+    } else {
+	# No (actual) limit, full read, reset to top
+	dict set config start {}
+    }
+
+    return
+}
+
+proc ::m::project::PROJECTS {{clauses {}}} {
+    debug.m/project {}
+
+    lappend map @clauses@ $clauses
+    set series {}
+    m db eval [string map $map {
+	SELECT P.id   AS id
+	,      P.name AS name
+	,      (SELECT count (*)
+		FROM   repository A
+		WHERE  A.project = P.id
+		AND    A.store IS NOT NULL
+		AND    A.store != '') AS nrepos
+	,      (SELECT count (*) FROM (SELECT DISTINCT B.store
+				       FROM   repository B
+				       WHERE  B.project = P.id
+				       AND    B.store IS NOT NULL
+				       AND    B.store != '')) AS nstores
+	FROM project P
+	@clauses@
+    }] {
+	dict set row id      $id
+	dict set row name    $name
+	dict set row nrepos  $nrepos
+	dict set row nstores $nstores
+
+	lappend series $row
+	unset row
+    }
+
+    # series :: list (row)
+    # row    :: dict (id, name, nrepos, nstores)
+
+    return $series
 }
 
 # # ## ### ##### ######## ############# ######################
