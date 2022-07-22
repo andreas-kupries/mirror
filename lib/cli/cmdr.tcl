@@ -260,7 +260,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	    Management of the instance configuration.
 	}
 	common *all* -extend {
-	    section Instance Configuration
+	    section Configuration
 	}
 
 	private show {
@@ -340,16 +340,16 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 
     # # ## ### ##### ######## ############# ######################
     common .cms {
-	section Instance Content
+	section Content
     }
     common .cms.in {
-	section Instance Content Inspection
+	section Content Inspection
     }
     common .cms.nav {
-	section Instance Content Navigation
+	section Content Navigation
     }
     common .cms.ex {
-	section Instance Content Exchange
+	section Content Exchange
     }
 
     private vcs {
@@ -1187,6 +1187,33 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 
     # # ## ### ##### ######## ############# ######################
     ## Developer support, debugging.
+
+    officer chirurgy {
+	description {
+	    Advanced commands for low-level operations on the database, without belts,
+	    suspenders, or any other kind of safety in place. Use at own risk. Make
+	    backups before use.
+	}
+	common *all* -extend {
+	    section Advanced Chirurgy
+	}
+
+	private vcs {
+	    description {
+		Change the VCS linked to a repository. This breaks the system if
+		chosen VCS and store do not match. github to git are safe.
+		git to github *only* if the repository is indeed on github.
+		For anything else `archive --phantom` the store before making the
+		change, so that the system operates on a clear state.
+	    }
+	    input vcs {
+		The new version control system to handle the repository.
+	    } {
+		validate [m::cmdr::vt vcs]
+	    }
+	    use .list-optional-repository
+	} [m::cmdr::call glue cmd_hack_vcs]
+    }
 
     officer debug {
 	description {

@@ -238,7 +238,6 @@ proc ::m::glue::cmd_import {config} {
 	[ImportSkipKnown \
 	     [ImportVerify \
 		  [ImportRead $sname [$config @spec]]]]
-    SiteRegen
     OK
 }
 
@@ -267,7 +266,6 @@ proc ::m::glue::cmd_reply_add {config} {
 
 	m reply add $reply $mail $text
     }
-    #SiteRegen
     OK
 }
 
@@ -289,7 +287,6 @@ proc ::m::glue::cmd_reply_remove {config} {
 
 	m reply remove $reply
     }
-    #SiteRegen
     OK
 }
 
@@ -308,7 +305,6 @@ proc ::m::glue::cmd_reply_change {config} {
 
 	m reply change $reply $text
     }
-    #SiteRegen
     OK
 }
 
@@ -324,7 +320,6 @@ proc ::m::glue::cmd_reply_default {config} {
 
 	m reply default! $reply
     }
-    #SiteRegen
     OK
 }
 
@@ -453,7 +448,7 @@ proc ::m::glue::cmd_siteconfig {key desc config} {
 	    SiteEnable 0
 	}
     }
-    if {$prefix eq "New"} SiteRegen
+    if {$prefix eq "New"} { SiteRegen various elements }
     OK
 }
 
@@ -512,23 +507,7 @@ proc ::m::glue::cmd_store {config} {
     }
 
     m msg "$prefix Store at [color note $value]"
-    if {$prefix eq "New"} SiteRegen
-    OK
-}
-
-proc ::m::glue::cmd_report2 {config} {
-    debug.m/glue {[debug caller] | }
-    package require m::state
-
-    m db transaction {
-	if {[$config @mail set?]} {
-	    m state report-mail-destination [$config @mail]
-	}
-
-	set mail [m state report-mail-destination]
-    }
-
-    m msg "Send report mails to [color note $mail]"
+    if {$prefix eq "New"} { SiteRegen all store paths }
     OK
 }
 
@@ -627,7 +606,6 @@ proc ::m::glue::cmd_add {config} {
 	AddRepository $config [$config @extend]
     }
     ShowCurrent $config
-    SiteRegen
     OK
 }
 
@@ -690,7 +668,6 @@ proc ::m::glue::cmd_remove {config} {
     }
 
     ShowCurrent $config
-    SiteRegen
     OK
 }
 
@@ -794,13 +771,13 @@ proc m::glue::Short {repo} {
     dict with ri {}
 
     ShortStatus active private store
-    
+
     return "$url ([SIB [expr {!$issues}]] $active $private$store)"
 }
 
 proc m::glue::ShortStatus {av pv sv} {
     upvar 1 $av active $pv private $sv store
-    
+
     set active [color {*}[dict get {
 	0 {warning offline}
 	1 {note UP}
@@ -907,7 +884,7 @@ proc ::m::glue::cmd_details {config} {
 	ShortStatus active private ghost
 
 	set checked [color note [m format epoch $checked]]
-	
+
 	if {$store ne {}} {
 	    set dcommit [DeltaCommitFull $commits $commitp]
 	    set dsize   [DeltaSizeFull $size $sizep]
@@ -1064,7 +1041,6 @@ proc ::m::glue::cmd_enable {flag config} {
     }
 
     ShowCurrent $config
-    SiteRegen
     OK
 }
 
@@ -1106,7 +1082,6 @@ proc ::m::glue::cmd_track {flag config} {
     }
 
     ShowCurrent $config
-    SiteRegen
     OK
 }
 
@@ -1130,7 +1105,6 @@ proc ::m::glue::cmd_private {flag config} {
     }
 
     ShowCurrent $config
-    SiteRegen
     OK
 }
 
@@ -1182,7 +1156,6 @@ proc ::m::glue::cmd_move {config} {
     }
 
     ShowCurrent $config
-    SiteRegen
     OK
 }
 
@@ -1226,7 +1199,6 @@ proc ::m::glue::cmd_rename {config} {
     }
 
     ShowCurrent $config
-    SiteRegen
     OK
 }
 
@@ -1261,7 +1233,6 @@ proc ::m::glue::cmd_merge {config} {
     }
 
     ShowCurrent $config
-    SiteRegen
     OK
 }
 
@@ -1309,7 +1280,6 @@ proc ::m::glue::cmd_split {config} {
     }
 
     ShowCurrent $config
-    SiteRegen
     OK
 }
 
@@ -1386,13 +1356,13 @@ proc ::m::glue::cmd_update {config} {
 	set umax [MaxLength [lmap repo $repos { dict get $repo url  }]]
 	set nmax [MaxLength [lmap repo $repos { dict get $repo name }]]
 	if {$nmax > 40} { set nmax 40 }
-	
+
 	foreach repo $repos {
 	    incr cr
 	    m msg* "[color magenta ([format $cf $cr])] "
 	    dict set repo umax $umax
 	    dict set repo nmax $nmax
-	    
+
 	    if {[dict get $repo store] eq {}} {
 		CompletePhantom   $repo $verbose
 	    } else {
@@ -1405,8 +1375,6 @@ proc ::m::glue::cmd_update {config} {
 
     set duration [expr {[clock seconds] - $nowcycle}]
     m msg "Update completed in [color note [m format interval $duration]]"
-    
-    SiteRegen
     OK
 }
 
@@ -1604,7 +1572,7 @@ proc ::m::glue::UpdateStartMessage {op url name vcode verbose origin nmax umax} 
     set name [string range $name 0 ${nmax}-1]
     set upad [Pad $umax $url]
     set npad [Pad $nmax $name]
-    
+
     set url [color note $url]
     if {$origin eq {}} { set url [color bg-cyan $url] }
 
@@ -1612,7 +1580,7 @@ proc ::m::glue::UpdateStartMessage {op url name vcode verbose origin nmax umax} 
     if {$verbose} { set vcode [color note $vcode] }
 
     set name [color note $name]
-    
+
     set m "$op $url,$upad in $name,$npad $vcode ... "
 
     if {$verbose} { m msg $m } else { m msg* $m }
@@ -1662,7 +1630,7 @@ proc ::m::glue::cmd_updates {config} {
     }
 
     set n [llength $series]
-    
+
     set series [TruncH           $series $height]
     set series [Reduce           $series]
     set series [UpdateSeparators $series]
@@ -1933,7 +1901,7 @@ proc ::m::glue::cmd_projects {config} {
     dict set c limit      [Limit $config]
     dict set c order      [$config @ordering]
     dict incr c limit -3
-    
+
     if {[$config @pattern set?]} { dict set c match [$config @pattern] }
 
     m db transaction {
@@ -2051,7 +2019,6 @@ proc ::m::glue::cmd_submit {config} {
 
 	m submission add $url $sid $vcode $desc $email $submitter
     }
-    SiteRegen
     OK
 }
 
@@ -2091,7 +2058,7 @@ proc ::m::glue::cmd_accept {config} {
 	# non-database effects of `Add`.
 	#
 	# TODO: Alt - mail failure - record in table - admin view - action log -
-	
+
 	if {!$nomail} {
 	    m msg "Sending acceptance mail to $email ..."
 
@@ -2109,7 +2076,6 @@ proc ::m::glue::cmd_accept {config} {
 	    m mailer to $email [m mail generator reply $accept_mail $details]
 	}
     }
-    SiteRegen
     OK
 }
 
@@ -2173,7 +2139,6 @@ proc ::m::glue::cmd_reject {config} {
 	    unset decline_mail
 	}
     }
-    SiteRegen
     OK
 }
 
@@ -2189,14 +2154,60 @@ proc ::m::glue::cmd_drop {config} {
 	    m submission drop $rejection
 	}
     }
-    SiteRegen
     OK
+}
+
+# # ## ### ##### ######## ############# ######################
+## Advanced dangerous low-level database manipulations.
+
+proc ::m::glue::cmd_hack_vcs {config} {
+    debug.m/glue {[debug caller] | }
+    package require m::repo
+    package require m::store
+    package require m::vcs
+
+    set vcs   [$config @vcs]
+    set repos [$config @repositories]
+
+    m db transaction {
+	# remove bad repo references
+	set repos [lmap repo $repos {
+	    if {$repo eq {}} continue
+	    if {[m repo url $repo] eq {}} continue
+	    set repo
+	}]
+
+	set vname [m vcs name $vcs]
+
+	foreach repo $repos {
+	    set url [m repo url $repo]
+	    
+	    m msg "Hacking repository [color note $url] to be managed by [color note $vname]"	    
+	    m repo vcs! $repo $vcs
+	    set store [m repo store $repo]
+	    if {$store ne {}} {
+		m msg "  Same for its store"
+		m store vcs! $store $vcs
+	    }
+	}
+    }
+
+    OK
+}
+
+# # ## ### ##### ######## ############# ######################
+## Debugging support commands
+
+proc ::m::glue::cmd_debug_levels {config} {
+    debug.m/glue {[debug caller] | }
+    puts [info level 0]		;# XXX TODO FILL-IN debug levels
+    return
 }
 
 proc ::m::glue::cmd_test_url_ok {config} {
     debug.m/glue {[debug caller] | }
     package require m::url
-    
+
     foreach url [$config @url] {
 	m msg* "Checking $url ..."
 	if {![m url ok $url xr]} {
@@ -2212,15 +2223,15 @@ proc ::m::glue::cmd_test_colors {config} {
     debug.m/glue {[debug caller] | }
     [table t {{} Text Background {} Other} {
         foreach {fg bg ot} {
-            black    bg-black    {}          
-            red      bg-red      bold         
-            green    bg-green    dim          
-            yellow   bg-yellow   italic       
-            blue     bg-blue     underline    
-            magenta  bg-magenta  blink        
-            cyan     bg-cyan     revers       
-            white    bg-white    hidden       
-            default  bg-default  strike           
+            black    bg-black    {}
+            red      bg-red      bold
+            green    bg-green    dim
+            yellow   bg-yellow   italic
+            blue     bg-blue     underline
+            magenta  bg-magenta  blink
+            cyan     bg-cyan     revers
+            white    bg-white    hidden
+            default  bg-default  strike
         } {
 	    set xfg [color $fg Hello]
 	    set xbg [color $bg World]
@@ -2323,12 +2334,6 @@ proc ::m::glue::cmd_test_vt_submission {config} {
     OK
 }
 
-proc ::m::glue::cmd_debug_levels {config} {
-    debug.m/glue {[debug caller] | }
-    puts [info level 0]		;# XXX TODO FILL-IN debug levels
-    return
-}
-
 # # ## ### ##### ######## ############# ######################
 ## List support, common blocks.
 
@@ -2423,7 +2428,7 @@ proc ::m::glue::RepositoryTable {series width offset n} {
 	    lappend control {}
 	    continue
 	}
-	
+
 	dict with row {}
 	lappend display [list [incr rowid] $tags $pname $vname $url $lastn $nforks $dsize $dcommit \
 			     $changed $updated $created]
@@ -2444,7 +2449,7 @@ proc ::m::glue::RepositoryTable {series width offset n} {
     lappend titles Changed
     lappend titles Updated
     lappend titles Created
-    
+
     lassign \
 	[TruncW $titles {0 0 1 0 0 0 0 0 0 0 0 0} $display $width] \
 	titles display
@@ -2707,7 +2712,7 @@ proc ::m::glue::ImportVerify {commands} {
     dict set state repo     {} ;# url -> (vcs, store)
     dict set state store    {} ;# id  -> list (url)
 
-    
+
     set norm {
         extend-previous Extend  tracking-forks Tracking  base     Base      private Private  repository Repo
         extend-previou  Extend  tracking-fork  Tracking  bas      Base      privat  Private  repositor  Repo
@@ -2725,7 +2730,7 @@ proc ::m::glue::ImportVerify {commands} {
         ex              Extend  t              Tracking
         e               Extend
     }
-    
+
     set expected {
 	Base     2
 	Disabled 1
@@ -2750,7 +2755,7 @@ proc ::m::glue::ImportVerify {commands} {
 	Ping "  $command"
 	# Import{Error,Warning} need a state flag to know who is the first and has to
 	# close this ping before writing
-	
+
 	set args [lassign $command cmd]
 	set lcmd [string tolower $cmd]
 
@@ -3020,8 +3025,8 @@ proc ::m::glue::ImportVerify/Disabled {} {
     dict with state {}
     if {![info exists last]} { ImportError "Cannot disable, no repository found" ; return }
 
-    debug.m/glue {[debug caller] | disable ($last) }    
-    
+    debug.m/glue {[debug caller] | disable ($last) }
+
     dict set state repo $last disabled .
     return
 }
@@ -3033,7 +3038,7 @@ proc ::m::glue::ImportVerify/Private {} {
     dict with state {}
     if {![info exists last]} { ImportError "Cannot hide, no repository found" ; return }
 
-    debug.m/glue {[debug caller] | hide ($last) }    
+    debug.m/glue {[debug caller] | hide ($last) }
     dict set state repo $last private .
     return
 }
@@ -3045,7 +3050,7 @@ proc ::m::glue::ImportVerify/Tracking {} {
     dict with state {}
     if {![info exists last]} { ImportError "Cannot activate tracking, no repository found" ; return }
 
-    debug.m/glue {[debug caller] | track ($last) }    
+    debug.m/glue {[debug caller] | track ($last) }
     dict set state repo $last tracking .
     return
 }
@@ -3209,7 +3214,7 @@ proc ::m::glue::Import1 {pname sv repos} {
     debug.m/glue {Import1() | $sv ($pname)}
     # repos = list (url)
     upvar 1 $sv state
-    
+
     set n [llength $repos]
     set x [expr {($n == 1) ? "repository" : "repositories"}]
     m msg "Handling [color note $pname] ($n $x) ..."
@@ -3226,7 +3231,7 @@ proc ::m::glue::Import1 {pname sv repos} {
 
 	# puts %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%\t$url
 	# array set __ri $ri ; parray __ri ; unset __ri
-	
+
 	set vcsid [m vcs id $vcs]
 	set base  [dict get $state store $store]
 	# base is an url
@@ -3245,15 +3250,15 @@ proc ::m::glue::Import1 {pname sv repos} {
 	    m msg "Extending  [color note [m repo url $base]]"
 	}
 	# base is an id, if set.
-	
+
 	try {
 	    lassign [AddStore $base $vcsid $vcs $url $project] \
 		storeid duration nforks
-	    
+
 	    m msg* "  Creating repository ..."
 	    set repo [m repo add $vcsid $url $project $storeid $duration $nforks]
 	    # Default flags: active, public, no issues, no tracking
-	    
+
 	    if {$nforks} {
 		set x [expr {$nforks == 1 ? "fork" : "forks"}]
 		m msg* " [color warning "$nforks $x found, ignored"]"
@@ -3264,7 +3269,7 @@ proc ::m::glue::Import1 {pname sv repos} {
 	    if {[info exists private] } { m msg* " [color warning Hiding]"    ; m repo private $repo   }
 	    if {[info exists tracking]} { m msg* " [color note +Tracking]"    ; m repo track   $repo   }
 	    m msg* " "
-	    
+
 	    OKx
 
 	    # Remember repo with store map for possible future sharing, here or in coming projects.
@@ -3806,12 +3811,9 @@ proc ::m::glue::ReplyConfigShow {} {
     return
 }
 
-proc ::m::glue::SiteRegen {} {
+proc ::m::glue::SiteRegen {args} {
     debug.m/glue {[debug caller] | }
-    package require m::state
-    if {![m state site-active]} return
-    package require m::web::site
-    m web site build silent
+    m msg [color warning "Regenerate the website ASAP, [join $args { }] are now out of date and wrong"]
     return
 }
 

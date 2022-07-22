@@ -41,7 +41,7 @@ namespace eval ::m::repo {
 	claim count-pending add-pending drop-pending pending \
 	take-pending declaim times fork-locations store! track \
 	statistics list-for issues disabled hidden updates just \
-	forks! private count-for count-private \
+	forks! private count-for count-private vcs! \
 	phantom-ok phantom-fail phantom-blocked phantom-blocklist
     namespace ensemble create
 }
@@ -482,6 +482,17 @@ proc ::m::repo::store! {repo newstore} {
     return
 }
 
+proc ::m::repo::vcs! {repo newvcs} {
+    # DANGER command - See cmd_hack_vcs
+    debug.m/repo {}
+    m db eval {
+	UPDATE repository
+	SET    vcs = :newvcs
+	WHERE  id  = :repo
+    }
+    return
+}
+
 proc ::m::repo::enable {repo {flag 1}} {
     debug.m/repo {}
     m db eval {
@@ -795,7 +806,7 @@ proc ::m::repo::list-for {cv} {
 	    error "Bad order direction ($odirection)"
 	}
     }
-    
+
     if {!$skip} {
 	# Apply offset and limit to be handled in SQL, ...
 	if {$has_limit} { append clauses \n "LIMIT $limit" }

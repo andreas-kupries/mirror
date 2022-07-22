@@ -182,7 +182,7 @@ proc ::m::project::spec {} {
     set g {} ;# dict (pname -> store -> url -> .)
     set b {} ;# dict (store -> url)		store base
     set s {} ;# dict (url -> (active, private, tracking))
-    
+
     # Collect projects
     foreach {project pname} [m db eval {
 	SELECT id
@@ -237,7 +237,7 @@ proc ::m::project::spec {} {
 	    foreach u $urls {
 		EMIT $cmd [dict get $v $u] $u
 		set cmd extend-previous
-		
+
 		lassign [dict get $s $u] a p t
 		if {!$a} { EMIT disabled }
 		if {$p}  { EMIT private }

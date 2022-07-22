@@ -13,7 +13,7 @@
 # Meta summary     ?
 # @@ Meta End
 
-# by-size, updates, by-name, by-vcs - representation
+# updates - representation
 # :: list (dict ...)
 # :: dict (store, mname, vcode, changed, updated, created, size, active -> value)
 
@@ -35,9 +35,8 @@ namespace eval ::m {
 namespace eval ::m::store {
     namespace export \
 	all add remove move rename merge cleave update has check path \
-	id vcs-name updates by-name by-size by-vcs move-location \
-	get getx repos remotes total-size count search issues disabled \
-	has-issues lost clear-lost statistics
+	id vcs-name updates move-location get repos remotes total-size \
+	count search issues disabled lost clear-lost statistics vcs!
     namespace ensemble create
 }
 
@@ -172,10 +171,6 @@ proc ::m::store::cleave {store pname} {
 	SELECT size_kb FROM store WHERE id = :store
     }]
     return $new
-}
-
-proc ::m::store::has-issues {store} {
-    return [expr {[lindex [m vcs caps $store] 1] ne {}}]
 }
 
 proc ::m::store::update {primary url store cycle now before} {
@@ -314,6 +309,17 @@ proc ::m::store::move-location {newpath} {
     return
 }
 
+proc ::m::store::vcs! {store newvcs} {
+    # DANGER command - See cmd_hack_vcs
+    debug.m/store {}
+    m db eval {
+	UPDATE store
+	SET    vcs = :newvcs
+	WHERE  id  = :store
+    }
+    return
+}
+
 # # ## ### ##### ######## ############# ######################
 
 proc ::m::store::Remotes {store {onlyactive 0}} {
@@ -426,15 +432,6 @@ proc ::m::store::VCS {store} {
 	SELECT vcs
 	FROM   store
 	WHERE  id = :store
-    }]
-}
-
-proc ::m::store::MSName {project} {
-    debug.m/store {}
-    return [m db onecolumn {
-	SELECT name
-	FROM   project
-	WHERE  id = :project
     }]
 }
 

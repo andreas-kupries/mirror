@@ -219,27 +219,27 @@ proc ::m::vcs::github::url-to-name {url} {
 
     if {$desc ne {}} {
 	debug.m/vcs/github {+ desc: $desc}
-	
+
 	append n $desc
     } else {
 	debug.m/vcs/github {+ repo}
-	
+
 	append n $repo
     }
     if {$name ne {}} {
 	debug.m/vcs/github {+ name: $name}
-	
+
 	regexp {^([^[:space:]]*[[:space:]]*)(.*)$} $name -> _ name
 	set name [string trim $name "{}"]
 	append n " - $name - $owner"
     } else {
 	debug.m/vcs/github {+ owner: $owner}
-	
+
 	append n "@gh - $owner"
     }
 
     debug.m/vcs/github {name: $n}
-    
+
     m ops client result $n
     m ops client ok
     return

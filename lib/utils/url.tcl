@@ -166,14 +166,14 @@ proc ::m::url::Curl {label statevar url {mcmd {}}} {
 	    }
 
 	    if {[llength $mcmd]} { uplevel #0 [list {*}$mcmd $delay] }
-	    
+
 	    set delay [expr {$delay * 1000}]
 	    after $delay
 
 	    # loop and retry -- TODO ZZZ --- stop and fail after 5 trials
 	    continue
 	}
-	
+
 	return 1
     }
 }

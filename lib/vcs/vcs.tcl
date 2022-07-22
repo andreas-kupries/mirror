@@ -534,7 +534,7 @@ proc ::m::vcs::name-from-url {vcode url} {
     Operation ::m::vcs::OpComplete $vcode url-to-name \
 	{*}[OpCmd $vcode $url]
     set state [OpWait]
-    
+
     dict with state {}
     # [x] ok
     # [ ] commits
@@ -545,7 +545,7 @@ proc ::m::vcs::name-from-url {vcode url} {
     # [ ] duration
 
     # array set __ $state ; parray __ ; unset __
-    
+
     if {!$ok} {
 	if {[llength $msg]}     { lappend issues {*}$msg     }
 	if {[llength $results]} { lappend issues {*}$results }
