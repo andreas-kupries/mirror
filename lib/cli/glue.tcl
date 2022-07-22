@@ -1563,12 +1563,12 @@ proc ::m::glue::UpdateRepository {ri verbose nowcycle} {
 
 	if {[m repo has $fork]} {
 	    if {[m repo store [m repo id $fork]] eq {}} {
-		# Phantom. Ignore. (**) A hidden disabled thing from too many failed initializations.
-		m msg "  $pad[color warning "Ignoring phantom"]"
+		# Phantom. Ignore. Will be added in time.
+		m msg "  ${pad}[color warning "Ignoring phantom"]"
 		continue
 	    }
 
-	    m msg "  $pad[color note "Already known, claiming it"]"
+	    m msg "  ${pad}[color note "Already known, claiming it"]"
 
 	    set fork [m repo id $fork]
 	    m repo claim  $repo $fork
@@ -1577,25 +1577,20 @@ proc ::m::glue::UpdateRepository {ri verbose nowcycle} {
 	    continue
 	}
 
-	# Does not exist. Create a phantom linked to the base
+	# Does not exist. Create a phantom linked to the base.
 
-	m msg* "  Creating repository ... "
-	set fr [m repo add $vcs $fork $project {} 0 0 $repo]
-
-	# This phantom failed to complete several times. Do not bother trying again.
 	if {[m repo phantom-blocked $fork]} {
+	    # This phantom failed to complete several times. Do not bother trying again.
 	    set t [m state phantom-block-threshold]
-	    set g [expr {$t == 1 ? "failure" : "failures"}]
+	    set g [expr {$t == 1 ? "time" : "time"}]
 
-	    m msg  [color warning {Not tracking this new phantom, hiding and disabling it.}]
-	    m msg* "                          "
-	    m msg  "[color warning {Reason: At least}] [color bad $t] [color warning "$g to complete."]"
-	    m repo enable  $fr 0
-	    m repo private $fr 1
-
+	    m msg* "  ${pad}[color warning {Declining to track, as it failed to complete at least}]"
+	    m msg  " [color bad $t] [color warning "${g}."]"
 	    continue
 	}
 
+	m msg* "  ${pad}Creating repository ... "
+	set fr [m repo add $vcs $fork $project {} 0 0 $repo]
 	OKx
     }
 
