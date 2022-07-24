@@ -221,6 +221,7 @@ proc ::m::project::spec {} {
 
     set lines {}
     foreach pname [lsort -dict [dict keys $p]] {
+	if {![dict exists $g $pname]} continue
 	set groups [dict get $g $pname]
 	# dict (store -> url -> .)
 

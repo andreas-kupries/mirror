@@ -659,7 +659,20 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	    generate [m::cmdr::call glue gen_limit]
 	}
 
-	# constraint options - repository usage status
+	option csv {
+	    Return results CSV formatted. Disables --origin/--limit
+	} {  presence ; when-set [touch @format csv] }
+	option tsv {
+	    Return results TSV formatted. Disables --origin/--limit
+	} {  presence ; when-set [touch @format tsv] }
+	option pretty {
+	    Returns results as pretty table (default)
+	} {  presence ; when-set [touch @format pretty] }
+	state format {
+	    Output format chosen by --csv, --tsv, --pretty (default)
+	} { default pretty }
+
+	# constraint options - repository usage status -- TODO option --usage, with validator
 
 	option disabled {
 	    Limit output to disabled repositories
@@ -674,7 +687,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	    Constraint chosen by --disabled, --active, --any-use
 	} { default {} }
 
-	# constraint options - repository fork status
+	# constraint options - repository fork status -- TODO option --fork, with validator
 
 	option primary {
 	    Limit output to primary repositories
@@ -689,7 +702,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	    Constraint chosen by --primary, --forks, --any-
 	} { default {} }
 
-	# constraint options - repository visibility
+	# constraint options - repository visibility -- TODO option --visibility, with validator
 
 	option private {
 	    Limit output to private repositories. These are hidden from the generated web site.
@@ -704,7 +717,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	    Constraint chosen by --public, --private, --any-visibility
 	} { default {} }
 
-	# constraint options - repository trouble status
+	# constraint options - repository trouble status -- TODO option --trouble, with validator
 
 	option issues {
 	    Limit output to repositories with issues
@@ -719,7 +732,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	    Constraint chosen by --issues, --no-issues, --dont-care
 	} { default {} }
 
-	# constraint options - store presence
+	# constraint options - store presence -- TODO option --store, with valiator
 
 	option phantoms {
 	    Limit output to repositories without a store
@@ -740,23 +753,32 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	    Limit output to the named VCS
 	} { validate [m::cmdr::vt vcs] }
 
-	# ordering options
+	# ordering options, TODO option --order, with valiator
 
 	option by-name {
-	    Order result by project name, url, vcs, and size (default)
+	    Order results by project name, url, vcs, and size (default)
 	} {  alias N ; presence ; when-set [touch @ordering name] }
 	option by-forks {
-	    Order result by fork number, project name, url, vcs, and size
+	    Order results by fork number, project name, url, vcs, and size
 	} {  alias F ; presence ; when-set [touch @ordering nforks] }
 	option by-url {
-	    Order result by url, project name, vcs, and size
+	    Order results by url, project name, vcs, and size
 	} {  alias N ; presence ; when-set [touch @ordering url] }
 	option by-vcs {
-	    Order result by vcs, project name, url, and size
+	    Order results by vcs, project name, url, and size
 	} {  alias V ; presence ; when-set [touch @ordering vcs] }
 	option by-size {
-	    Order result by size, project name, url, and vcs
+	    Order results by size, project name, url, and vcs
 	} {  alias S ; presence ; when-set [touch @ordering size] }
+	option by-commits {
+	    Order results by #commits, project name, url, and vcs
+	} {  alias S ; presence ; when-set [touch @ordering commits] }
+	option by-time {
+	    Order results by query time, project name, url, and vcs
+	} {  alias S ; presence ; when-set [touch @ordering time] }
+
+	# TODO option --direction, with valiator
+
 	state ordering {
 	    Constraint chosen by --by-name, --by-url, --by-vcs, --by-size, --by-fork
 	} { default name }
@@ -1198,6 +1220,37 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	    section Advanced Chirurgy
 	}
 
+	private stats {
+	    description {
+		This is currently the least dangerous operation in the set.
+		It goes over the stores of the specified repositories and recomputes
+		their core statistics (size, and number of commits).
+	    }
+	    use .list-optional-repository
+	} [m::cmdr::call glue cmd_hack_stats]
+
+	private insert {
+	    description {
+		Insert a new repository with store and project into the system.
+		Do not check the repository url for validity.
+		Only grounds for rejection are pre-existence of the repository.
+		Use to restore a lost repository whose url is invalid
+	    }
+	    input vcs {
+		The version control system to handle the repository.
+	    } {	validate [m::cmdr::vt vcs] }
+	    input url {
+		The url of the repository
+	    } {	validate str }
+	    input project {
+		The name of the project the repository should be in
+	    } {	validate str }
+	    input store {
+		Directory holding the store data
+	    } {	validate cmdr::validate::rdirectory }
+
+	} [m::cmdr::call glue cmd_hack_insert]
+
 	private vcs {
 	    description {
 		Change the VCS linked to a repository. This breaks the system if
@@ -1208,9 +1261,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	    }
 	    input vcs {
 		The new version control system to handle the repository.
-	    } {
-		validate [m::cmdr::vt vcs]
-	    }
+	    } {	validate [m::cmdr::vt vcs] }
 	    use .list-optional-repository
 	} [m::cmdr::call glue cmd_hack_vcs]
     }

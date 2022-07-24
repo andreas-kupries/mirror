@@ -122,6 +122,7 @@ proc ::m::ops::client::Cmdline {v} {
 	merge       {Store Store}
 	split       {Store Store}
 	export      {Store}
+	stats       {Store}
 	version     {}
 	url-to-name {Url}
     }
@@ -155,6 +156,7 @@ proc ::m::ops::client::Usage {{note {}}} {
     fatal "       $blank         merge       STORE STORE"
     fatal "       $blank         split       STORE STORE"
     fatal "       $blank         export      STORE"
+    fatal "       $blank         stats       STORE"
     fatal "       $blank         version"
     fatal "       $blank         url-to-name URL"
     fail

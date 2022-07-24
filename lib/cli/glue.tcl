@@ -1353,8 +1353,9 @@ proc ::m::glue::cmd_update {config} {
 	}]
 
 	# extract variable length parts and find their max
-	set umax [MaxLength [lmap repo $repos { dict get $repo url  }]]
-	set nmax [MaxLength [lmap repo $repos { dict get $repo name }]]
+	set umax [MaxLength [lmap repo $repos { dict get $repo url   }]]
+	set nmax [MaxLength [lmap repo $repos { dict get $repo name  }]]
+	set vmax [MaxLength [lmap repo $repos { dict get $repo vcode }]]
 	if {$nmax > 40} { set nmax 40 }
 
 	foreach repo $repos {
@@ -1362,14 +1363,13 @@ proc ::m::glue::cmd_update {config} {
 	    m msg* "[color magenta ([format $cf $cr])] "
 	    dict set repo umax $umax
 	    dict set repo nmax $nmax
+	    dict set repo vmax $vmax
 
 	    if {[dict get $repo store] eq {}} {
 		CompletePhantom   $repo $verbose
 	    } else {
 		UpdateRepository  $repo $verbose $nowcycle
 	    }
-
-	    # m msg ""
 	}
     }
 
@@ -1392,9 +1392,9 @@ proc ::m::glue::CompletePhantom {ri verbose} {
     dict with ri {}
     # url, active, private, issues, tracking, vcs, vcode, trackable, project, name
     # store, min/max/win_sec, checked, origin
-    # repo, umax, nmax
+    # repo, umax, nmax, vmax
 
-    UpdateStartMessage "Completing phantom " $url $name $vcode $verbose $origin $nmax $umax
+    UpdateStartMessage "Completing phantom " $url $name $vcode $verbose $origin $nmax $umax $vmax
 
     set now [clock seconds]
 
@@ -1406,7 +1406,7 @@ proc ::m::glue::CompletePhantom {ri verbose} {
     set z [expr {($forks   == 1) ? "fork" : "forks"}]
 
     set    suffix ", in [color note [m format interval $duration]]"
-    append suffix " ($commits $x, $size KB, $forks $z)"
+    append suffix " ($commits $x, [m format size $size], $forks $z)"
 
     UpdateEndMessage $verbose $ok $store $suffix 0 $commits
 
@@ -1437,9 +1437,9 @@ proc ::m::glue::UpdateRepository {ri verbose nowcycle} {
     dict with ri {}
     # url, active, private, issues, tracking, vcs, vcode, trackable, project, name
     # store, min/max/win_sec, checked, origin
-    # repo, umax, nmax
+    # repo, umax, nmax, vmax
 
-    UpdateStartMessage "Updating repository" $url $name $vcode $verbose $origin $nmax $umax
+    UpdateStartMessage "Updating repository" $url $name $vcode $verbose $origin $nmax $umax $vmax
 
     set primary [expr {($origin eq {}) && $tracking}]
     set now     [clock seconds]
@@ -1460,7 +1460,7 @@ proc ::m::glue::UpdateRepository {ri verbose nowcycle} {
 
     set x [expr {($commits == 1) ? "commit" : "commits"}]
     set    suffix ", in [color note [m format interval $duration]]"
-    append suffix " ($commits $x, $size KB"
+    append suffix " ($commits $x, [m format size $size]"
     if {$trackable} {
 	set z [expr {($nforks  == 1) ? "fork" : "forks"}]
 	append suffix ", $nforks $z"
@@ -1508,8 +1508,10 @@ proc ::m::glue::UpdateRepository {ri verbose nowcycle} {
 
     # Remove/Gone - No action - Disable, disconnect will happen when next update fails.
     # Just report.
-    foreach r $removed {
-	m msg "  [color warning {Lost fork}] [color note $r]"
+    if {[llength $removed]} {
+	foreach r $removed {
+	    m msg "  [color warning {Lost fork}] [color note $r]"
+	}
     }
 
     # Added/New - Skip if existing and phantom (**)
@@ -1525,53 +1527,56 @@ proc ::m::glue::UpdateRepository {ri verbose nowcycle} {
     set format %[string length $nforks]s
     set pad [string repeat " " [expr {3+[string length $nforks]}]]
 
-    foreach fork $added {
-	incr k
-	m msg "  [color cyan "([format $format $k])"] Fork [color note $fork] ... "
+    if {[llength $added  ]} {
+	foreach fork $added {
+	    incr k
+	    m msg "  [color cyan "([format $format $k])"] Fork [color note $fork] ... "
 
-	if {[m repo has $fork]} {
-	    if {[m repo store [m repo id $fork]] eq {}} {
-		# Phantom. Ignore. Will be added in time.
-		m msg "  ${pad}[color warning "Ignoring phantom"]"
+	    if {[m repo has $fork]} {
+		if {[m repo store [m repo id $fork]] eq {}} {
+		    # Phantom. Ignore. Will be added in time.
+		    m msg "  ${pad}[color warning "Ignoring phantom"]"
+		    continue
+		}
+
+		m msg "  ${pad}[color note "Already known, claiming it"]"
+
+		set fork [m repo id $fork]
+		m repo claim  $repo $fork
+		m repo enable $fork
+		m repo track  $fork 0 ;# Forks do not track nested forks.
 		continue
 	    }
 
-	    m msg "  ${pad}[color note "Already known, claiming it"]"
+	    # Does not exist. Create a phantom linked to the base.
 
-	    set fork [m repo id $fork]
-	    m repo claim  $repo $fork
-	    m repo enable $fork
-	    m repo track  $fork 0 ;# Forks do not track nested forks.
-	    continue
+	    if {[m repo phantom-blocked $fork]} {
+		# This phantom failed to complete several times. Do not bother trying again.
+		set t [m state phantom-block-threshold]
+		set g [expr {$t == 1 ? "time" : "time"}]
+
+		m msg* "  ${pad}[color warning {Declining to track, as it failed to complete at least}]"
+		m msg  " [color bad $t] [color warning "${g}."]"
+		continue
+	    }
+
+	    m msg* "  ${pad}Creating repository ... "
+	    set fr [m repo add $vcs $fork $project {} 0 0 $repo]
+	    OKx
 	}
 
-	# Does not exist. Create a phantom linked to the base.
-
-	if {[m repo phantom-blocked $fork]} {
-	    # This phantom failed to complete several times. Do not bother trying again.
-	    set t [m state phantom-block-threshold]
-	    set g [expr {$t == 1 ? "time" : "time"}]
-
-	    m msg* "  ${pad}[color warning {Declining to track, as it failed to complete at least}]"
-	    m msg  " [color bad $t] [color warning "${g}."]"
-	    continue
-	}
-
-	m msg* "  ${pad}Creating repository ... "
-	set fr [m repo add $vcs $fork $project {} 0 0 $repo]
-	OKx
+	m msg ""
     }
-
-    m msg ""
     return
 }
 
-proc ::m::glue::UpdateStartMessage {op url name vcode verbose origin nmax umax} {
+proc ::m::glue::UpdateStartMessage {op url name vcode verbose origin nmax umax vmax} {
     debug.m/glue {[debug caller] | }
 
     set name [string range $name 0 ${nmax}-1]
     set upad [Pad $umax $url]
     set npad [Pad $nmax $name]
+    set vpad [Pad $vmax $vcode]
 
     set url [color note $url]
     if {$origin eq {}} { set url [color bg-cyan $url] }
@@ -1581,7 +1586,7 @@ proc ::m::glue::UpdateStartMessage {op url name vcode verbose origin nmax umax} 
 
     set name [color note $name]
 
-    set m "$op $url,$upad in $name,$npad $vcode ... "
+    set m "$op $url,$upad in $name,$npad $vcode$vpad ... "
 
     if {$verbose} { m msg $m } else { m msg* $m }
     return
@@ -1676,8 +1681,15 @@ proc ::m::glue::cmd_list {config} {
     set height [$config @th]
     set width  [$config @tw]
 
-    dict set c start      [First $config]
-    dict set c limit      [Limit $config]
+    set format [$config @format]
+
+    if {$format eq "pretty"} {
+	# Only pretty gets limited. The other formats return everything.  It is expected
+	# that their results are captured for further processing outside of the system.
+	dict set c start [First $config]
+	dict set c limit [Limit $config]
+    }
+
     dict set c vcs        [VCS   $config]
     dict set c order      [$config @ordering]
     dict set c odirection [$config @orderdir]
@@ -1695,24 +1707,39 @@ proc ::m::glue::cmd_list {config} {
 	# If the offset into the list is beyond the end of the list, auto-reset
 	# This is likely because of a change in the constraints since the last call.
 	set n [m repo count-for $c]
-	if {[dict get $c start] > $n} { dict set c start 0 }
-	set offset [dict get $c start]
+
+	if {[dict exists $c start]} {
+	    if {[dict get $c start] > $n} { dict set c start 0 }
+	    set offset [dict get $c start]
+	}
 
 	m repo list-for c
     }
 
-    set next    [dict get $c start]
-    m state top $next
+    set series [dict get $c series] ;# due to limit already truncated to desired height
 
-    debug.m/glue {next = ($next)}
+    if {$format eq "pretty"} {
+	set next    [dict get $c start]
+	m state top $next
 
-    set series [dict get $c  series] ;# due to limit already truncated to desired height
-    set series [Reduce      $series]
-    set series [RolodexTags $series]
-    set series [StateTags   $series]
+	debug.m/glue {next = ($next)}
 
-    ShowTable {*}[RepositoryTable $series $width $offset $n]
-    OK
+	set series [Reduce      $series]
+	set series [RolodexTags $series]
+	set series [StateTags   $series]
+
+	ShowTable {*}[RepositoryTable $series $width $offset $n]
+	OK
+	return
+    }
+
+    switch -exact -- $format {
+	csv { set separator , }
+	tsv { set separator \t }
+    }
+
+    WriteRaw $separator $series
+    return
 }
 
 proc ::m::glue::cmd_reset {config} {
@@ -2160,6 +2187,65 @@ proc ::m::glue::cmd_drop {config} {
 # # ## ### ##### ######## ############# ######################
 ## Advanced dangerous low-level database manipulations.
 
+proc ::m::glue::cmd_hack_stats {config} {
+    debug.m/glue {[debug caller] | }
+    package require m::repo
+    package require m::store
+    package require m::vcs
+
+    m db transaction {
+	foreach repo [ReposOrCurrent] {
+	    if {$repo eq {}} continue
+
+	    m msg* "Fixing up [color note [m repo url $repo]] core statistics ... "
+	    set store [m repo store $repo]
+	    if {$store eq {}} {
+		m msg "[color warning "Ignoring phantom"]"
+		continue
+	    }
+
+	    lassign [m store redo-stats $store] size commits
+	    set x [expr {($commits == 1) ? "commit" : "commits"}]
+	    m msg* ":= ($commits $x, [m format size $size]) "
+	    OKx
+	}
+    }
+    OK
+}
+
+proc ::m::glue::cmd_hack_insert {config} {
+    debug.m/glue {[debug caller] | }
+    package require m::repo
+    package require m::store
+    package require m::vcs
+    package require m::project
+
+    set vcs      [$config @vcs]
+    set url      [$config @url]
+    set pname    [$config @project]
+    set storedir [$config @store]
+
+    m db transaction {
+	if {[m repo has $url]} {
+	    m msg "[color bad "Already known"]: $url"
+	    return
+	}
+
+	set project [GetProject $pname]
+
+	m msg* "  Creating store ... "
+	set store [m store upload $vcs $url $storedir]
+	OKx
+
+	m msg* "  Creating repository ... "
+	set repo [m repo add $vcs $url $project $store 0 0]
+	OKx
+
+	m repo disabled $repo
+    }
+    OK
+}
+
 proc ::m::glue::cmd_hack_vcs {config} {
     debug.m/glue {[debug caller] | }
     package require m::repo
@@ -2181,8 +2267,8 @@ proc ::m::glue::cmd_hack_vcs {config} {
 
 	foreach repo $repos {
 	    set url [m repo url $repo]
-	    
-	    m msg "Hacking repository [color note $url] to be managed by [color note $vname]"	    
+
+	    m msg "Hacking repository [color note $url] to be managed by [color note $vname]"
 	    m repo vcs! $repo $vcs
 	    set store [m repo store $repo]
 	    if {$store ne {}} {
@@ -2361,6 +2447,22 @@ proc ::m::glue::Limit {config} {
     return $limit
 }
 
+proc ::m::glue::WriteRaw {sep series} {
+    if {![llength $series]} return
+
+    package require csv
+
+    set titles [lmap {title _} [lindex $series 0] { set title }]
+
+    puts [csv::join $titles $sep]
+
+    foreach row $series {
+	set values [lmap {_ value} $row { set value }]
+	puts [csv::join $values $sep]
+    }
+    return
+}
+
 proc ::m::glue::ShowTable {titles series {offset {}} {total {}}} {
     debug.m/glue { | }
 
@@ -2430,7 +2532,8 @@ proc ::m::glue::RepositoryTable {series width offset n} {
 	}
 
 	dict with row {}
-	lappend display [list [incr rowid] $tags $pname $vname $url $lastn $nforks $dsize $dcommit \
+	#                     row-num      tags  project vcs   url  time  forks   size   commits
+	lappend display [list [incr rowid] $tags $pname $vname $url $last $nforks $dsize $dcommit \
 			     $changed $updated $created]
 	lappend control [list $origin $has_issues $is_tracking $is_active]
     }
@@ -2554,7 +2657,7 @@ proc ::m::glue::Reduce {series} {
 	    dict set row dcommit {}
 	}
 
-	dict set row lastn  [LastTime $lastn]
+	dict set row last   [m format interval $last]
 	dict set row nforks [expr {$is_trackable ? (($origin eq {}) ? $nforks : "-") : "n/a" }]
 
 	set row
@@ -4172,10 +4275,6 @@ proc ::m::glue::Cmax {wcv series titles} {
 # # ## ### ##### ######## ############# ######################
 ## Delta formatting, various kinds (size, commits, time spent)
 ## With and without previous. Always current and delta.
-
-proc ::m::glue::LastTime {lastn} {
-    return [m format interval [lindex [split [string trim $lastn ,] ,] end]]
-}
 
 proc ::m::glue::StatsTime {mins maxs lastn} {
     set mins [expr {$mins < 0 ? "+Inf" : [m format interval $mins]}]

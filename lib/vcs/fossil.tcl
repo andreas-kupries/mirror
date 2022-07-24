@@ -45,7 +45,7 @@ namespace eval m::vcs::fossil {
     # Operation backend implementations
     namespace export version \
 	setup cleanup update mergable? merge split \
-	export url-to-name
+	export url-to-name stats
 
     # Regular implementations not yet moved to operations.
     namespace export detect
@@ -109,6 +109,13 @@ proc ::m::vcs::fossil::update {path url first} {
     set repo [FossilOf $path]
     Fossil pull $url --once -R $repo
     PostPull $path {}
+    return
+}
+
+proc ::m::vcs::fossil::stats {path} {
+    debug.m/vcs/fossil {}
+
+    Stats $path
     return
 }
 
@@ -184,6 +191,15 @@ proc ::m::vcs::fossil::PostPull {path forks} {
 	m ops client fail ; return
     }
 
+    m ops client fork $forks
+    Stats $path
+
+    return
+}
+
+proc ::m::vcs::fossil::Stats {path} {
+    debug.m/vcs/fossil {}
+
     set count [Count $path]
     if {[m exec err-last-get]} {
 	m ops client fail ; return
@@ -194,7 +210,6 @@ proc ::m::vcs::fossil::PostPull {path forks} {
 	m ops client fail ; return
     }
 
-    m ops client fork    $forks
     m ops client commits $count
     m ops client size    $kb
     m ops client ok

@@ -45,7 +45,7 @@ namespace eval m::vcs::svn {
     # Operation backend implementations
     namespace export version \
 	setup cleanup update mergable? merge split \
-	export url-to-name
+	export url-to-name stats
 
     # Regular implementations not yet moved to operations.
     namespace export detect
@@ -106,6 +106,13 @@ proc ::m::vcs::svn::update {path url first} {
     set repo [SvnOf $path]
     Svn update $repo
     PostPull $path {}
+    return
+}
+
+proc ::m::vcs::svn::stats {path} {
+    debug.m/vcs/svn {}
+
+    Stats $path
     return
 }
 
@@ -170,6 +177,14 @@ proc ::m::vcs::svn::PostPull {path forks} {
 	m ops client fail ; return
     }
 
+    m ops client fork $forks
+    Stats $path
+    return
+}
+
+proc ::m::vcs::svn::Stats {path} {
+    debug.m/vcs/svn {}
+
     set count [Count $path]
     if {[m exec err-last-get]} {
 	m ops client fail ; return
@@ -180,7 +195,6 @@ proc ::m::vcs::svn::PostPull {path forks} {
 	m ops client fail ; return
     }
 
-    m ops client fork    $forks
     m ops client commits $count
     m ops client size    $kb
     m ops client ok

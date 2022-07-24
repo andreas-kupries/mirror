@@ -45,7 +45,7 @@ namespace eval m::vcs::hg {
     # Operation backend implementations
     namespace export version \
 	setup cleanup update mergable? merge split \
-	export url-to-name
+	export url-to-name stats
 
     # Regular implementations not yet moved to operations.
     namespace export detect
@@ -108,6 +108,13 @@ proc ::m::vcs::hg::update {path url first} {
     set repo [HgOf $path]
     Hg pull $url -R $repo
     PostPull $path {}
+    return
+}
+
+proc ::m::vcs::hg::stats {path} {
+    debug.m/vcs/hg {}
+
+    Stats $path
     return
 }
 
@@ -174,6 +181,14 @@ proc ::m::vcs::hg::PostPull {path forks} {
 	m ops client fail ; return
     }
 
+    m ops client fork $forks
+    Stats $path
+    return
+}
+
+proc ::m::vcs::hg::Stats {path} {
+    debug.m/vcs/hg {}
+
     set count [Count $path]
     if {[m exec err-last-get]} {
 	m ops client fail ; return
@@ -184,7 +199,6 @@ proc ::m::vcs::hg::PostPull {path forks} {
 	m ops client fail ; return
     }
 
-    m ops client fork    $forks
     m ops client commits $count
     m ops client size    $kb
     m ops client ok

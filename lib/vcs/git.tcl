@@ -46,7 +46,7 @@ namespace eval m::vcs::git {
     # Operation backend implementations
     namespace export version \
 	setup cleanup update mergable? merge split \
-	export url-to-name
+	export url-to-name stats
 
     # Regular implementations not yet moved to operations.
     namespace export detect
@@ -136,6 +136,13 @@ proc ::m::vcs::git::update {path url first} {
     return
 }
 
+proc ::m::vcs::git::stats {path} {
+    debug.m/vcs/git {}
+
+    Stats $path
+    return
+}
+
 proc ::m::vcs::git::mergable? {primary other} {
     debug.m/vcs/git {}
     # Git repositories can be merged at will.  Disparate projects
@@ -214,6 +221,24 @@ proc ::m::vcs::git::PostPull {path forks} {
 	m ops client fail ; return
     }
 
+    # Garbage collection - Keep git repository disk usage in check
+
+    Git gc --auto
+    if {[m exec err-last-get]} {
+	m ops client fail ; return
+    }
+
+    # TODO :: Execute conversion of git repository to fossil
+    # TODO :: Run in background
+
+    m ops client fork $forks
+    Stats $path
+    return
+}
+
+proc ::m::vcs::git::Stats {path} {
+    debug.m/vcs/git {}
+
     set count [Count $path]
     if {[m exec err-last-get]} {
 	m ops client fail ; return
@@ -224,10 +249,6 @@ proc ::m::vcs::git::PostPull {path forks} {
 	m ops client fail ; return
     }
 
-    # TODO :: Execute conversion of git repository to fossil
-    # TODO :: Run in background
-
-    m ops client fork    $forks
     m ops client commits $count
     m ops client size    $kb
     m ops client ok
@@ -267,23 +288,6 @@ proc ::m::vcs::git::RemoteAdd {name url} {
     return
 }
 
-# proc ::m::vcs::git::RemoteRemove {url} {
-#     debug.m/vcs/git {}
-#     upvar 1 path path
-#     Git remote remove [RemoteOf $url]
-#     return
-# }
-#
-# proc ::m::vcs::git::Remotes {path} {
-#     debug.m/vcs/git {}
-#     set result {}
-#     foreach r [Get remote] {
-# 	if {![Owned $r]} continue
-# 	lappend result [UrlOf $r]
-#     }
-#     return $result
-# }
-
 proc ::m::vcs::git::Count {path} {
     debug.m/vcs/git {}
     set count [string trim [Get rev-list --all --count]]
@@ -291,26 +295,14 @@ proc ::m::vcs::git::Count {path} {
     return $count
 }
 
-# proc ::m::vcs::git::Owned {remote} {
-#     debug.m/vcs/git {}
-#     return [string match m-vcs-git-* $remote]
-# }
-#
-# proc ::m::vcs::git::UrlOf {remote} {
-#     debug.m/vcs/git {}
-#     return [string map \
-# 		{%3a : %2f / %3A : %2F /} \
-# 		[string range $remote [string length m-vcs-git-] end]]
-# }
+proc ::m::vcs::git::GitOf {path} {
+    debug.m/vcs/git {}
+    return [file join $path source.git]
+}
 
 proc ::m::vcs::git::RemoteOf {url} {
     debug.m/vcs/git {}
     return "m-vcs-git-[string map {: %3a / %2f} $url]"
-}
-
-proc ::m::vcs::git::GitOf {path} {
-    debug.m/vcs/git {}
-    return [file join $path source.git]
 }
 
 proc ::m::vcs::git::Git {args} {

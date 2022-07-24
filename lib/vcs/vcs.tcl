@@ -96,7 +96,8 @@ namespace eval ::m::vcs {
     namespace export \
 	setup cleanup update check cleave merge rename id all \
 	supported code name detect url-norm name-from-url \
-	version move size caps export path revs tracking
+	version move size caps export path revs tracking \
+	core-stats
     namespace ensemble create
 
     namespace import ::cmdr::color
@@ -205,16 +206,21 @@ proc ::m::vcs::update {store vcs url primary} {
     m futil write $path/log.stderr ""
     m futil write $path/log.stdout "Verifying url ...\n"
     debug.m/vcs {Verifying $url ...}
-    set ok [m url ok $url xr]
-    if {!$ok} {
-	m futil append $path/log.stderr "  Bad url: $url\n"
-	m futil append $path/log.stderr "Unable to reach remote\n"
-	# Fake an error state ...
-	return {ok 0 commits 0 size 0 forks {} results {} msg {Invalid url} duration 0}
+
+    if {![string match git://* $url]} {
+	set ok [m url ok $url xr]
+	if {!$ok} {
+	    m futil append $path/log.stderr "  Bad url: $url\n"
+	    m futil append $path/log.stderr "Unable to reach remote\n"
+	    # Fake an error state ...
+	    return {ok 0 commits 0 size 0 forks {} results {} msg {Invalid url} duration 0}
+	}
+    } else {
+	# git://* url - Cannot be verified by http ping. Must be done by git itself.
     }
 
     # Ask plugin to update the store.  Redirect through an external command. This command
-    # is currently always `mirror-vcs VCS LOG setup STORE URL`.
+    # is currently always `mirror-vcs VCS LOG update STORE URL PRIMARY`.
 
     Operation ::m::vcs::OpComplete $vcode update \
 	{*}[OpCmd $vcode $path $url $primary]
@@ -230,6 +236,43 @@ proc ::m::vcs::update {store vcs url primary} {
     # [x] duration
 
     Touch updated $path $url $commits $size $forks
+
+    return $state
+}
+
+proc ::m::vcs::core-stats {store vcs} {
+    debug.m/vcs {}
+    # store id -> Using for path.
+    # vcs   id -> Decode to plugin name
+
+    set path  [Path $store]
+    set vcode [code $vcs]
+
+    # # ## ### ##### ######## #############
+    # # ## discard leftover v2 github state files
+    file delete $path/%name
+    file delete $path/%vcs
+    file delete $path/%stderr
+    file delete $path/%stdout
+    # # ## ### ##### ######## #############
+
+    # Ask plugin to query the store.  Redirect through an external command. This command
+    # is currently always `mirror-vcs VCS LOG stats STORE`.
+
+    Operation ::m::vcs::OpComplete $vcode stats \
+	{*}[OpCmd $vcode $path]
+    set state [OpWait]
+
+    dict with state {}
+    # [x] ok
+    # [x] commits
+    # [x] size
+    # [ ] forks		(list of forks)
+    # [ ] results
+    # [x] msg
+    # [ ] duration
+
+    TouchStats $path $commits $size
 
     return $state
 }
@@ -308,8 +351,8 @@ proc ::m::vcs::check {vcs storea storeb} {
     set pathb [Path $storeb]
     set vcode [code $vcs]
 
-    # Redirect through an external command. This command is currently always `mirror-vcs
-    # VCS LOG mergable?`.
+    # Redirect through an external command. This command is currently always
+    # `mirror-vcs VCS LOG mergable? PATHA PATHB`.
 
     Operation ::m::vcs::OpComplete $vcode mergable? \
 	{*}[OpCmd $vcode $patha $pathb]
@@ -341,8 +384,8 @@ proc ::m::vcs::merge {vcs target origin} {
     set porigin [Path $origin]
     set vcode   [code $vcs]
 
-    # Redirect through an external command. This command is currently always `mirror-vcs
-    # VCS LOG merge`.
+    # Redirect through an external command. This command is currently always
+    # `mirror-vcs VCS LOG merge PATH-TARGET PATH-ORIGIN`.
 
     Operation ::m::vcs::OpComplete $vcode merge \
 	{*}[OpCmd $vcode $ptarget $porigin]
@@ -380,8 +423,8 @@ proc ::m::vcs::cleave {vcs origin dst dstname} {
 
     # Split/create vcs specific special resources, if any ...
 
-    # Redirect through an external command. This command is currently always `mirror-vcs
-    # VCS LOG split`.
+    # Redirect through an external command. This command is currently always
+    # `mirror-vcs VCS LOG split PATH-ORIGIN PATH-DESTINATION`.
 
     Operation ::m::vcs::OpComplete $vcode split \
 	{*}[OpCmd $vcode $porigin $pdst]
@@ -414,8 +457,8 @@ proc ::m::vcs::export {vcs store} {
     set path  [Path $store]
     set vcode [code $vcs]
 
-    # Redirect through an external command. This command is currently always `mirror-vcs
-    # VCS LOG export STORE`.
+    # Redirect through an external command. This command is currently always
+    # `mirror-vcs VCS LOG export STORE`.
 
     # Ask plugin for CGI script to access the store.
 
@@ -452,8 +495,8 @@ proc ::m::vcs::version {vcode iv} {
     upvar 1 $iv issues
     set issues {}
 
-    # Redirect through an external command. This command is currently always `mirror-vcs
-    # VCS LOG version`.
+    # Redirect through an external command. This command is currently always
+    # `mirror-vcs VCS LOG version`.
 
     Operation ::m::vcs::OpComplete $vcode version \
 	{*}[OpCmd $vcode]
@@ -529,7 +572,7 @@ proc ::m::vcs::name-from-url {vcode url} {
     debug.m/vcs {}
 
     # Redirect through an external command. This command is currently
-    # always `mirror-vcs VCS LOG url-to-name`.
+    # always `mirror-vcs VCS LOG url-to-name URL`.
 
     Operation ::m::vcs::OpComplete $vcode url-to-name \
 	{*}[OpCmd $vcode $url]
@@ -640,10 +683,17 @@ proc ::m::vcs::Touch {context path url commits size forks} {
     set code [string map {/ _ + -} [string trim [base64::encode -maxlen 0 $url] =]]
 
     m futil write $path/$context [clock seconds]\n
-    m futil write $path/commits  $commits\n
-    m futil write $path/size     $size\n
     m futil write $path/f-$code  [join $forks \n]\n
     m futil write $path/r-$code  $url\n
+
+    TouchStats $path $commits $size
+    return
+}
+
+proc ::m::vcs::TouchStats {path commits size} {
+    debug.m/vcs {}
+    m futil write $path/commits  $commits\n
+    m futil write $path/size     $size\n
     return
 }
 

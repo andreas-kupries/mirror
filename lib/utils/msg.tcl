@@ -86,7 +86,15 @@ proc ::m::msg::EWrite {args} {
     return
 }
 
+proc ::m::msg::X {ws} {
+    ::set     c [::open ~/log.[pid] a]
+    ::puts   $c ([::join $ws {)(}])
+    ::flush  $c
+    ::close  $c
+}
+
 proc ::m::msg::PO {args} {
+    # X $args
     ::puts {*}$args
     flush  stdout
     return

@@ -317,6 +317,7 @@ proc ::m::repo::times {repo duration now issues} {
 	SET    min_duration    = :mins
 	,      max_duration    = :maxs
 	,      window_duration = :window
+	,      last_duration   = :duration
 	,      checked         = :now
 	,      has_issues      = :issues
 	WHERE  id              = :repo
@@ -352,7 +353,8 @@ proc ::m::repo::add {vcs url project store duration nforks {origin {}}} {
 	       , :duration	-- min_duration
 	       , :duration	-- max_duration
 	       , :duration	-- window_duration
-	)
+	       , :duration      -- last_duration
+	       )
     }]
 
     m db eval $sql
@@ -746,13 +748,23 @@ proc ::m::repo::list-for {cv} {
 
     set skip no
     switch -exact -- $order {
-	name   { append clauses \n "ORDER BY                    P.dname   @up, R.durl  @up, V.code  @up, S.size_kb @up" }
-	url    { append clauses \n "ORDER BY                    R.durl    @up, P.dname @up, V.code  @up, S.size_kb @up" }
-	vcs    { append clauses \n "ORDER BY                    V.code    @up, P.dname @up, R.durl  @up, S.size_kb @up" }
-	size   { append clauses \n "ORDER BY                    S.size_kb @up, P.dname @up, R.durl  @up, V.code    @up" }
-	rid    { append clauses \n "ORDER BY R.id      ASC" }
-	nforks {
-	    # sorting by forks, suppress all without fork data
+	name    { append clauses \n "ORDER BY P.dname           @up, R.durl  @up, V.code  @up, S.size_kb @up" }
+	url     { append clauses \n "ORDER BY R.durl            @up, P.dname @up, V.code  @up, S.size_kb @up" }
+	vcs     { append clauses \n "ORDER BY V.code            @up, P.dname @up, R.durl  @up, S.size_kb @up" }
+	size    { append clauses \n "ORDER BY S.size_kb         @up, P.dname @up, R.durl  @up, V.code    @up" }
+	time    {
+	    # sorting by setup/update time, suppress all without such -- uncompleted phantoms
+	    append clauses \n "AND R.last_duration IS NOT NULL AND R.last_duration != ''"
+	    append clauses \n "ORDER BY R.last_duration   @up, P.dname @up, R.durl  @up, V.code    @up"
+	}
+	commits {
+	    # sorting by commits, suppress all without such -- uncompleted phantoms
+	    append clauses \n "AND S.commits_current IS NOT NULL AND S.commits_current != ''"
+	    append clauses \n "ORDER BY S.commits_current @up, P.dname @up, R.durl  @up, V.code    @up"
+	}
+	rid     { append clauses \n "ORDER BY R.id      ASC" }
+	nforks  {
+	    # sorting by forks, suppress all without fork data -- uncompleted phantoms, untrackable
 	    append clauses \n "AND R.fork_number IS NOT NULL AND R.fork_number != ''"
 	    append clauses \n "ORDER BY R.fork_number @up, P.dname   @up, R.durl  @up, V.code  @up, S.size_kb @up"
 	}
@@ -959,6 +971,7 @@ proc ::m::repo::REPOS {{clauses {}}} {
 	,      R.min_duration      AS mins
 	,      R.max_duration      AS maxs
 	,      R.window_duration   AS lastn
+	,      R.last_duration     AS last
 	,      V.code              AS vcode
 	,      V.name              AS vname
 	,      V.fork_tracking     AS is_trackable
@@ -996,6 +1009,7 @@ proc ::m::repo::REPOS {{clauses {}}} {
 	dict set row mins   	  $mins
 	dict set row maxs   	  $maxs
 	dict set row lastn   	  $lastn
+	dict set row last   	  $last
 	dict set row vcode   	  $vcode
 	dict set row vname   	  $vname
 	dict set row is_trackable $is_trackable

@@ -36,7 +36,8 @@ namespace eval ::m::store {
     namespace export \
 	all add remove move rename merge cleave update has check path \
 	id vcs-name updates move-location get repos remotes total-size \
-	count search issues disabled lost clear-lost statistics vcs!
+	count search issues disabled lost clear-lost statistics vcs! \
+	upload redo-stats
     namespace ensemble create
 }
 
@@ -111,6 +112,38 @@ proc ::m::store::statistics {} {
     }
 
     return $stats
+}
+
+proc ::m::store::upload {vcs url storedir} {
+    # DANGER command. No checking. See cmd_hack_insert
+    debug.m/store {}
+
+    set store [Add $vcs]
+    set path  [m vcs path $store]
+
+    file mkdir $path
+    foreach in [glob -nocomplain -directory $storedir *] {
+	file copy $in $path/
+    }
+
+    return $store
+}
+
+proc ::m::store::redo-stats {store} {
+    debug.m/store {}
+
+    set vcs [VCS $store]
+
+    set state [m vcs core-stats $store $vcs]
+    dict with state {}
+    # ok, commits, size
+
+    if {$ok} {
+	Size    $store $size
+	Commits $store $commits
+    }
+
+    return [list $size $commits]
 }
 
 proc ::m::store::add {vcs url} {

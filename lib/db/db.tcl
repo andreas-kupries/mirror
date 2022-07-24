@@ -950,8 +950,9 @@ proc ::m::db::SETUP-202207210000 {} {
 	id url '' project vcs store fork_origin fork_number \
 	is_tracking_forks is_active is_private has_issues checked \
 	min_duration max_duration window_duration
+    X durl
 
-        m::db eval {
+    m::db eval {
 	SELECT id, url FROM repository
     } {
 	set durl [string tolower $url]
@@ -961,7 +962,6 @@ proc ::m::db::SETUP-202207210000 {} {
 	    WHERE  id   = :id
 	}
     }
-    X durl
 
     # - -- --- ----- -------- -------------
     ## Additional table: Phantom Trouble Tracking
@@ -980,6 +980,54 @@ proc ::m::db::SETUP-202207210000 {} {
     > 'phantom-block-threshold' 5
     # Initial threshold for bad phantoms to be dropped from further consideration.
 
+    return
+}
+
+proc ::m::db::SETUP-202207230001 {} {
+    debug.m/db {}
+
+    D m::db
+    # - -- --- ----- -------- -------------
+    ## Additional repository attribute
+    ## - time taken by last access (setup, or update)
+
+    I
+    C url	        TEXT     NOT NULL UNIQUE
+    C durl	        TEXT     NOT NULL
+    C project	        INTEGER  NOT NULL ^project
+    C vcs	        INTEGER  NOT NULL ^version_control_system
+    C store	        INTEGER  NOT NULL ^store
+    C fork_origin       INTEGER		  ^repository
+    C fork_number       INTEGER
+    C is_tracking_forks INTEGER  NOT NULL
+    C is_active	        INTEGER  NOT NULL
+    C is_private        INTEGER  NOT NULL
+    C has_issues        INTEGER  NOT NULL
+    C checked	        INTEGER  NOT NULL ;# epoch
+    C min_duration      INTEGER  NOT NULL ;# overall minimum time spent on update
+    C max_duration      INTEGER  NOT NULL ;# overall maximum time spent on update
+    C window_duration   STRING   NOT NULL ;# time spent on last N updates (list of int, comma-separated)
+    C last_duration     INTEGER  NOT NULL ;# last time spent on setup/update
+
+    < repository \
+	id url durl project vcs store fork_origin fork_number \
+	is_tracking_forks is_active is_private has_issues checked \
+	min_duration max_duration window_duration ''
+    X last_duration
+
+    m::db eval {
+	SELECT id              AS id
+	,      window_duration AS lastn
+	FROM   repository
+	WHERE  window_duration != ''
+    } {
+	set lastn [lindex [split [string trim $lastn ,] ,] end]
+	m::db eval {
+	    UPDATE repository
+	    SET    last_duration = :lastn
+	    WHERE  id            = :id
+	}
+    }
     return
 }
 
