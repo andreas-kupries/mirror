@@ -39,13 +39,24 @@ namespace eval ::m {
 
 namespace eval ::m::exec {
     namespace export verbose go get nc-get silent capture post-hook \
-	job err-last-get get-- get+route diskuse
+	job err-last-get get-- get+route diskuse notecmd
     namespace ensemble create
+
+    variable notecmd {}
 }
 
 namespace eval ::m::exec::capture {
     namespace export to on off clear get path active
     namespace ensemble create
+}
+
+# # ## ### ##### ######## ############# #####################
+## Highlevel shared exec: disk usage in kibibyte (du -sk).
+
+proc ::m::exec::notecmd {args} {
+    debug.m/exec {}
+    variable notecmd $args
+    return
 }
 
 # # ## ### ##### ######## ############# #####################
@@ -107,7 +118,7 @@ proc ::m::exec::get+route {router args} {
     variable get
     variable getid
 
-    m ops client note "> [join $args]"
+    NOTE note "> [join $args]"
 
     set id [incr getid]
     set get(o,$id) {}
@@ -170,12 +181,12 @@ proc ::m::exec::Process {dst id line} {
     switch -exact -- $dst {
 	ignore {}
 	out {
-	    m ops client info $line
+	    NOTE info $line
 	    variable get
 	    lappend get(o,$id) $line
 	}
 	err {
-	    m ops client err $line
+	    NOTE err $line
 	    variable get
 	    incr get(e,$id)
 	}
@@ -470,6 +481,13 @@ proc ::m::exec::POST {content path verbose stdchan} {
 	flush $stdchan
     }
     file delete ${path}.now
+    return
+}
+
+proc ::m::exec::NOTE {args} {
+    variable notecmd
+    if {![llength $notecmd]} return
+    uplevel #0 [list {*}$notecmd {*}$args]
     return
 }
 

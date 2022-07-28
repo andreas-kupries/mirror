@@ -2581,7 +2581,7 @@ proc ::m::glue::RepositoryMailTable {series width} {
     set series [lmap row $series {
 	if {[llength $row]} {
 	    dict with row {}
-	    set row [list $pname $vname $url $lastn $nforks $dsize $dcommit $changed]
+	    set row [list $pname $vname $url $last $nforks $dsize $dcommit $changed]
 	}
 	set row
     }]
@@ -2646,6 +2646,10 @@ proc ::m::glue::Reduce {series} {
 
     return [lmap row $series {
 	dict with row {}
+
+	dict set row raw.changed $changed
+	dict set row raw.updated $updated
+	dict set row raw.created $created
 	if {$store ne {}} {
 	    dict set row changed [m format epoch $changed]
 	    dict set row updated [m format epoch $updated]
@@ -2671,12 +2675,12 @@ proc ::m::glue::UpdateSeparators {series} {
 
     # Separator at the start of each block, if not the first.
     set tmp {}
-    set last {}
+    set lastblock {}
     foreach row $series {
 	dict with row {}
 	set block [Block $changed $created]
-	if {($block ne $last) && [llength $tmp]} { lappend tmp {} }
-	set last $block
+	if {($block ne $lastblock) && [llength $tmp]} { lappend tmp {} }
+	set lastblock $block
 	lappend tmp $row
     }
     return $tmp
@@ -3673,9 +3677,9 @@ proc ::m::glue::ComeAroundMail {width current newcycle} {
 
     # Reduce length of series to the first block (actual changed, and in the cycle)
     set series [lmap row $series {
-	set changed [lindex $row 7]
-	set created [lindex $row 9]
-	if {$changed eq {}} continue      ;# phantoms
+	set changed [dict get $row raw.changed]
+	set created [dict get $row raw.created]
+	if {$changed eq {}}      continue ;# phantoms
 	if {$changed < $current} continue ;# older cycle
 	# in cycle, keep
 	set row

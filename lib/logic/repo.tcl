@@ -434,6 +434,7 @@ proc ::m::repo::get {repo} {
 	,      'private'  , R.is_private
 	,      'issues'   , R.has_issues
 	,      'tracking' , R.is_tracking_forks
+	,      'nforks'   , R.fork_number
 	,      'vcs'      , R.vcs
 	,      'vcode'    , V.code
 	,      'trackable', V.fork_tracking
@@ -693,6 +694,7 @@ proc ::m::repo::updates {{nophantoms 0}} { ;# site, glue, project -- ZZZ check u
 
     if {$nophantoms} { dict set c phantom no }
     dict set c order updates
+    dict set c use   active
     list-for c
 
     return [dict get $c series]

@@ -80,36 +80,9 @@ proc ::m::web::site::build {{mode verbose}} {
 	Submit
 	Statistics
 	Private
-	Projects
-	Stores	;# Incremental ? As communicated from `update`
-
-	# ZZZ TODO constrained lists --
-	# -- just primaries, no forks
-	# -- per VCS, just managed by such
-
-	set bytime   [m::glue::UpdateSeparators [m repo updates 1]]
-	set byname   [NameSeparators            [BY-NAME]]
-	set byvcs    [VCSSeparators             [BY-VCS]]
-	set bysize   [BY-SIZE]
-	set issues   [m repo issues   1]
-	set disabled [m repo disabled 1]
-
-	dict set stats issues    [llength $issues]
-	dict set stats disabled  [llength $disabled]
-	dict set stats size      [m store total-size]
-	dict set stats nrepos    [m repo count]
-	dict set stats nprojects [m project count]
-	dict set stats nstores   [m store count]
-	dict set stats ccycle    [m state start-of-current-cycle]
-	dict set stats pcycle    [m state start-of-previous-cycle]
-
-	List "By Last Change"     index.md          $bytime   $stats
-	List "By Name, VCS, Size" index_name.md     $byname   $stats
-	List "By Size, Name, VCS" index_size.md     $bysize   $stats
-	List "By VCS, Name, Size" index_vcs.md      $byvcs    $stats
-	List "Issues by Name"     index_issues.md   $issues   $stats
-	List "Disabled by Name"   index_disabled.md $disabled $stats
-
+	Projects	;# Project tables
+	Repositories	;# Repository tables
+	Stores		;# Incremental ? As communicated from `update`
 	Fin
     }
     return
@@ -172,29 +145,19 @@ proc ::m::web::site::Site {mode action script} {
 proc ::m::web::site::Projects {} {
     debug.m/web/site {}
 
-    set series [m project get-all]
+    set byname   [P-BY-NAME]
+    set byrepos  [P-BY-REPOS]
+    set bystores [P-BY-STORES]
 
-    H Projects
-
-    Row Project Repos Stores
-    Align l r r
-
-    foreach p $series {
+    foreach p $byname {
 	dict with p {}
 	# id, name, nrepos, nstores
-	set name [m::repo::Norm $name]
-
-        Project $id $name
-
-	set name    [L/Project $id $name]
-	set nrepos  [L/Project $id $nrepos]
-	set nstores [L/Project $id $nstores]
-
-	Row $name $nrepos $nstores
+        Project $id [m::repo::Norm $name]
     }
 
-    F
-    W pages/projects.md
+    List/P "By Name"    projects_byname.md   $byname
+    List/P "By #Repos"  projects_byrepos.md  $byrepos
+    List/P "By #Stores" projects_bystores.md $bystores
     return
 }
 
@@ -205,36 +168,41 @@ proc ::m::web::site::Project {id name} {
     foreach repo [m repo for $id] {
 	set ri [m repo get $repo]
 	dict with ri {}
-	# -> vcode, store, active, issues, url, origin
+	# -> vcode, store, active, issues, url, origin, nforks, tracking
 	# ignore phantoms
 	if {$store eq {}} continue
+	# ignore forks -- IOW show only the primaries here.
+	if {$origin ne {}} continue
+	# force nforks to nothing for repos which cannot track them
+	if {!$trackable} { set nforks {} }
 
-	lappend series [list [expr {$origin ne {}}] $issues $active $vcode $url $store]
+	lappend series [list $nforks $issues $active $vcode $url $store]
+	#                    0       1       2       3 sort=4    5
     }
 
     H $name
 
-    Row {} {} VCS Repository
-    Align l l l l
+    Row   {} VCS #Forks Repository
+    Align l  l   r      l
 
     foreach item [lsort -dict -index 4 $series] {
-	lassign $item fork issues active vcode url store
+	lassign $item nforks issues active vcode url store
 
 	set tags  [StatusRefs $issues $active]
 	if {$tags eq {}} { append tags { } }
 	set vcode [X/VCS $vcode]
-	set fork  [expr {!$fork ? " " : [I/Fork]}]
+	#set fork  [expr {!$fork ? " " : [I/Fork]}]
 
 	if {$store ne {}} {
-	    set tags  [L/Store $store $tags]
-	    set vcode [L/Store $store $vcode]
-	    set fork  [L/Store $store $fork]
-	    set repo  [L/Store $store $url]
+	    set tags   [L/Store $store $tags]
+	    set vcode  [L/Store $store $vcode]
+	    set nforks [L/Store $store $nforks]
+	    set repo   [L/Store $store $url]
 	} else {
 	    set repo $url
 	}
 
-	Row $tags $fork $vcode $repo
+	Row $tags $vcode $nforks $repo
     }
 
     F
@@ -262,7 +230,7 @@ proc ::m::web::site::Statistics {} {
     set pc [m format epoch $pc]
     set cc [m format epoch $cc]
 
-    set np [L projects.html       $np]
+    set np [L projects_byname.html $np]
     set nr                        "$nr &odot;"
     set ni [L index_issues.html   "$ni [I/Bad]"]
     set nd [L index_disabled.html "$nd [I/Offline]"]
@@ -311,6 +279,40 @@ proc ::m::web::site::Stores {} {
 
 	Store $store
     }
+    return
+}
+
+proc ::m::web::site::Repositories {} {
+    debug.m/web/site {}
+
+    # ZZZ TODO constrained lists --
+    # -- just primaries, no forks
+    # -- per VCS, just managed by such
+
+    set bytime    [m::glue::UpdateSeparators [m repo updates 1]]
+    set byname    [NameSeparators            [BY-NAME]]
+    set byvcs     [VCSSeparators             [BY-VCS]]
+    set bysize    [BY-SIZE]
+    set bycommits [BY-COMMITS]
+    set byforks   [BY-FORKS]
+    set issues    [m repo issues   1]
+    set disabled  [m repo disabled 1]
+
+    dict set stats issues    [llength $issues]
+    dict set stats disabled  [llength $disabled]
+    dict set stats ccycle    [m state start-of-current-cycle]
+    dict set stats pcycle    [m state start-of-previous-cycle]
+
+    List/R "By Last Change"                 index_bychange.md  $bytime    $stats
+    List/R "By Name, Url, VCS, Size"        index_byname.md    $byname    $stats
+    List/R "By Size, Name, Url, VCS"        index_bysize.md    $bysize    $stats
+    List/R "By VCS, Name, Url, Size"        index_byvcs.md     $byvcs     $stats
+    List/R "By Commits, Name, Url, VCS"     index_bycommits.md $bycommits $stats
+    List/R "By Forks, Name, Url, VCS, Size" index_byforks.md   $byforks   $stats
+    #
+    List/R "Issues by Name"     index_issues.md   $issues   $stats
+    List/R "Disabled by Name"   index_disabled.md $disabled $stats
+
     return
 }
 
@@ -551,6 +553,37 @@ proc ::m::web::site::Private {} {
     return
 }
 
+proc ::m::web::site::List/P {suffix page series} {
+    debug.m/web/site {}
+
+    set n [llength $series]
+
+    H "$n Project[expr {$n == 1 ? "" : "s"}] ($suffix)"
+
+    set hname   [L projects_byname.html   Project]
+    set hrepos  [L projects_byrepos.html  Repos]
+    set hstores [L projects_bystores.html Stores]
+
+    Row $hname $hrepos $hstores
+    Align l r r
+
+    foreach p $series {
+	dict with p {}
+	# id, name, nrepos, nstores
+	set name    [m::repo::Norm $name]
+	set name    [L/Project $id $name]
+	set nrepos  [L/Project $id $nrepos]
+	set nstores [L/Project $id $nstores]
+
+	Row $name $nrepos $nstores
+    }
+
+    F
+    W pages/$page
+    return
+}
+
+
 proc ::m::web::site::ListSimple {title subtitle page series} {
     # A cut down form of `List`. No sorting. No other stats.
 
@@ -603,23 +636,22 @@ proc ::m::web::site::ListSimple {title subtitle page series} {
     return
 }
 
-proc ::m::web::site::List {suffix page series stats} {
+proc ::m::web::site::List/R {suffix page series stats} {
     debug.m/web/site {}
 
     dict with stats {}
     # issues
     # disabled
-    # size
-    # nrepos
-    # nprojects
-    # nstores
     # ccycle
     # pcycle
 
-    set hvcs     [L index_vcs.html      VCS                   ]
-    set hsize    [L index_size.html     Size                  ]
-    set hname    [L index_name.html     Project               ]
-    set hchan    [L index.html          Changed               ]
+    set hvcs     [L index_byvcs.html     VCS                  ]
+    set hsize    [L index_bysize.html    Size                 ]
+    set hname    [L index_byname.html    Project              ]
+    set hchan    [L index_bychange.html  Changed              ]
+    set hcommits [L index_bycommits.html #Commits             ]
+    set hforks   [L index_byforks.html   #Forks               ]
+    #
     set issues   [L index_issues.html   "Issues: $issues"     ]
     set disabled [L index_disabled.html "Disabled: $disabled" ]
 
@@ -628,13 +660,15 @@ proc ::m::web::site::List {suffix page series stats} {
     set dt  [expr {$ccycle - $pcycle}]
     set dtf [m format interval $dt]
 
-    H "Index ($suffix)"
+    set n [llength $series]
 
-    Row {} $hname Repository {} $hvcs $hsize $hchan Updated Created
-    Align l l l l l r l l l
+    H "$n Repositor[expr {$n == 1 ? "y" : "ies"}] ($suffix)"
+
+    Row   {} $hname Repository {} $hvcs $hforks $hsize $hcommits $hchan Updated Created
+    Align l  l      l          l  l     r       r      r         l      l       l
 
     # Disable insertion of cycle flags for all tables but sorted by change.
-    if {$page ne "index.md"} {
+    if {$page ne "index_bychange.md"} {
 	set pcycle -1
 	set ccycle -1
     }
@@ -642,7 +676,7 @@ proc ::m::web::site::List {suffix page series stats} {
     set fork [I/Fork]
 
     foreach row $series {
-	if {![llength $row]} { S 9 ; continue }
+	if {![llength $row]} { S 11 ; continue }
 
 	dict with row {}
 	# [repo]  url rid checked nforks origin mins maxs lastn
@@ -656,11 +690,11 @@ proc ::m::web::site::List {suffix page series stats} {
 
 	if {$changed ne {}} {
 	    if {$changed < $ccycle} {
-		Row {} "__${ccf}__" "__Start Of Current Cycle__" {} {} {} {} {} {}
+		Row {} "__${ccf}__" "__Start Of Current Cycle__" {} {} {} {} {} {} {} {}
 		set ccycle -1 ;# Prevent further triggers
 	    }
 	    if {$changed < $pcycle} {
-		Row {} "__${pcf}__" "__Start Of Last Cycle__"    {} {} {} {} {} {}
+		Row {} "__${pcf}__" "__Start Of Last Cycle__"    {} {} {} {} {} {} {} {}
 		set pcycle -1 ;# Prevent further triggers
 	    }
 	}
@@ -679,7 +713,7 @@ proc ::m::web::site::List {suffix page series stats} {
 	}
 
 
-	Row $img $pname $url $tag $vcode $size $changed $updated $created
+	Row $img $pname $url $tag $vcode $nforks $size $commits $changed $updated $created
     }
 
     NL ; NL
@@ -740,7 +774,7 @@ proc ::m::web::site::Init {} {
 	static/images/.placeholder
 	pages/blog
 	pages/contact.md
-	pages/index.md
+	pages/index_bychange.md
     } {
 	D $child
     }
@@ -1102,6 +1136,35 @@ proc ::m::web::site::I/VCS {vcode} {
 ## Site specific repository queries
 ## Important: All queries exclude phantoms from their results.
 
+proc ::m::web::site::P-BY-NAME {} {
+    debug.m/web/site {}
+
+    dict set c order name
+    m project list-for c
+
+    return [dict get $c series]
+}
+
+proc ::m::web::site::P-BY-REPOS {} {
+    debug.m/web/site {}
+
+    dict set c order      nrepos
+    dict set c odirection down
+    m project list-for c
+
+    return [dict get $c series]
+}
+
+proc ::m::web::site::P-BY-STORES {} {
+    debug.m/web/site {}
+
+    dict set c order      nstores
+    dict set c odirection down
+    m project list-for c
+
+    return [dict get $c series]
+}
+
 proc ::m::web::site::BY-NAME {} {
     debug.m/web/site {}
 
@@ -1125,8 +1188,31 @@ proc ::m::web::site::BY-VCS {} {
 proc ::m::web::site::BY-SIZE {} {
     debug.m/web/site {}
 
-    dict set c phantom no
-    dict set c order   size
+    dict set c phantom    no
+    dict set c order      size
+    dict set c odirection down
+    m repo list-for c
+
+    return [dict get $c series]
+}
+
+proc ::m::web::site::BY-COMMITS {} {
+    debug.m/web/site {}
+
+    dict set c phantom    no
+    dict set c order      commits
+    dict set c odirection down
+    m repo list-for c
+
+    return [dict get $c series]
+}
+
+proc ::m::web::site::BY-FORKS {} {
+    debug.m/web/site {}
+
+    dict set c phantom    no
+    dict set c order      nforks
+    dict set c odirection down
     m repo list-for c
 
     return [dict get $c series]
@@ -1329,15 +1415,15 @@ proc ::m::web::site::M {} {
 	lappend nav "	[list $rl] [list $ru]"
     }
 
-    lappend nav {	Issues         $rootDirPath/index_issues.html  }
-    lappend nav {	Disabled       $rootDirPath/index_disabled.html}
-    lappend nav {	Statistics     $rootDirPath/statistics.html    }
-    lappend nav {	Projects       $rootDirPath/projects.html      }
-    lappend nav {	Contact        $rootDirPath/contact.html       }
-    lappend nav {	Spec           $rootDirPath/spec.txt	       }
-    lappend nav {	Search         $rootDirPath/search	       }
-    lappend nav {	Submit         $rootDirPath/submit	       }
-    lappend nav {	Private        $rootDirPath/index_private.html }
+    lappend nav {	Issues         $rootDirPath/index_issues.html   }
+    lappend nav {	Disabled       $rootDirPath/index_disabled.html }
+    lappend nav {	Statistics     $rootDirPath/statistics.html     }
+    lappend nav {	Projects       $rootDirPath/projects_byname.html}
+    lappend nav {	Contact        $rootDirPath/contact.html        }
+    lappend nav {	Spec           $rootDirPath/spec.txt	        }
+    lappend nav {	Search         $rootDirPath/search	        }
+    lappend nav {	Submit         $rootDirPath/submit	        }
+    lappend nav {	Private        $rootDirPath/index_private.html  }
 
     lappend map @-logo-@       $logo
     lappend map @-mail-@       [m state site-mgr-mail]
@@ -1391,9 +1477,9 @@ copyright    {<a href="$rootDirPath/disclaimer.html">Copyright &copy;</a> @-year
 url          {@-url-@}
 description  {@-title-@}
 
-sitemap { enable 1 }
-rss     { enable 0 tagFeeds 0 }
-indexPage {index.md}
+sitemap   { enable 1 }
+rss       { enable 0 tagFeeds 0 }
+indexPage {index_bychange.md}
 outputDir {../output}
 blogPostsPerFile 0
 

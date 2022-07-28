@@ -18,6 +18,7 @@ package require cmdr::color
 package require debug
 package require debug::caller
 package require m::app
+package require m::exec
 
 # # ## ### ##### ######## ############# #####################
 ## Requisites
@@ -73,6 +74,9 @@ proc ::m::ops::client::clear   {k} {     C $k }
 proc ::m::ops::client::main {} {
     m app debugflags
     debug.m/ops/client {}
+
+    m exec notecmd   m ops client
+
     Ok
 
     if {![Cmdline op]} {

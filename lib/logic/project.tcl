@@ -32,7 +32,7 @@ namespace eval ::m {
 namespace eval ::m::project {
     namespace export \
 	add remove rename has name size id a-repo count-for \
-	statistics get-all list-for known spec count
+	statistics list-for known spec count
     namespace ensemble create
 }
 
@@ -405,14 +405,6 @@ proc ::m::project::name {project} {
 	FROM   project
 	WHERE  id = :project
     }]
-}
-
-proc ::m::project::get-all {} {
-    debug.m/project {}
-
-    dict set c order name
-    list-for c
-    return [dict get $c series]
 }
 
 proc ::m::project::a-repo {project} {

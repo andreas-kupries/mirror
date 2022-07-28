@@ -295,14 +295,14 @@ proc ::m::vcs::git::Count {path} {
     return $count
 }
 
-proc ::m::vcs::git::GitOf {path} {
-    debug.m/vcs/git {}
-    return [file join $path source.git]
-}
-
 proc ::m::vcs::git::RemoteOf {url} {
     debug.m/vcs/git {}
     return "m-vcs-git-[string map {: %3a / %2f} $url]"
+}
+
+proc ::m::vcs::git::GitOf {path} {
+    debug.m/vcs/git {}
+    return [file join $path source.git]
 }
 
 proc ::m::vcs::git::Git {args} {

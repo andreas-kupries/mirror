@@ -22,17 +22,19 @@ package require Tcl 8.5
 package require debug
 package require debug::caller
 
-package require http 2
-package require tls
-http::register https 443 tls::socket
+#package require http 2
+#package require tls
+#http::register https 443 tls::socket
 # tls::init for good ciphers and protocols
+
+package require m::exec	;# delegate to external curl
 
 # # ## ### ##### ######## ############# ######################
 
 debug level  m/url
 debug prefix m/url {[debug caller] | }
-debug level  m/url/sock
-debug prefix m/url/sock {}
+#debug level  m/url/sock
+#debug prefix m/url/sock {}
 
 # # ## ### ##### ######## ############# #####################
 ## Definition
@@ -50,17 +52,18 @@ namespace eval ::m::url {
 # # ## ### ##### ######## ############# #####################
 
 proc ::m::url::ok {url rv {mcmd {}} {follow yes}} {
-    debug.m/url {[debug on m/url/sock]}
-    debug.m/url {httpLog setup [proc ::http::Log {args} { m::url::HTTP $args }]}
-    debug.m/url {tls callback  [proc ::intercept {args} { m::url::TLS  $args ; return 1 }]}
-    debug.m/url {tls intercept [http::register https 443 {tls::socket -command ::intercept}]}
-    debug.m/url {http [package provide http]}
-    debug.m/url {tls  [package provide tls]}
-    debug.m/url {ssl  [tls::version]}
     debug.m/url {}
-    debug.m/url {cmd  [package ifneeded http [package provide http]]}
-    debug.m/url {cmd  [package ifneeded tls  [package provide tls ]]}
-    debug.m/url {}
+    #debug.m/url {[debug on m/url/sock]}
+    #debug.m/url {httpLog setup [proc ::http::Log {args} { m::url::HTTP $args }]}
+    #debug.m/url {tls callback  [proc ::intercept {args} { m::url::TLS  $args ; return 1 }]}
+    #debug.m/url {tls intercept [http::register https 443 {tls::socket -command ::intercept}]}
+    #debug.m/url {http [package provide http]}
+    #debug.m/url {tls  [package provide tls]}
+    #debug.m/url {ssl  [tls::version]}
+    #debug.m/url {}
+    #debug.m/url {cmd  [package ifneeded http [package provide http]]}
+    #debug.m/url {cmd  [package ifneeded tls  [package provide tls ]]}
+    #debug.m/url {}
     upvar 1 $rv resolved
 
     set ok [Curl MAIN state $url $mcmd]
@@ -103,21 +106,28 @@ proc ::m::url::Resolve {statevar mcmd} {
 
     dict set seen [dict get $state url] .
     debug.m/url {Seen: [dict get $state url]}
+    debug.m/url {Meta: [dict get $state meta]}
 
     while {[dict exists $state meta Location]} {
 	set new [dict get $state meta Location]
 	if {[dict exists $seen $new]} {
 	    # Redirection cycle: Url is not ok.
+	    debug.m/url {--> LOOP}
 	    return 0
 	}
 
 	set ok [Curl REDIRECTED state $new $mcmd]
-	if {!$ok} { return 0 }
+	if {!$ok} {
+	    debug.m/url {--> FAIL}
+	    return 0
+	}
 
 	dict set seen $new .
 	debug.m/url {Seen: $new}
     }
+
     # No further redirection.
+    debug.m/url {--> OK}
     return 1
 }
 
@@ -127,32 +137,25 @@ proc ::m::url::Curl {label statevar url {mcmd {}}} {
     upvar 1 $statevar state
 
     while {true} {
-	try {
-	    set token [http::geturl $url -validate 1]
-	} on error {e o} {
-	    if {[string match "*software caused connection abort*" $e]} {
-		# Do nothing, treat as ok. We have no token left however.
-		# Unable to follow redirections. OTOH with such an abort
-		# there is no redirection. So return as is.
-		set resolved $url
-		return 1
-	    }
+	set headers [fileutil::tempfile mirror_url_ok_hdr_]
+	set stdout  [fileutil::tempfile mirror_url_ok_out_]
+	set stderr  [fileutil::tempfile mirror_url_ok_err_]
 
-	    debug.m/url {EM $e}
-	    debug.m/url {EO $o}
-	    #puts stderr "___ $e [list $o]"
-	    #puts stderr $::errorInfo
-	    debug.m/url {--> FAIL}
-	    return 0
-	}
+	m exec get-- curl \
+	    --head \
+	    $url \
+	    --user-agent  curl-mirror-0 \
+	    --dump-header $headers \
+	    --output      $stdout \
+	    --stderr      $stderr \
+	    --silent \
+	    --show-error
 
-	set state [array get $token]
-	debug.m/url {State: %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  $label}
-	debug.m/url {State: [debug parray $token]}
-	debug.m/url {State: %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% /$label}
-	http::cleanup $token
+	set hdrs [split [m futil cat $headers] \n]
+	file delete $headers $stdout $stderr
 
-	set ncode [lindex [dict get $state http] 1]
+	set ncode [lindex $hdrs 0 end]
+
 	debug.m/url {Code: $ncode}
 
 	if {$ncode == 429} {
@@ -174,20 +177,32 @@ proc ::m::url::Curl {label statevar url {mcmd {}}} {
 	    continue
 	}
 
+	# Fake a httpget state
+	set      state {}
+	dict set state http [lindex $hdrs 0]
+	dict set state url  $url
+
+	foreach line [lrange $hdrs 1 end] {
+	    regexp {^([^:]*):(.*)$} $line -> key value
+	    set key   [string trim $key]
+	    set value [string trim $value]
+	    dict set state meta [string totitle $key] $value
+	}
+
 	return 1
     }
 }
 
 # # ## ### ##### ######## ############# #####################
 ## HTTP, TLS tracing
-
-proc ::m::url::HTTP {words} {
-    debug.m/url/sock {HTTP: [cmdr::color magenta [join $words { }]]}
-}
-
-proc ::m::url::TLS {words} {
-    debug.m/url/sock {TLS:  [cmdr::color magenta [join $words { }]]}
-}
+#
+# proc ::m::url::HTTP {words} {
+#     debug.m/url/sock {HTTP: [cmdr::color magenta [join $words { }]]}
+# }
+#
+# proc ::m::url::TLS {words} {
+#     debug.m/url/sock {TLS:  [cmdr::color magenta [join $words { }]]}
+# }
 
 # # ## ### ##### ######## ############# #####################
 ## State
