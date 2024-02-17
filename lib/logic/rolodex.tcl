@@ -53,7 +53,7 @@ debug level  m/rolodex
 debug prefix m/rolodex {[debug caller] | }
 
 # # ## ### ##### ######## ############# ######################
-    
+
 proc ::m::rolodex::top {} {
     debug.m/rolodex {}
     Load ; variable current
@@ -189,17 +189,17 @@ proc ::m::rolodex::Load {} {
 
 proc ::m::rolodex::Save {} {
     debug.m/rolodex {}
-    
+
     # Skip write-back if rolodex was not used at all
     variable loaded
     if {!$loaded} {
 	debug.m/rolodex { Skip (Not Loaded) }
 	return
     }
-    
+
     # Skip write-back if no actual changes were made.
     # Note! Compare post truncation to limit.
-    
+
     variable extern
     variable current
 
@@ -212,12 +212,12 @@ proc ::m::rolodex::Save {} {
 	set current [lrange $current end-$limit end]
 	debug.m/rolodex {rolodex = ($current)}
     }
-    
+
     if {$extern eq $current} {
 	debug.m/rolodex { Skip (No Change) }
 	return
     }
-    
+
     append sql "DELETE FROM rolodex"
 
     if {[llength $current]} {

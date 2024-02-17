@@ -64,7 +64,7 @@ proc ::m::vcs::fossil::LogNormalize {o e} {
 
 proc ::m::vcs::fossil::name-from-url {url} {
     debug.m/vcs/fossil {}
-    
+
     regsub -- {/index$}    $url {} url
     regsub -- {/timeline$} $url {} url
     return [lindex [file split $url] end]
@@ -76,7 +76,7 @@ proc ::m::vcs::fossil::detect {url} {
 	set p "PATH: "
 	puts stderr "fossil = [auto_execok fossil]"
 	puts stderr $p[join [split $::env(PATH) :] \n$p]
-	
+
 	m msg "[cmdr color note "fossil"] [cmdr color warning "not available"]"
 	# Fall through
 	return

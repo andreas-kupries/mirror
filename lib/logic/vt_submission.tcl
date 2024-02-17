@@ -3,7 +3,7 @@
 ## Repositories - Validation
 
 # @@ Meta Begin
-# Package m::validate::submission 0 
+# Package m::validate::submission 0
 # Meta author   {Andreas Kupries}
 # Meta location https://core.tcl.tk/akupries/????
 # Meta platform tcl

@@ -173,7 +173,7 @@ proc ::m::web::site::Store {mset mname store} {
 	set avg   [m format interval [format %.0f [expr {double($total)/$n}]]]
 	append spent " ($avg * $n)"
     }
-    
+
     set simg [StatusRefs $attend $active $remote]
 
     lassign [m vcs caps $store] stdout stderr
@@ -309,7 +309,7 @@ proc ::m::web::site::List {suffix page series stats} {
 	set pcycle -1
 	set ccycle -1
     }
-    
+
     set mname {}
     set last {}
     foreach row $series {
@@ -340,7 +340,7 @@ proc ::m::web::site::List {suffix page series stats} {
 
 	set vcode   "[IH 32 images/logo/${vcode}.svg $vcode] $vcode"
        	set vcode   [LB store_${store}.html $vcode]
-	
+
 	if {$mname ne {}} {
 	    set mname [LB store_${store}.html $mname]
 	}
@@ -382,8 +382,8 @@ proc ::m::web::site::CGI {app} {
     #   See `Sync` here for the code keeping it up-to-date.
     #   However note that `m::site` automaitcally goes for the sibling
     #   given the path to the main, so we do not do this here.
-    
-    set bindir [file dirname $argv0]    
+
+    set bindir [file dirname $argv0]
     append t "#![file normalize [file join $bindir $app]]" \n
     append t "database: [m::db::location get]" \n
     return $t
@@ -475,7 +475,7 @@ proc ::m::web::site::Sync {} {
     #
     #   - submission	pulled deletions from main (submission_handled)
     #			push remaining to main (insert or update)
-    
+
     FillIndex
     FillRejected
     SyncSubmissions
@@ -491,14 +491,14 @@ proc ::m::web::site::SyncSubmissions {} {
 
     # 1. Submissions from CGI flow through site to main. Only
     #    deletions flow back, as the cli handles them in main.
-    
+
     # 2. Submissions done in main, via the cli, have their own format
     #    for session identifiers which cannot overlap with sessions
     #    from the CGI. As such there is no need to push them to site,
     #    CGI will has no use for them when looking for pre-existing
     #    submissions. Anything needed there comes into site through
     #    the index and rejection tables.
-    
+
     DropHandledSubmissions
     GetNewSubmissions
     return
@@ -554,7 +554,7 @@ proc ::m::web::site::GetNewSubmissions {} {
 	    }
 	}
     }
-    
+
     return
 }
 
@@ -584,7 +584,7 @@ proc ::m::web::site::DropHandledSubmissions {} {
 	DELETE
 	FROM submission_handled
     }
-    
+
     return
 }
 
@@ -594,9 +594,9 @@ proc ::m::web::site::FillRejected {} {
 
     # Copy current state of url rejections from main to site database.
     # Implemented as `delete all old ; insert all new`.
-    
+
     m site eval { DELETE FROM rejected }
-    
+
     m db eval {
 	SELECT url
 	,      reason
@@ -661,7 +661,7 @@ proc ::m::web::site::FillIndex {} {
 	    AND   S.vcs  = R.vcs
 	    AND   S.mset = R.mset
 	}]
-	
+
 	lappend remotes $mname
 	set remotes [string tolower [join $remotes { }]]
 	# We are using the remotes field for the entire text we can
@@ -703,13 +703,13 @@ proc ::m::web::site::StatusIcons {attend active remote} {
 	lappend icons off.svg
     } elseif {$active < $remote} {
 	lappend icons yellow.svg
-    } 
+    }
     if {$attend} {
 	lappend icons bad.svg
     }
     return $icons
 }
-    
+
 proc ::m::web::site::StatusRefs {attend active remote} {
     debug.m/web/site {}
     set img {}

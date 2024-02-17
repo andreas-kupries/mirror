@@ -43,11 +43,11 @@ namespace eval m::app {
 
 proc ::m::app::debugflags {} {
     global argv env
-    
+
     # (1) Process all --debug flags we can find. This is done before
     #     cmdr gets hold of the command line to enable the debugging
     #     of the innards of cmdr itself.
-    # 
+    #
     # (2) Further activate debugging early when specified through the
     #     environment
     #

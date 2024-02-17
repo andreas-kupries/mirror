@@ -631,7 +631,7 @@ proc ::m::store::Srow {sv} {
 	size size active active remote remote attend attend
 
     debug.m/store {s=$store, m=$mname, v=$vcode, ch=$changed, up=$updated, cr=$created, sz=$size, r=$remote/$active, trouble=$attend}
-    
+
     set row [dict create \
 		store   $store \
 		mname   $mname \
@@ -657,7 +657,7 @@ proc ::m::store::Srow+delta {sv} {
 	maxs maxs lastn lastn
 
     debug.m/store {s=$store, m=$mname, v=$vcode, ch=$changed, up=$updated, cr=$created, sz=$size, r=$remote/$active, trouble=$attend}
-    
+
     set row [dict create \
 		store   $store \
 		mname   $mname \
@@ -689,7 +689,7 @@ proc ::m::store::Srow+rid+url {sv} {
 	rid rid url url
 
     debug.m/store {s=$store, m=$mname, v=$vcode, ch=$changed, up=$updated, cr=$created, sz=$size, r=$remote/$active, trouble=$attend}
-    
+
     set row [dict create \
 		store   $store \
 		mname   $mname \
@@ -733,7 +733,7 @@ proc ::m::store::Remotes {store {onlyactive 0}} {
 	    AND   R.active
 	}]
     }
-    
+
     return [m db eval {
 	SELECT R.url
 	FROM   repository R
@@ -789,7 +789,7 @@ proc ::m::store::Commits {store new} {
     }]
 
     if {$new == $current} return
-    
+
     m db eval {
 	UPDATE store
 	SET    commits_previous = commits_current -- Parallel assignment
@@ -813,14 +813,14 @@ proc ::m::store::Spent {store new} {
     debug.m/store {mins  = $mins}
     debug.m/store {maxs  = $maxs}
     debug.m/store {lastn = ($window)}
-    
+
     if {($mins < 0) || ($new < $mins)} { set mins $new }
     if {                $new > $maxs}  { set maxs $new }
 
     set window [split [string trim $window ,] ,]
 
     debug.m/store {lastn'= ($window)}
-    
+
     if {[llength $window]} {
 	lappend window $new
 	set maxlen [m state store-window-size]

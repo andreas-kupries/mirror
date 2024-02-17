@@ -261,7 +261,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	common *all* -extend {
 	    section Instance Configuration
 	}
-    
+
 	private show {
 	    description {
 		Show the instance configuration (default)
@@ -323,7 +323,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	    } { optional ; validate [m::cmdr::vt limit] }
 	} [m::cmdr::call glue cmd_limit]
     }
-    
+
     # # ## ### ##### ######## ############# ######################
     common .cms {
 	section Instance Content
@@ -612,7 +612,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
 	common .cms.sub.in {
 	    section Submissions Inspection
 	}
-    
+
 	private list {
 	    use .cms.sub.in
 	    description {
@@ -737,7 +737,7 @@ cmdr create m::cmdr::dispatch [file tail $::argv0] {
     alias submissions = submission list
     alias rejections  = submission rejected
     alias submit      = submission enter
-	
+
     # # ## ### ##### ######## ############# ######################
 
     officer site {

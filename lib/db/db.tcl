@@ -492,7 +492,7 @@ proc ::m::db::SETUP-201901222300 {} {
     < store_times  store updated updated changed attend '-1' '0' ''
 
     # Note: A min_seconds value of -1 represents +Infinity.
-    
+
     T^ state
     > 'store-window-size' '10' ;# Window size for `store.window_seconds`
 
@@ -541,7 +541,7 @@ proc ::m::db::SETUP-201901252300 {} {
 
     > 'start-of-current-cycle' '[clock seconds]' ;# As epoch
     #  Fake start for now, self corrects when it comes around.
-    
+
     return
 }
 
@@ -569,7 +569,7 @@ proc ::m::db::SETUP-201902052300 {} {
     > 'start-of-previous-cycle' '[clock seconds]' ;# As epoch
     #  Fake start for now, self corrects when it comes around
     #  next time.
-    
+
     return
 }
 

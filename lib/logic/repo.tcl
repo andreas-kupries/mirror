@@ -80,13 +80,13 @@ proc ::m::repo::known {} {
 	dict set map @current $c
 	dict set map @        $c
     }
-    
+
     return $map
 }
 
 proc ::m::repo::name {repo} {
     debug.m/repo {}
-    # TODO MAYBE - repo name - cache?    
+    # TODO MAYBE - repo name - cache?
     return [m db onecolumn {
 	SELECT R.url || ' (: ' || M.name || ')'
 	FROM   repository R
@@ -155,7 +155,7 @@ proc ::m::repo::get {repo} {
     # - vcs        (id, and code)
     # - store      (id)
     # - active
-    
+
     set details [m db eval {
 	SELECT 'url'    , R.url
 	,      'active' , R.active
@@ -240,7 +240,7 @@ proc ::m::repo::get-n {first n} {
     #
     # Taking n+1 repositories, last becomes top for next call.
     # If we get less than n, top shall be empty, to reset the cursor.
-    
+
     if {![llength $first]} {
 	set first [FIRST]
 	debug.m/repo {first = ($first)}
@@ -296,10 +296,10 @@ proc ::m::repo::get-n {first n} {
     }
 
     debug.m/repo {reps = (($replist))}
-    
+
     set have [llength $replist]
     debug.m/repo {have $have of $n requested}
-    
+
     if {$have <= $n} {
 	# Short read. Reset to top.
 	set next {}
@@ -312,7 +312,7 @@ proc ::m::repo::get-n {first n} {
 	set replist [lrange $replist 0 end-1]
 	debug.m/repo {cut}
     }
-    
+
     return [list $next $replist]
 }
 

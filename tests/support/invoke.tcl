@@ -62,7 +62,7 @@ proc md {} { return [td]/tm }
 
 proc mapp {args} {
     #puts XXX\t(([info level 0]))
-    
+
     capture-on
     try {
         list [m::cmdr::main $args] [capture-get]
@@ -78,7 +78,7 @@ proc ok* {text}  { list 0 $text }
 
 proc R {state label args} { list $state [V $label {*}$args] }
 
-proc P {label} { return [td]/results/${label} } 
+proc P {label} { return [td]/results/${label} }
 
 proc V {label args} {
     set path [P $label]

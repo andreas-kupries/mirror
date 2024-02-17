@@ -55,7 +55,7 @@ proc ::m::vcs::hg::name-from-url {url} {
     debug.m/vcs/hg {}
     return
 }
-    
+
 proc ::m::vcs::hg::detect {url} {
     debug.m/vcs/hg {}
     if {

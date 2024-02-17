@@ -240,7 +240,7 @@ proc ::m::vcs::github::update {path urls first} {
 	debug.m/vcs/github {Remove  $label}
 	m::vcs::git::Git remote remove $label
     }
-        
+
     foreach fork $new {
 	lassign [split $fork /] org repo
 	set label m-vcs-github-fork-$org
@@ -321,7 +321,7 @@ proc ::m::vcs::github::ForksRemote {path {skip 0} {verified 1}} {
     }
 
     if {!$verified} { return $possibleforks }
-    
+
     set forks {}
     foreach fork $possibleforks {
 	debug.m/vcs/github {Verify $fork}
@@ -360,7 +360,7 @@ proc ::m::vcs::github::ForksLocal {path} {
 	lassign $fork label url _
 	if {![string match m-vcs-github-fork-* $label]} continue
 	set fk [join [lrange [split $url /] end-1 end] /]
-	
+
 	debug.m/vcs/github {$label = $url => $fk}
 	lappend r $fk
     }

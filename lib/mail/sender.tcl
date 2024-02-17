@@ -8,8 +8,8 @@
 # Meta description ?
 # Meta location    http:/core.tcl.tk/akupries/mirror
 # Meta platform    tcl
-# Meta require     
-# Meta subject     
+# Meta require
+# Meta subject
 # Meta summary     ?
 # @@ Meta End
 
@@ -62,7 +62,7 @@ proc ::m::mailer::to {receiver corpus} {
 	}
     } finally {
     }
-    
+
     mime::finalize $token
     m msg [color good OK]
     return

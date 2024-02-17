@@ -55,7 +55,7 @@ proc ::m::vcs::svn::name-from-url {url} {
     debug.m/vcs/svn {}
     return
 }
-    
+
 proc ::m::vcs::svn::detect {url} {
     debug.m/vcs/svn {}
     if {

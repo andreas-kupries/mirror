@@ -168,7 +168,7 @@ proc db::setup::<= {table select} {
 
     # constraint: do no lose rows. count, then count again.
     set old [lindex [R "SELECT count (*) FROM $table"] 0]
-    
+
     lappend map @@ $table
     set select [string map $map $select]
     lappend sql "INSERT INTO new_${table} $select"

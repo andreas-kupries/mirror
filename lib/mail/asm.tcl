@@ -8,8 +8,8 @@
 # Meta description ?
 # Meta location    http:/core.tcl.tk/akupries/mirror
 # Meta platform    tcl
-# Meta require     
-# Meta subject     
+# Meta require
+# Meta subject
 # Meta summary     ?
 # @@ Meta End
 
@@ -46,7 +46,7 @@ proc ::m::mail::asm::begin {thesender subject} {
     upvar 1 __lines __lines __sender sender
     set lines  {}
     set sender $thesender
-    
+
     set date [clock format [clock seconds] -format {%d %b %Y %H:%M:%S %z}]
     + "Subject: $subject"
     + "Date:    $date"

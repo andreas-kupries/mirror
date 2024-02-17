@@ -61,7 +61,7 @@ proc ::m::url::ok {url rv {follow yes}} {
 	    set resolved $url
 	    return 1
 	}
-	
+
 	debug.m/url {EM $e}
 	debug.m/url {EO $o}
 	#puts stderr "___ $e [list $o]"
@@ -95,7 +95,7 @@ proc ::m::url::ok {url rv {follow yes}} {
 	# urls yet git itself works fine (seems to ignore this).
 	set ncode 200
     }
-    
+
     if {$ncode != 200} {
 	set resolved {}
 	debug.m/url {--> FAIL}

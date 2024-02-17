@@ -3,7 +3,7 @@
 ## Version Control Systems - Core
 
 # @@ Meta Begin
-# Package m::vcs 0 
+# Package m::vcs 0
 # Meta author   {Andreas Kupries}
 # Meta location https://core.tcl.tk/akupries/????
 # Meta platform tcl
@@ -132,7 +132,7 @@ proc ::m::vcs::setup {store vcs name url} {
 
 	# Rethrow as something more distinguished for trapping
 	return -code error -errorcode {M VCS CHILD} $e
-	
+
     } on error {e o} {
 	puts [color bad ////////////////////////////////////////]
 	puts [color bad $e]
@@ -202,23 +202,23 @@ proc ::m::vcs::cleanup {store vcs} {
     set vcode [code $vcs]
 
     # TODO MAYBE: check vcode against contents of $path/%vcs.
-    
+
     # Release vcs-specific special resources, if any
     $vcode cleanup $path
 
     # ... and the store directory
     file delete -force -- $path
-    return 
+    return
 }
 
 proc ::m::vcs::move {newpath} {
     debug.m/vcs {}
 
     set oldpath [m state store]
-    
+
     m state store $newpath
     file mkdir $newpath
-    
+
     foreach store [glob -directory $oldpath -nocomplain *] {
 	set newstore [file join $newpath [file tail $store]]
 	m msg "Moving [color note $store]"
@@ -271,14 +271,14 @@ proc ::m::vcs::cleave {vcs origin dst dstname} {
     set pdst    [Path $dst]
     set porigin [Path $origin]
     set vcode   [code $vcs]
-    
+
     # Ensure clean copy
     file delete -force -- $pdst
     file copy   -force -- $porigin $pdst
 
     # Inlined rename of origin's new copy
     m futil write $pdst/%name $dstname
-    
+
     # Split/create vcs specific special resources, if any ...
     $vcode cleave $porigin $pdst
     return
@@ -355,7 +355,7 @@ proc ::m::vcs::url-norm {vcode url} {
 	regsub -- {/timeline$} $url {} url
 	regsub -- {/login$}    $url {} url
     }
-    
+
     return [string map $map $url]
 }
 

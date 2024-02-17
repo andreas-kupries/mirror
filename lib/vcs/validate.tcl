@@ -3,7 +3,7 @@
 ## Version Control Systems - Validation
 
 # @@ Meta Begin
-# Package m::validate::vcs 0 
+# Package m::validate::vcs 0
 # Meta author   {Andreas Kupries}
 # Meta location https://core.tcl.tk/akupries/????
 # Meta platform tcl
