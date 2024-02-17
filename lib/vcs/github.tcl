@@ -105,7 +105,7 @@ proc ::m::vcs::github::name-from-url {url} {
 	set name [string trim $name "{}"]
 	append n " - $name - $owner"
     } else {
-	append n "@gh - $owner"
+	append n " - $owner"
     }
 
     return $n
