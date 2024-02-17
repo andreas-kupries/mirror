@@ -114,6 +114,8 @@ proc F {n} {
 # Main page. Search form, and list of results.
 # All unknown urls point to the same.
 proc wapp-default {} {
+    set submissions {}
+    set rejections  {}
     EV
     GetFields
     try {
