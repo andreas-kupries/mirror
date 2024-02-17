@@ -666,7 +666,7 @@ proc ::m::glue::cmd_details {config} {
     set w [$config @tw] ;#linenoise columns
     # table/d -> 2 columns, 7 overhead, 1st col 14 wide =>
     set w [expr {$w - 21}] ;# max width for col 2.
-    
+
     m db transaction {
 	set full [$config @full]
 	set repo [$config @repository]
@@ -682,7 +682,7 @@ proc ::m::glue::cmd_details {config} {
 	# *  store      : store id, of backing store for the repo
 
 	# Get pieces ...
-	
+
 	lassign [m store remotes $store] remotes plugin
 	lappend r Remotes $remotes
 	if {[llength $plugin]} {
@@ -702,7 +702,7 @@ proc ::m::glue::cmd_details {config} {
 	#    min_sec, max_sec, win_sec
 
 	set spent [StatsTime $min_sec $max_sec $win_sec]
-	
+
 	lassign [m vcs caps $store] stdout stderr
 	set stdout [string trim $stdout]
 	set stderr [string trim $stderr]
@@ -714,7 +714,7 @@ proc ::m::glue::cmd_details {config} {
 	set changed [color note [m format epoch $changed]]
 	set updated [m format epoch $updated]
 	set created [m format epoch $created]
-	
+
 	[table/d t {
 	    $t add Status        $status
 	    $t add {Mirror Set}  $name
@@ -801,7 +801,7 @@ proc ::m::glue::cmd_enable {flag config} {
 	    #    mset	: mirror set id
 	    #    name	: mirror set name
 	    #    store  : store id, of backing store for the repo
-	    
+
 	    m repo enable $repo $flag
 
 	    # Note: We do not manipulate `mset_pending`. An existing
@@ -988,7 +988,7 @@ proc ::m::glue::cmd_update {config} {
 
     set startcycle [m state start-of-current-cycle]
     set nowcycle   [clock seconds]
-    
+
     m db transaction {
 	set verbose  [$config @verbose]
 	set msets    [UpdateSets $startcycle $nowcycle [$config @mirror-sets]]
@@ -1014,7 +1014,7 @@ proc ::m::glue::cmd_update {config} {
 		set counts [m store update $store $nowcycle [clock seconds]]
 		lassign $counts before after forks remotes spent
 		debug.m/glue {update = ($counts)}
-		
+
 		set    suffix ""
 		append suffix ", in " [color note [m format interval $spent]]
 		append suffix " ("    [color note [lindex $remotes 0]] ")"
@@ -1070,7 +1070,7 @@ proc ::m::glue::cmd_updates {config} {
 		lappend series [list - - - - - - -]
 		continue
 	    }
-	    
+
 	    set changed [m format epoch $changed]
 	    set updated [m format epoch $updated]
 	    set created [m format epoch $created]
@@ -1105,7 +1105,7 @@ proc ::m::glue::cmd_pending {config} {
 
     set nmset    [m mset count]
     set npending [m mset count-pending]
-    
+
     m db transaction {
 	set series {}
 	set take   [m state take]
@@ -1150,7 +1150,7 @@ proc ::m::glue::cmd_issues {config} {
 
 	    # urls of repos associated with the store
 	    set urls [lindex [m store remotes $store] 0]
-		
+
 	    foreach url $urls {
 		set rid [m repo id $url]
 		lappend series [list $rid $url $mname $vcode $size]
@@ -1271,7 +1271,7 @@ proc ::m::glue::cmd_list {config} {
 	    m rolodex push [dict get $row id]
 	    incr n
 	}
-	
+
 	set idx -1
 	set table {}
 	foreach row $series {
@@ -1289,7 +1289,7 @@ proc ::m::glue::cmd_list {config} {
 	    set dsize   [DeltaSize $sizekb $sizep]
 	    set dcommit [DeltaCommit $commits $commitp]
 	    set lastn   [LastTime $lastn]
-	    
+
 	    lappend table [list $tag $a $url $name $vcode $dsize $dcommit $lastn]
 	    # ................. 0    1   2    3    4      5      6        7
 	}
@@ -1408,7 +1408,7 @@ proc ::m::glue::cmd_submit {config} {
 
     # session id for cli, daily rollover, keyed to host and user
     set sid "cli.[expr {[clock second] % 86400}]/[info hostname]/$::tcl_platform(user)"
-    
+
     m db transaction {
 	set url       [Url $config]
 	set email     [$config @email]
@@ -1605,7 +1605,7 @@ proc ::m::glue::cmd_test_cycle_mail {config} {
 	}
 	m msg $message
     }
-    OK    
+    OK
 }
 
 proc ::m::glue::cmd_test_mail_config {config} {
@@ -1614,7 +1614,7 @@ proc ::m::glue::cmd_test_mail_config {config} {
     package require m::mail::generator
 
     m mailer to [$config @destination] [m mail generator test]
-    OK    
+    OK
 }
 
 proc ::m::glue::cmd_test_vt_repository {config} {
@@ -2107,7 +2107,7 @@ proc ::m::glue::Add {config} {
 
     m msg "  Setting up the $vcode store ..."
     lassign [m store add $vcs $mset $name $url] _ spent forks
-    
+
     m rolodex commit
     m msg "  [color note Done] in [color note [m format interval $spent]]"
     if {$forks ne {}} {
@@ -2160,7 +2160,7 @@ proc ::m::glue::ShowCurrent {config} {
 		#    mset	: mirror set id
 		#    name	: mirror set name
 		#    store  : store id, of backing store for the repo
-		
+
 		lappend tag @$id
 		if {$id == ($n-2)} { lappend tag @p }
 		if {$id == ($n-1)} { lappend tag @c }
@@ -2209,7 +2209,7 @@ proc ::m::glue::ComeAroundMail {width current newcycle} {
 
     # Get updates and convert into a series for the table. A series we
     # can compress width-wise before formatting.
-    set series {}    
+    set series {}
     foreach row [m store updates] {
 	dict with row {}
 	# store mname vcode changed updated created size active remote
@@ -2224,7 +2224,7 @@ proc ::m::glue::ComeAroundMail {width current newcycle} {
 
 	lappend series [list $changed $vcode $mname $spent $dsize $dcommit]
     }
-    
+
     lappend mail "\[[info hostname]\] Cycle Report."
     lappend mail "Cycle\nFrom [clock format $current]\nTo   [clock format $newcycle]"
     set n [llength $series]
@@ -2239,7 +2239,7 @@ proc ::m::glue::ComeAroundMail {width current newcycle} {
 		     $series \
 		     $width] \
 	    titles series
-	
+
 	table t $titles {
 	    foreach row $series {
 		$t add {*}$row
@@ -2248,7 +2248,7 @@ proc ::m::glue::ComeAroundMail {width current newcycle} {
 	lappend mail [$t show return]
 	$t destroy
     }
-    
+
     MailFooter mail
     return [string map [list @/n/@ $n] [join $mail \n]]
 }
@@ -2264,7 +2264,7 @@ proc ::m::glue::ComeAround {newcycle} {
     m state start-of-current-cycle  $newcycle
 
     m msg "Cycle complete, coming around and starting new ..."
-    
+
     set email [m state report-mail-destination]
 
     if {$email eq {}} {
@@ -2277,7 +2277,7 @@ proc ::m::glue::ComeAround {newcycle} {
     package require m::mail::generator
     package require m::mailer
     m msg "- [color good "Mailing report to"] [color note $email]"
-    
+
     set comearound [ComeAroundMail [m state mail-width] $current $newcycle]
     m mailer to $email [m mail generator reply $comearound {}]
 
@@ -2553,8 +2553,8 @@ proc ::m::glue::TruncH {series height} {
 ## TODO column specific minimum widths
 ## TODO column specific shaving (currently all on the right, urls: left better, or middle)
 ## TODO column specific shave commands (ex: size rounding)
-## TODO 
-## TODO 
+## TODO
+## TODO
 ##
 
 proc ::m::glue::TruncW {titles weights series width} {
@@ -2576,7 +2576,7 @@ proc ::m::glue::TruncW {titles weights series width} {
     debug.m/glue { len(series)  : [llength $series] }
     debug.m/glue { len(row)     : $n }
     debug.m/glue { len(weights) : $k ($weights)}
-    
+
     if {$n < $k} {
 	set d [expr {$k - $n}]
 	set weights [lreplace $weights end-$d end]
@@ -2592,9 +2592,10 @@ proc ::m::glue::TruncW {titles weights series width} {
 
     debug.m/glue { terminal'    : $width (-[expr {3*$n+1}]) }
     debug.m/glue { weights'     : ($weights)}
-    
+
     # Compute series column widths (max len) for all columns.  If the
     # total width is larger than width we have to shrink by weight.
+    #
     # Note: Min column width after shrinking is 6 (because we want to
     # show something for each column).  If shrink by weight goes below
     # this min width bump up to it and remove the needed characters
@@ -2602,7 +2603,7 @@ proc ::m::glue::TruncW {titles weights series width} {
     set min 6
 
     while {$k} { incr k -1 ; set wc($k) 0 }
-    
+
     foreach row [linsert $series 0 $titles] {
 	set col 0
 	foreach el $row {
@@ -2613,19 +2614,19 @@ proc ::m::glue::TruncW {titles weights series width} {
     }
 
     debug.m/glue { col.widths  = [W wc] }
-    
+
     # max width over all rows.
 
     set fw 0
     foreach {_ v} [array get wc] { incr fw $v }
 
     debug.m/glue { full        = $fw vs terminal $width }
-	
+
     # Nothing to do if the table fits already
     if {$fw <= $width} { return [list $titles $series] }
 
     # No fit, start shrinking.
-    
+
     # Sum of weights to apportion
     set tw 0
     foreach w $weights { if {$w <= 0} continue ; incr tw $w }
@@ -2633,7 +2634,7 @@ proc ::m::glue::TruncW {titles weights series width} {
     # Number of characters over the allowed width.
     set over [expr {$fw - $width}]
     debug.m/glue { over         : $over }
-    
+
     # Shrink columns per weight
     set col 0 ; set removed 0
     foreach w $weights {
@@ -2649,7 +2650,7 @@ proc ::m::glue::TruncW {titles weights series width} {
     # Run a constant shaver, on the weighted cols
     set over [expr {$over - $removed}]
     if {$over} { ShaveWeighted wc $weights $over }
-    
+
     debug.m/glue { col.widths  = [W wc] }
 
     # If a weighted column has become to small, i.e. less than the
@@ -2666,15 +2667,15 @@ proc ::m::glue::TruncW {titles weights series width} {
 
     debug.m/glue { under        : $under }
     debug.m/glue { col.widths  = [W wc] }
-    
+
     # Claw back the added characters from other columns now, as much
     # as we can.  We try to shrink other weighted columns first before
-    # goign for the unweighted, i.e. strongly fixed ones.
+    # going for the unweighted, i.e. strongly fixed ones.
     if {$under} { set under [ShaveWeighted   wc $weights $under] }
     if {$under} { set under [ShaveUnweighted wc $weights $under] }
 
     debug.m/glue { col.widths  = [W wc] }
-    
+
     # At last, truncate the series elements to the chosen column
     # widths. Same for the titles.
     set new {}
@@ -2700,7 +2701,7 @@ proc ::m::glue::TruncW {titles weights series width} {
 	lappend newtitles $el
 	incr col
     }
-    
+
     return [list $newtitles $new]
 }
 
@@ -2762,7 +2763,7 @@ proc ::m::glue::StatsTime {mins maxs lastn} {
     set n     [llength $lastn]
 
     if {!$n} { return $text }
-    
+
     set maxn [m state store-window-size]
     if {$n > $maxn} {
 	set over    [expr {$n - $maxn}]
@@ -2771,7 +2772,7 @@ proc ::m::glue::StatsTime {mins maxs lastn} {
     set n       [llength $lastn]
     set total   [expr [join $lastn +]]
     set avg     [m format interval [format %.0f [expr {double($total)/$n}]]]
-    
+
     append text " ($avg * $n)"
     return $text
 }
@@ -2824,7 +2825,7 @@ proc ::m::glue::DeltaCommitFull {current previous} {
 	set color note
 	set delta +$delta
     }
-    
+
     append text $current " (" [color $color "$previous ($delta)"] ")"
     return $text
 }
@@ -2840,7 +2841,7 @@ proc ::m::glue::DeltaCommit {current previous} {
 	set color note
 	set delta +$delta
     }
-    
+
     append text $current " (" [color $color "$delta"] ")"
     return $text
 }
